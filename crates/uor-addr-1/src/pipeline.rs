@@ -4,7 +4,8 @@
 //! 1. The host runs the boundary [`crate::ops::canonicalize::jcs_nfc`]
 //!    transform on a raw JSON byte sequence to produce canonical-form
 //!    bytes.
-//! 2. [`AddressModel::forward`] invokes the ψ-chain verb
+//! 2. [`AddressModel`]'s `forward()` (from the foundation `PrismModel`
+//!    trait) invokes the ψ-chain verb
 //!    ([`crate::verbs::address_inference`]) end-to-end via foundation's
 //!    catamorphism. The catamorphism dispatches each resolver-bound
 //!    ψ-Term through [`crate::resolvers::AddressResolverTuple`].
@@ -96,8 +97,9 @@ pub enum AddressFailure {
 ///
 /// 1. JCS+NFC canonicalises `input_bytes` at the host boundary.
 /// 2. Constructs a typed [`JsonInput`].
-/// 3. Invokes [`AddressModel::forward`] which always produces a
-///    κ-label for well-formed inputs.
+/// 3. Invokes [`AddressModel`]'s `forward()` (from the foundation
+///    `PrismModel` trait) which always produces a κ-label for
+///    well-formed inputs.
 /// 4. Returns the [`AddressOutcome`] carrying the κ-label.
 ///
 /// # Errors

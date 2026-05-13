@@ -202,7 +202,8 @@ const UPSTREAM_TAG_VIOLATION: ShapeViolation = ShapeViolation {
 
 const GEOMETRY_VIOLATION: ShapeViolation = ShapeViolation {
     shape_iri: "https://uor.foundation/addr/resolver/CarrierGeometry",
-    constraint_iri: "https://uor.foundation/addr/resolver/CarrierGeometry/seventyOneVerticesDiscrete",
+    constraint_iri:
+        "https://uor.foundation/addr/resolver/CarrierGeometry/seventyOneVerticesDiscrete",
     property_iri: "https://uor.foundation/addr/resolver/CarrierGeometry/vertexCount",
     expected_range: "http://www.w3.org/2001/XMLSchema#unsignedInt",
     min_count: NERVE_VERTEX_COUNT,
@@ -230,9 +231,7 @@ const _: () = {
                     "AddressLabel::CONSTRAINTS: Site_i must pin position i for i ∈ [0, 71)"
                 );
             }
-            _ => panic!(
-                "AddressLabel::CONSTRAINTS may only contain ConstraintRef::Site instances"
-            ),
+            _ => panic!("AddressLabel::CONSTRAINTS may only contain ConstraintRef::Site instances"),
         }
         i += 1;
     }
@@ -281,8 +280,8 @@ fn decode_carrier(bytes: &[u8]) -> Result<DecodedCarrier<'_>, ShapeViolation> {
     if bytes.len() != CARRIER_BYTES {
         return Err(CARRIER_INPUT_VIOLATION);
     }
-    let canonical_len = u32::from_be_bytes(bytes[..LENGTH_PREFIX_BYTES].try_into().unwrap_or([0; 4]))
-        as usize;
+    let canonical_len =
+        u32::from_be_bytes(bytes[..LENGTH_PREFIX_BYTES].try_into().unwrap_or([0; 4])) as usize;
     if canonical_len > JSON_INPUT_MAX_BYTES {
         return Err(INPUT_LEN_VIOLATION);
     }
@@ -337,11 +336,7 @@ fn validate_upstream(
 /// lives in [`GEOMETRY_TAIL_AFTER_STAGE_TAG`] as a compile-time
 /// constant and is bit-copied into the carrier as-is.
 #[inline]
-fn emit_carrier(
-    canonical: &[u8],
-    stage_tag: u64,
-    out: &mut [u8],
-) -> Result<usize, ShapeViolation> {
+fn emit_carrier(canonical: &[u8], stage_tag: u64, out: &mut [u8]) -> Result<usize, ShapeViolation> {
     if out.len() < CARRIER_BYTES {
         return Err(CARRIER_BUFFER_VIOLATION);
     }

@@ -77,12 +77,30 @@ mod tests {
     fn psi_stage_output_ceilings_uniform() {
         let v = <AddrBounds as HostBounds>::TERM_VALUE_MAX_BYTES;
         assert_eq!(<AddrBounds as HostBounds>::NERVE_OUTPUT_BYTES_MAX, v);
-        assert_eq!(<AddrBounds as HostBounds>::CHAIN_COMPLEX_OUTPUT_BYTES_MAX, v);
-        assert_eq!(<AddrBounds as HostBounds>::HOMOLOGY_GROUPS_OUTPUT_BYTES_MAX, v);
-        assert_eq!(<AddrBounds as HostBounds>::COCHAIN_COMPLEX_OUTPUT_BYTES_MAX, v);
-        assert_eq!(<AddrBounds as HostBounds>::COHOMOLOGY_GROUPS_OUTPUT_BYTES_MAX, v);
-        assert_eq!(<AddrBounds as HostBounds>::POSTNIKOV_TOWER_OUTPUT_BYTES_MAX, v);
-        assert_eq!(<AddrBounds as HostBounds>::HOMOTOPY_GROUPS_OUTPUT_BYTES_MAX, v);
+        assert_eq!(
+            <AddrBounds as HostBounds>::CHAIN_COMPLEX_OUTPUT_BYTES_MAX,
+            v
+        );
+        assert_eq!(
+            <AddrBounds as HostBounds>::HOMOLOGY_GROUPS_OUTPUT_BYTES_MAX,
+            v
+        );
+        assert_eq!(
+            <AddrBounds as HostBounds>::COCHAIN_COMPLEX_OUTPUT_BYTES_MAX,
+            v
+        );
+        assert_eq!(
+            <AddrBounds as HostBounds>::COHOMOLOGY_GROUPS_OUTPUT_BYTES_MAX,
+            v
+        );
+        assert_eq!(
+            <AddrBounds as HostBounds>::POSTNIKOV_TOWER_OUTPUT_BYTES_MAX,
+            v
+        );
+        assert_eq!(
+            <AddrBounds as HostBounds>::HOMOTOPY_GROUPS_OUTPUT_BYTES_MAX,
+            v
+        );
         assert_eq!(<AddrBounds as HostBounds>::K_INVARIANTS_OUTPUT_BYTES_MAX, v);
     }
 }

@@ -33,44 +33,51 @@ fn fixtures() -> Vec<Fixture> {
         Fixture {
             name: "simple_object",
             raw_json: br#"{"foo": "bar"}"#,
-            expected_address: "sha256:7a38bf81f383f69433ad6e900d35b3e2385593f76a7b7ab5d4355b8ba41ee24b",
+            expected_address:
+                "sha256:7a38bf81f383f69433ad6e900d35b3e2385593f76a7b7ab5d4355b8ba41ee24b",
             expected_canonical_form: br#"{"foo":"bar"}"#,
         },
         Fixture {
             name: "empty_object",
             raw_json: b"{}",
-            expected_address: "sha256:44136fa355b3678a1146ad16f7e8649e94fb4fc21fe77e8310c060f61caaff8a",
+            expected_address:
+                "sha256:44136fa355b3678a1146ad16f7e8649e94fb4fc21fe77e8310c060f61caaff8a",
             expected_canonical_form: b"{}",
         },
         Fixture {
             name: "empty_array",
             raw_json: b"[]",
-            expected_address: "sha256:4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
+            expected_address:
+                "sha256:4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
             expected_canonical_form: b"[]",
         },
         Fixture {
             name: "key_sort_test",
             raw_json: br#"{"b": 1, "a": 2}"#,
-            expected_address: "sha256:d3626ac30a87e6f7a6428233b3c68299976865fa5508e4267c5415c76af7a772",
+            expected_address:
+                "sha256:d3626ac30a87e6f7a6428233b3c68299976865fa5508e4267c5415c76af7a772",
             expected_canonical_form: br#"{"a":2,"b":1}"#,
         },
         Fixture {
             name: "unicode_muller",
             raw_json: "{\"name\": \"Müller\"}".as_bytes(),
-            expected_address: "sha256:5e92260d138e28f7118a40c3c44be922d4569a39f9f1de676ca334cf19c3a37c",
+            expected_address:
+                "sha256:5e92260d138e28f7118a40c3c44be922d4569a39f9f1de676ca334cf19c3a37c",
             expected_canonical_form: "{\"name\":\"Müller\"}".as_bytes(),
         },
         Fixture {
             name: "unicode_sao_paulo",
             raw_json: "{\"city\": \"São Paulo\"}".as_bytes(),
-            expected_address: "sha256:0906524dcbec3bdb6aa4d7c22ed65d671ba32177b10823b6f256546280aa526b",
+            expected_address:
+                "sha256:0906524dcbec3bdb6aa4d7c22ed65d671ba32177b10823b6f256546280aa526b",
             expected_canonical_form: "{\"city\":\"São Paulo\"}".as_bytes(),
         },
         Fixture {
             name: "unicode_cafe_composed",
             // U+00E9 — single composed code point for é.
             raw_json: "{\"name\": \"caf\u{00E9}\"}".as_bytes(),
-            expected_address: "sha256:645fa443126a8954fc6d871912b8fc67bc2ee8feae417efe55546251962ca74d",
+            expected_address:
+                "sha256:645fa443126a8954fc6d871912b8fc67bc2ee8feae417efe55546251962ca74d",
             expected_canonical_form: "{\"name\":\"café\"}".as_bytes(),
         },
         Fixture {
@@ -78,31 +85,36 @@ fn fixtures() -> Vec<Fixture> {
             // U+0065 U+0301 — 'e' + combining acute. Must produce the SAME
             // address as the composed form after NFC normalisation.
             raw_json: "{\"name\": \"cafe\u{0301}\"}".as_bytes(),
-            expected_address: "sha256:645fa443126a8954fc6d871912b8fc67bc2ee8feae417efe55546251962ca74d",
+            expected_address:
+                "sha256:645fa443126a8954fc6d871912b8fc67bc2ee8feae417efe55546251962ca74d",
             expected_canonical_form: "{\"name\":\"café\"}".as_bytes(),
         },
         Fixture {
             name: "mixed_types",
             raw_json: br#"{"int": 42, "bool": true, "null_val": null}"#,
-            expected_address: "sha256:0966918f3851b97071b0e04d2576a2a86a197e71072b07061c8bfdaa6b6a5d2c",
+            expected_address:
+                "sha256:0966918f3851b97071b0e04d2576a2a86a197e71072b07061c8bfdaa6b6a5d2c",
             expected_canonical_form: br#"{"bool":true,"int":42,"null_val":null}"#,
         },
         Fixture {
             name: "nested",
             raw_json: br#"{"nested": {"deep": {"value": "found"}}}"#,
-            expected_address: "sha256:b18dce7d3cbf2ac3b908ad75c8420c4a42077192df69dffdbf786755724eff1d",
+            expected_address:
+                "sha256:b18dce7d3cbf2ac3b908ad75c8420c4a42077192df69dffdbf786755724eff1d",
             expected_canonical_form: br#"{"nested":{"deep":{"value":"found"}}}"#,
         },
         Fixture {
             name: "string_array",
             raw_json: br#"["a", "b", "c"]"#,
-            expected_address: "sha256:fa1844c2988ad15ab7b49e0ece09684500fad94df916859fb9a43ff85f5bb477",
+            expected_address:
+                "sha256:fa1844c2988ad15ab7b49e0ece09684500fad94df916859fb9a43ff85f5bb477",
             expected_canonical_form: br#"["a","b","c"]"#,
         },
         Fixture {
             name: "number_array",
             raw_json: br#"[1, 2, 3]"#,
-            expected_address: "sha256:a615eeaee21de5179de080de8c3052c8da901138406ba71c38c032845f7d54f4",
+            expected_address:
+                "sha256:a615eeaee21de5179de080de8c3052c8da901138406ba71c38c032845f7d54f4",
             expected_canonical_form: b"[1,2,3]",
         },
     ]

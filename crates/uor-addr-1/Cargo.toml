@@ -23,3 +23,9 @@ serde_json            = { version = "1",   default-features = false, features = 
 [features]
 default = ["std"]
 std     = []
+
+[dev-dependencies]
+# Live HTTP cross-validation against `mcp.uor.foundation/tools/encode_address`
+# (CN class — see CONFORMANCE.md). Gated behind `#[ignore]`; runs only under
+# `just cn` with UOR_ADDR_LIVE=1.
+ureq = { version = "2", features = ["json"] }

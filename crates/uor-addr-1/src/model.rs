@@ -15,7 +15,8 @@
 //!
 //! - [`JsonInput`] — the canonical-form JCS+NFC JSON byte sequence
 //!   (variable length, capped at 4096 bytes per
-//!   [`crate::shapes::AddrBounds::TERM_VALUE_MAX_BYTES`]). The
+//!   [`crate::shapes::AddrBounds`]'s `TERM_VALUE_MAX_BYTES`
+//!   constant — see the `HostBounds` trait impl). The
 //!   PrismModel's `Input` type.
 //! - [`AddressLabel`] — the ψ-pipeline label (71 W8 sites — the
 //!   wire-format `sha256:<64hex>` width). The PrismModel's `Output`
@@ -61,7 +62,7 @@ use crate::verbs::{address_inference, VERB_TERMS_ADDRESS_INFERENCE};
 pub const ADDRESS_LABEL_BYTES: usize = 71;
 
 /// The maximum byte width of a canonical-form JCS+NFC JSON payload.
-/// Sized to fit within [`crate::shapes::AddrBounds::TERM_VALUE_MAX_BYTES`]
+/// Sized to fit within `AddrBounds`'s `TERM_VALUE_MAX_BYTES` (4096)
 /// after the ψ-stage carrier's 4-byte length prefix and 91-byte
 /// geometry-tail header are accounted for. 3968 bytes = 4 KiB - 128
 /// (4 prefix + 91 tail + 33 headroom).
@@ -249,7 +250,10 @@ mod tests {
 
     #[test]
     fn address_label_site_count_matches_wire_format_width() {
-        assert_eq!(<AddressLabel as ConstrainedTypeShape>::SITE_COUNT, ADDRESS_LABEL_BYTES);
+        assert_eq!(
+            <AddressLabel as ConstrainedTypeShape>::SITE_COUNT,
+            ADDRESS_LABEL_BYTES
+        );
     }
 
     #[test]

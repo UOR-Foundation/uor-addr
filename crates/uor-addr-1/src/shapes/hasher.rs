@@ -10,9 +10,10 @@
 //! Used by foundation's pipeline at certificate-emission time to
 //! compute the `ContentFingerprint` over the canonical CompileUnit
 //! byte layout, and consumed inside
-//! [`crate::resolvers::AddressKInvariantResolver::resolve`] at the
-//! terminal ψ_9 stage to derive the 32-byte content-address from the
-//! canonicalised JSON bytes.
+//! [`crate::resolvers::AddressKInvariantResolver`]'s `resolve` (from
+//! the foundation `KInvariantResolver` trait) at the terminal ψ_9
+//! stage to derive the 32-byte content-address from the canonicalised
+//! JSON bytes.
 //!
 //! Output width: 32 bytes — matches the foundation-recommended
 //! secondary algorithm per `Element::digest_algorithm` (BLAKE3 primary,

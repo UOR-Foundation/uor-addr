@@ -34,8 +34,8 @@
 //! ## Quick reference
 //!
 //! - [`address`] — the public entry point: canonicalises raw JSON
-//!   bytes, builds a [`JsonInput`], and invokes
-//!   [`AddressModel::forward`].
+//!   bytes, builds a [`JsonInput`], and invokes the model's
+//!   `forward()` method (from the foundation `PrismModel` trait).
 //! - [`AddressModel`] — `PrismModel<HostTypes, HostBounds, Hasher,
 //!   ResolverTuple>` whose route is `address_inference(input)`.
 //! - [`JsonInput`] — the canonical-form JCS+NFC JSON byte sequence.

@@ -219,6 +219,37 @@ cargo clippy --all-targets -- -D warnings
 feature flag; only `alloc` is required.
 `#![forbid(unsafe_code)]` — zero unsafe blocks.
 
+## Verification & Validation
+
+This crate ships a multi-axis V&V framework. The single normative
+acceptance gate is:
+
+```bash
+just vv          # full V&V: fmt, lint, tests, conformance, analysis, doc-check, Lean
+```
+
+The framework establishes correctness for **arbitrary use cases to
+arbitrary precision** across three convergent surfaces — universal
+quantification (Lean), cryptographic precision (SHA-256 sensitivity),
+and statistical precision (calibrated χ² at α = 0.001):
+
+| Doc                                     | Role                                                                                          |
+|-----------------------------------------|-----------------------------------------------------------------------------------------------|
+| [ARCHITECTURE.md](ARCHITECTURE.md)     | Normative pure-prism architectural specification — vocabulary used by the rest of the V&V    |
+| [CONFORMANCE.md](CONFORMANCE.md)       | Conformance contract — 30+ invariant IDs (CS / CD / CP / CN / CL) referenced by tests        |
+| [VERIFICATION.md](VERIFICATION.md)     | V&V index — maps `just vv` axes to conformance-class IDs                                      |
+| [ANALYSIS.md](ANALYSIS.md)             | Derivation of CP sample sizes, χ² thresholds, and the "arbitrary precision" framing          |
+| [uor-addr-1-lean/](uor-addr-1-lean/)   | Lean 4 library — 11 mechanised theorems against UOR-Framework's `UOR.Enforcement` shapes      |
+
+Lean proofs pin the universally-quantified claims: the κ-derivation is
+a function of the digest (`CL-K01`), distinct digests yield distinct
+κ-labels (`CL-K02`), the algebraic-closure Euler-characteristic
+identity holds (`CL-A01`), the wire-format width is structurally 71
+bytes (`CL-W01`), and hex encoding is injective on `[0, 16)`
+(`CL-H01`). Statistical axes (CP) cover what no finite proof can — that
+the implementation's empirical distribution matches its theoretical
+behaviour at 10⁶ samples and α = 10⁻³.
+
 ## What changed from the upstream proposal
 
 The earlier `uor-addr-1` framing — `sha256:<64hex>` as a parallel

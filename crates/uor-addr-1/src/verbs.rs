@@ -76,13 +76,17 @@ mod tests {
     #[test]
     fn verb_arena_contains_psi_7_postnikov_tower() {
         let arena = address_inference_term_arena();
-        assert!(arena.iter().any(|t| matches!(t, Term::PostnikovTower { .. })));
+        assert!(arena
+            .iter()
+            .any(|t| matches!(t, Term::PostnikovTower { .. })));
     }
 
     #[test]
     fn verb_arena_contains_psi_8_homotopy_groups() {
         let arena = address_inference_term_arena();
-        assert!(arena.iter().any(|t| matches!(t, Term::HomotopyGroups { .. })));
+        assert!(arena
+            .iter()
+            .any(|t| matches!(t, Term::HomotopyGroups { .. })));
     }
 
     #[test]
