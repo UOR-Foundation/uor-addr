@@ -11,3 +11,6 @@ Thumbs.db
 *.swo
 .vscode/
 .idea/
+
+# Claude Code workspace settings
+.claude/

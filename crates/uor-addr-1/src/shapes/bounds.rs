@@ -1,0 +1,88 @@
+//! `AddrBounds` — `uor-addr-1`'s `HostBounds` selection
+//! (wiki ADR-018, ADR-037).
+//!
+//! ADR-037 makes the catamorphism's 24-constant capacity profile
+//! `HostBounds`-parametric: per-ψ-stage output ceilings, the route
+//! input/output buffer sizes, the nerve/Betti/Jacobian array caps,
+//! and the constraint-conjunction/affine-coefficient ceilings. This
+//! module declares `uor-addr-1`'s binding ceiling.
+
+use uor_foundation::HostBounds;
+
+/// `uor-addr-1`'s capacity profile.
+///
+/// - `FINGERPRINT_MIN_BYTES = 32` — matches SHA-256 output width.
+/// - `FINGERPRINT_MAX_BYTES = 32` — fixed; one `Hasher`
+///   ([`crate::shapes::hasher::Sha256Hasher`]).
+/// - `TRACE_MAX_EVENTS = 64` — one event per ψ-stage transition.
+/// - `WITT_LEVEL_MAX_BITS = 32` — the canonical content address is
+///   71 ASCII bytes; the algebra is W32-bounded.
+/// - `NERVE_SITES_MAX = 71` — the wire-format `AddressLabel` width.
+/// - `*_OUTPUT_BYTES_MAX = 4096` — uniform across all ψ-stages; the
+///   canonical-form JSON byte sequence is bounded by this.
+#[derive(Debug, Default, Clone, Copy, PartialEq, Eq, Hash)]
+pub struct AddrBounds;
+
+impl HostBounds for AddrBounds {
+    // uor-addr-1-specific:
+    const FINGERPRINT_MIN_BYTES: usize = 32;
+    const FINGERPRINT_MAX_BYTES: usize = 32;
+    const TRACE_MAX_EVENTS: usize = 64;
+    const WITT_LEVEL_MAX_BITS: u32 = 32;
+
+    // ADR-037 catamorphism ceilings — uniform 4 KiB per ψ-stage so
+    // the canonical-form JSON byte sequence (bounded by 4 KiB on the
+    // host boundary per `JsonInput::MAX_BYTES`) fits through every
+    // resolver carrier.
+    const TERM_VALUE_MAX_BYTES: usize = 4096;
+    const AXIS_OUTPUT_BYTES_MAX: usize = 4096;
+    const FOLD_UNROLL_THRESHOLD: usize = 8;
+    const BETTI_DIMENSION_MAX: usize = 71;
+    const NERVE_CONSTRAINTS_MAX: usize = 128;
+    const NERVE_SITES_MAX: usize = 71;
+    const JACOBIAN_SITES_MAX: usize = 71;
+    const RECURSION_TRACE_DEPTH_MAX: usize = 16;
+    const OP_CHAIN_DEPTH_MAX: usize = 8;
+    const AFFINE_COEFFS_MAX: usize = 80;
+    const CONJUNCTION_TERMS_MAX: usize = 128;
+    const ROUTE_INPUT_BUFFER_BYTES: usize = 4096;
+    const ROUTE_OUTPUT_BUFFER_BYTES: usize = 4096;
+    const UNFOLD_ITERATIONS_MAX: usize = 256;
+
+    // ADR-037 per-ψ-stage resolver-output ceilings — uniform 4 KiB.
+    const NERVE_OUTPUT_BYTES_MAX: usize = 4096;
+    const CHAIN_COMPLEX_OUTPUT_BYTES_MAX: usize = 4096;
+    const HOMOLOGY_GROUPS_OUTPUT_BYTES_MAX: usize = 4096;
+    const COCHAIN_COMPLEX_OUTPUT_BYTES_MAX: usize = 4096;
+    const COHOMOLOGY_GROUPS_OUTPUT_BYTES_MAX: usize = 4096;
+    const POSTNIKOV_TOWER_OUTPUT_BYTES_MAX: usize = 4096;
+    const HOMOTOPY_GROUPS_OUTPUT_BYTES_MAX: usize = 4096;
+    const K_INVARIANTS_OUTPUT_BYTES_MAX: usize = 4096;
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn bounds_constants_match_addr_label_width() {
+        assert_eq!(<AddrBounds as HostBounds>::FINGERPRINT_MIN_BYTES, 32);
+        assert_eq!(<AddrBounds as HostBounds>::FINGERPRINT_MAX_BYTES, 32);
+        assert_eq!(<AddrBounds as HostBounds>::TRACE_MAX_EVENTS, 64);
+        assert_eq!(<AddrBounds as HostBounds>::WITT_LEVEL_MAX_BITS, 32);
+        assert_eq!(<AddrBounds as HostBounds>::NERVE_SITES_MAX, 71);
+    }
+
+    #[test]
+    fn psi_stage_output_ceilings_uniform() {
+        let v = <AddrBounds as HostBounds>::TERM_VALUE_MAX_BYTES;
+        assert_eq!(<AddrBounds as HostBounds>::NERVE_OUTPUT_BYTES_MAX, v);
+        assert_eq!(<AddrBounds as HostBounds>::CHAIN_COMPLEX_OUTPUT_BYTES_MAX, v);
+        assert_eq!(<AddrBounds as HostBounds>::HOMOLOGY_GROUPS_OUTPUT_BYTES_MAX, v);
+        assert_eq!(<AddrBounds as HostBounds>::COCHAIN_COMPLEX_OUTPUT_BYTES_MAX, v);
+        assert_eq!(<AddrBounds as HostBounds>::COHOMOLOGY_GROUPS_OUTPUT_BYTES_MAX, v);
+        assert_eq!(<AddrBounds as HostBounds>::POSTNIKOV_TOWER_OUTPUT_BYTES_MAX, v);
+        assert_eq!(<AddrBounds as HostBounds>::HOMOTOPY_GROUPS_OUTPUT_BYTES_MAX, v);
+        assert_eq!(<AddrBounds as HostBounds>::K_INVARIANTS_OUTPUT_BYTES_MAX, v);
+    }
+}
