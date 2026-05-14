@@ -2,9 +2,13 @@
 name          = "uor-addr-1"
 version       = "0.1.0"
 edition       = "2021"
+authors       = ["Maura Clark <mauraclark@proton.me>", "Alex Flom"]
 description   = "Pure-UOR content addressing for JSON-serialisable payloads — the JCS-RFC8785+NFC+SHA-256 transform as a Prism application of the UOR Foundation."
 license       = "Apache-2.0"
 repository    = "https://github.com/UOR-Foundation/uor-addr-1"
+homepage      = "https://github.com/UOR-Foundation/uor-addr-1"
+documentation = "https://docs.rs/uor-addr-1"
+readme        = "README.md"
 keywords      = ["uor", "prism", "content-addressing", "verifiable", "no-std"]
 categories    = ["cryptography", "data-structures", "no-std"]
 rust-version  = "1.83"
