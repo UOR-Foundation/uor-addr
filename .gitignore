@@ -11,3 +11,9 @@ Thumbs.db
 *.swo
 .vscode/
 .idea/
+
+# Claude Code workspace settings
+.claude/
+
+# Lake (Lean 4) build artifacts
+**/.lake/

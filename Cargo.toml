@@ -1,27 +1,20 @@
-[package]
-name = "uor-addr-1"
-version = "0.1.0"
-edition = "2021"
-description = "Reference Rust implementation of UOR-ADDR-1 — chain-agnostic canonical content addressing for agent-produced content. SHA-256 over JCS-RFC8785 + Unicode NFC canonical bytes."
-license = "CC0-1.0"
-repository = "https://github.com/maurathat/uor-addr-1"
-homepage = "https://github.com/maurathat/uor-addr-1"
-documentation = "https://docs.rs/uor-addr-1"
-keywords = ["uor", "content-addressing", "agents", "verifiable", "sha256"]
-categories = ["cryptography", "data-structures"]
-readme = "README.md"
-authors = ["Maura Clark <enterpriseroofing@gmail.com>"]
-rust-version = "1.70"
+[workspace]
+resolver = "2"
+members = ["crates/uor-addr-1"]
 
-[dependencies]
-sha2 = "0.10"
-unicode-normalization = "0.1"
-serde = { version = "1", features = ["derive"] }
-serde_json = "1"
-hex = "0.4"
+[workspace.dependencies]
+uor-foundation     = { version = "0.4.5" }
+uor-foundation-sdk = { version = "0.4.5" }
 
-[dev-dependencies]
-# HTTP client for live cross-validation against mcp.uor.foundation
-# (used by tests/cross_validation.rs; not required for the default cargo test
-# run because the live tests are gated behind `#[ignore]`).
-ureq = { version = "2", features = ["json"] }
+[profile.release]
+opt-level     = 3
+lto           = true
+codegen-units = 1
+panic         = "abort"
+
+[profile.dev]
+opt-level = 0
+debug     = true
+
+[profile.test]
+opt-level = 1
