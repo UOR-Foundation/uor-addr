@@ -74,15 +74,16 @@
 
 use core::marker::PhantomData;
 
-use uor_foundation::enforcement::{Hasher, ShapeViolation};
-use uor_foundation::pipeline::{
-    ChainComplexBytes, ChainComplexResolver, CochainComplexBytes, CochainComplexResolver,
-    CohomologyGroupResolver, ConstrainedTypeShape, ConstraintRef, HomologyGroupResolver,
-    HomotopyGroupResolver, HomotopyGroupsBytes, KInvariantResolver, NerveResolver,
-    PostnikovResolver, PostnikovTowerBytes, SimplicialComplexBytes,
+use prism::pipeline::{
+    resolver, ChainComplexResolver, CochainComplexResolver, CohomologyGroupResolver,
+    ConstrainedTypeShape, ConstraintRef, HomologyGroupResolver, HomotopyGroupResolver,
+    KInvariantResolver, NerveResolver, PostnikovResolver, ShapeViolation, ViolationKind,
 };
-use uor_foundation::{HostBounds, ViolationKind};
-use uor_foundation_sdk::resolver;
+use prism::uor_foundation::pipeline::{
+    ChainComplexBytes, CochainComplexBytes, HomotopyGroupsBytes, PostnikovTowerBytes,
+    SimplicialComplexBytes,
+};
+use prism::vocabulary::{Hasher, HostBounds};
 
 use crate::model::{AddressLabel, ADDRESS_LABEL_BYTES, JSON_INPUT_MAX_BYTES};
 use crate::shapes::bounds::AddrBounds;
@@ -370,7 +371,7 @@ fn emit_carrier(canonical: &[u8], stage_tag: u64, out: &mut [u8]) -> Result<usiz
 #[derive(Debug)]
 pub struct AddressNerveResolver<H>(PhantomData<H>);
 
-impl<H: Hasher> uor_foundation::pipeline::__sdk_seal::Sealed for AddressNerveResolver<H> {}
+impl<H: Hasher> prism::uor_foundation::pipeline::__sdk_seal::Sealed for AddressNerveResolver<H> {}
 
 impl<H: Hasher> NerveResolver<H> for AddressNerveResolver<H> {
     #[inline]
@@ -389,7 +390,10 @@ impl<H: Hasher> NerveResolver<H> for AddressNerveResolver<H> {
 #[derive(Debug)]
 pub struct AddressChainComplexResolver<H>(PhantomData<H>);
 
-impl<H: Hasher> uor_foundation::pipeline::__sdk_seal::Sealed for AddressChainComplexResolver<H> {}
+impl<H: Hasher> prism::uor_foundation::pipeline::__sdk_seal::Sealed
+    for AddressChainComplexResolver<H>
+{
+}
 
 impl<H: Hasher> ChainComplexResolver<H> for AddressChainComplexResolver<H> {
     #[inline]
@@ -410,7 +414,10 @@ impl<H: Hasher> ChainComplexResolver<H> for AddressChainComplexResolver<H> {
 #[derive(Debug)]
 pub struct AddressHomologyGroupResolver<H>(PhantomData<H>);
 
-impl<H: Hasher> uor_foundation::pipeline::__sdk_seal::Sealed for AddressHomologyGroupResolver<H> {}
+impl<H: Hasher> prism::uor_foundation::pipeline::__sdk_seal::Sealed
+    for AddressHomologyGroupResolver<H>
+{
+}
 
 impl<H: Hasher> HomologyGroupResolver<H> for AddressHomologyGroupResolver<H> {
     #[inline]
@@ -431,7 +438,10 @@ impl<H: Hasher> HomologyGroupResolver<H> for AddressHomologyGroupResolver<H> {
 #[derive(Debug)]
 pub struct AddressCochainComplexResolver<H>(PhantomData<H>);
 
-impl<H: Hasher> uor_foundation::pipeline::__sdk_seal::Sealed for AddressCochainComplexResolver<H> {}
+impl<H: Hasher> prism::uor_foundation::pipeline::__sdk_seal::Sealed
+    for AddressCochainComplexResolver<H>
+{
+}
 
 impl<H: Hasher> CochainComplexResolver<H> for AddressCochainComplexResolver<H> {
     #[inline]
@@ -452,7 +462,10 @@ impl<H: Hasher> CochainComplexResolver<H> for AddressCochainComplexResolver<H> {
 #[derive(Debug)]
 pub struct AddressCohomologyGroupResolver<H>(PhantomData<H>);
 
-impl<H: Hasher> uor_foundation::pipeline::__sdk_seal::Sealed for AddressCohomologyGroupResolver<H> {}
+impl<H: Hasher> prism::uor_foundation::pipeline::__sdk_seal::Sealed
+    for AddressCohomologyGroupResolver<H>
+{
+}
 
 impl<H: Hasher> CohomologyGroupResolver<H> for AddressCohomologyGroupResolver<H> {
     #[inline]
@@ -474,7 +487,10 @@ impl<H: Hasher> CohomologyGroupResolver<H> for AddressCohomologyGroupResolver<H>
 #[derive(Debug)]
 pub struct AddressPostnikovResolver<H>(PhantomData<H>);
 
-impl<H: Hasher> uor_foundation::pipeline::__sdk_seal::Sealed for AddressPostnikovResolver<H> {}
+impl<H: Hasher> prism::uor_foundation::pipeline::__sdk_seal::Sealed
+    for AddressPostnikovResolver<H>
+{
+}
 
 impl<H: Hasher> PostnikovResolver<H> for AddressPostnikovResolver<H> {
     #[inline]
@@ -495,7 +511,10 @@ impl<H: Hasher> PostnikovResolver<H> for AddressPostnikovResolver<H> {
 #[derive(Debug)]
 pub struct AddressHomotopyGroupResolver<H>(PhantomData<H>);
 
-impl<H: Hasher> uor_foundation::pipeline::__sdk_seal::Sealed for AddressHomotopyGroupResolver<H> {}
+impl<H: Hasher> prism::uor_foundation::pipeline::__sdk_seal::Sealed
+    for AddressHomotopyGroupResolver<H>
+{
+}
 
 impl<H: Hasher> HomotopyGroupResolver<H> for AddressHomotopyGroupResolver<H> {
     #[inline]
@@ -538,7 +557,10 @@ impl<H: Hasher> HomotopyGroupResolver<H> for AddressHomotopyGroupResolver<H> {
 #[derive(Debug)]
 pub struct AddressKInvariantResolver<H>(PhantomData<H>);
 
-impl<H: Hasher> uor_foundation::pipeline::__sdk_seal::Sealed for AddressKInvariantResolver<H> {}
+impl<H: Hasher> prism::uor_foundation::pipeline::__sdk_seal::Sealed
+    for AddressKInvariantResolver<H>
+{
+}
 
 impl<H: Hasher> KInvariantResolver<H> for AddressKInvariantResolver<H> {
     #[inline]
@@ -617,7 +639,7 @@ impl_default_for_resolver!(AddressHomotopyGroupResolver);
 impl_default_for_resolver!(AddressKInvariantResolver);
 
 resolver! {
-    pub struct AddressResolverTuple<H: ::uor_foundation::enforcement::Hasher> {
+    pub struct AddressResolverTuple<H: ::prism::vocabulary::Hasher> {
         nerve: AddressNerveResolver<H>,
         chain_complex: AddressChainComplexResolver<H>,
         homology_groups: AddressHomologyGroupResolver<H>,

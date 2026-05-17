@@ -63,14 +63,14 @@ resolver output-byte ceilings. `NERVE_SITES_MAX = 71` matches the
 
 ### Hasher — ADR-007 / ADR-010 substitution axis
 
-`Sha256Hasher` is a `Hasher<32>` impl satisfying the four ADR-007
-trait laws: width-in-budget
+`Sha256Hasher` is the `prism::crypto::Sha256Hasher` re-export from the
+Prism standard-library cryptography sub-crate (wiki ADR-031). It is a
+`Hasher<32>` impl satisfying the four ADR-007 trait laws: width-in-budget
 (`32 ∈ [FINGERPRINT_MIN_BYTES, FINGERPRINT_MAX_BYTES]`), determinism,
 sensitivity, no interior mutability. The body is the
 foundation-recommended-secondary algorithm per
-`Element::digest_algorithm` (BLAKE3 primary, SHA-256 secondary).
-Implemented in pure Rust against FIPS-180-4; pinned by
-`shapes::hasher::tests::sha256_hasher_*`.
+`Element::digest_algorithm` (BLAKE3 primary, SHA-256 secondary). This
+crate carries no bespoke SHA-256 of its own.
 
 ### Verb — ADR-024 (implementation closure) + ADR-035 (canonical k-invariants branch)
 
@@ -198,20 +198,18 @@ crates/uor-addr-1/
     ├── resolvers.rs     — eight ψ-stage resolvers (resolver!)
     ├── pipeline.rs      — public entry point `address(bytes) → AddressOutcome`
     ├── shapes/
-    │   ├── mod.rs
-    │   ├── bounds.rs    — AddrBounds (HostBounds, ADR-037)
-    │   └── hasher.rs    — Sha256Hasher (Hasher, ADR-007/ADR-010)
+    │   ├── mod.rs       — re-export of prism::crypto::Sha256Hasher (ADR-031)
+    │   └── bounds.rs    — AddrBounds (HostBounds, ADR-037)
     └── ops/
         ├── mod.rs
-        ├── sha256.rs    — pure-Rust FIPS-180-4 SHA-256
         └── canonicalize.rs — JCS+NFC host-boundary transform
 ```
 
 ## Build
 
 ```bash
-cargo build           # requires rustc >= 1.83 (uor-foundation@0.4.5 MSRV)
-cargo test            # 31 tests across lib + integration
+cargo build           # requires rustc >= 1.83 (uor-foundation@0.4 MSRV)
+cargo test            # 50 tests across lib + 5 integration suites
 cargo clippy --all-targets -- -D warnings
 ```
 
@@ -277,7 +275,7 @@ The correct framing, established directly by the wiki:
 ## Outstanding reconciliation
 
 The canonical-form bytes this crate hashes (plain UTF-8 JCS-RFC8785
-JSON bytes) differ structurally from what `uor-foundation@0.4.5`'s
+JSON bytes) differ structurally from what `uor-foundation@0.4`'s
 `Element::canonical_bytes` docstring specifies — Amendment 43 §2:
 `header(k) || le_bytes(x, k+1)`, the byte layout of a ring element
 in R_n. Two parties speaking UOR-ADDR-1 (this crate) agree with each

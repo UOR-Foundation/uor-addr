@@ -7,13 +7,14 @@
 //! and the constraint-conjunction/affine-coefficient ceilings. This
 //! module declares `uor-addr-1`'s binding ceiling.
 
-use uor_foundation::HostBounds;
+use prism::vocabulary::HostBounds;
 
 /// `uor-addr-1`'s capacity profile.
 ///
 /// - `FINGERPRINT_MIN_BYTES = 32` — matches SHA-256 output width.
-/// - `FINGERPRINT_MAX_BYTES = 32` — fixed; one `Hasher`
-///   ([`crate::shapes::hasher::Sha256Hasher`]).
+/// - `FINGERPRINT_MAX_BYTES = 32` — fixed; one `Hasher` selected via
+///   [`crate::shapes::Sha256Hasher`] (re-export of
+///   `prism::crypto::Sha256Hasher`).
 /// - `TRACE_MAX_EVENTS = 64` — one event per ψ-stage transition.
 /// - `WITT_LEVEL_MAX_BITS = 32` — the canonical content address is
 ///   71 ASCII bytes; the algebra is W32-bounded.

@@ -28,8 +28,7 @@ use alloc::string::String;
 use alloc::vec::Vec;
 use unicode_normalization::UnicodeNormalization;
 
-use uor_foundation::enforcement::ShapeViolation;
-use uor_foundation::ViolationKind;
+use prism::pipeline::{ShapeViolation, ViolationKind};
 
 /// JSON-parse-failure ShapeViolation. The host-boundary canonicaliser
 /// rejects inputs that are not valid UTF-8 JSON before they enter the

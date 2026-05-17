@@ -14,6 +14,7 @@ categories    = ["cryptography", "data-structures", "no-std"]
 rust-version  = "1.83"
 
 [dependencies]
+uor-prism          = { workspace = true }
 uor-foundation     = { workspace = true }
 uor-foundation-sdk = { workspace = true }
 # Pure-Rust dependencies — required only for the host-boundary
@@ -26,9 +27,12 @@ serde_json            = { version = "1",   default-features = false, features = 
 
 [features]
 default = ["std"]
-std     = []
+std     = ["uor-prism/std"]
 
 [dev-dependencies]
+# TC-05 replay surface — exercises the `Grounded<AddressLabel>` round-trip
+# through `prism::replay::certify_from_trace` (CL-R01 — see CONFORMANCE.md).
+uor-prism-verify = { workspace = true, features = ["std"] }
 # Live HTTP cross-validation against `mcp.uor.foundation/tools/encode_address`
 # (CN class — see CONFORMANCE.md). Gated behind `#[ignore]`; runs only under
 # `just cn` with UOR_ADDR_LIVE=1.

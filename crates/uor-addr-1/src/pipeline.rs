@@ -32,14 +32,14 @@ extern crate alloc;
 
 use alloc::string::String;
 
-use uor_foundation::pipeline::PrismModel;
-use uor_foundation::DefaultHostTypes;
+use prism::pipeline::PrismModel;
+use prism::vocabulary::DefaultHostTypes;
 
 use crate::model::{AddressLabel, AddressModel, JsonInput, ADDRESS_LABEL_BYTES};
 use crate::ops::canonicalize::jcs_nfc;
 use crate::resolvers::AddressResolverTuple;
 use crate::shapes::bounds::AddrBounds;
-use crate::shapes::hasher::Sha256Hasher;
+use crate::shapes::Sha256Hasher;
 
 /// The result of a successful [`address`] invocation.
 ///
@@ -63,12 +63,12 @@ pub struct AddressOutcome {
 /// property — the κ-label is content-addressed, so reuse goes through
 /// the borrow `AddressOutcome::witness.grounded()` rather than a
 /// shallow copy.
-pub struct AddressWitness(uor_foundation::enforcement::Grounded<AddressLabel>);
+pub struct AddressWitness(prism::seal::Grounded<AddressLabel>);
 
 impl AddressWitness {
     /// Borrow the underlying foundation-sealed `Grounded<AddressLabel>`.
     #[must_use]
-    pub fn grounded(&self) -> &uor_foundation::enforcement::Grounded<AddressLabel> {
+    pub fn grounded(&self) -> &prism::seal::Grounded<AddressLabel> {
         &self.0
     }
 }

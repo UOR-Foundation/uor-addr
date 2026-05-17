@@ -46,7 +46,7 @@
 //!   `H::initial().fold_bytes(bytes).finalize()` invocation inside
 //!   the ψ_9 resolver body, sanctioned by ADR-046).
 
-use uor_foundation_sdk::verb;
+use prism::pipeline::verb;
 
 use crate::model::{AddressLabel, JsonInput};
 
@@ -59,7 +59,7 @@ verb! {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use uor_foundation::enforcement::Term;
+    use prism::operation::Term;
 
     #[test]
     fn verb_term_arena_is_emitted_and_nonempty() {
@@ -111,11 +111,11 @@ mod tests {
             matches!(
                 t,
                 Term::Application {
-                    operator: uor_foundation::PrimitiveOp::Le
-                        | uor_foundation::PrimitiveOp::Concat
-                        | uor_foundation::PrimitiveOp::Lt
-                        | uor_foundation::PrimitiveOp::Ge
-                        | uor_foundation::PrimitiveOp::Gt,
+                    operator: prism::operation::PrimitiveOp::Le
+                        | prism::operation::PrimitiveOp::Concat
+                        | prism::operation::PrimitiveOp::Lt
+                        | prism::operation::PrimitiveOp::Ge
+                        | prism::operation::PrimitiveOp::Gt,
                     ..
                 }
             )
