@@ -45,14 +45,15 @@ extern crate alloc;
 
 use alloc::vec::Vec;
 
-use uor_foundation::enforcement::ShapeViolation;
-use uor_foundation::pipeline::{ConstrainedTypeShape, ConstraintRef, IntoBindingValue};
-use uor_foundation::{DefaultHostTypes, ViolationKind};
-use uor_foundation_sdk::{output_shape, prism_model};
+use prism::pipeline::{
+    output_shape, prism_model, ConstrainedTypeShape, ConstraintRef, IntoBindingValue,
+    ShapeViolation, ViolationKind,
+};
+use prism::vocabulary::DefaultHostTypes;
 
 use crate::resolvers::AddressResolverTuple;
 use crate::shapes::bounds::AddrBounds;
-use crate::shapes::hasher::Sha256Hasher;
+use crate::shapes::Sha256Hasher;
 
 // Bring the verb's term-arena const + marker fn into scope.
 #[allow(unused_imports)]
@@ -120,7 +121,7 @@ impl ConstrainedTypeShape for JsonInput {
     const CYCLE_SIZE: u64 = u64::MAX;
 }
 
-impl uor_foundation::pipeline::__sdk_seal::Sealed for JsonInput {}
+impl prism::uor_foundation::pipeline::__sdk_seal::Sealed for JsonInput {}
 
 impl IntoBindingValue for JsonInput {
     const MAX_BYTES: usize = JSON_INPUT_MAX_BYTES;

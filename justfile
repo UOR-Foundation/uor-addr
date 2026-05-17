@@ -10,7 +10,7 @@ default: vv
 # ──────────────────────────────────────────────────────────────────────────
 
 # Full V&V — every axis required for merge. Halts on the first failure.
-vv: fmt-check lint test conformance analysis doc-check verify
+vv: fmt-check lint test conformance analysis replay doc-check verify
 
 # Fast CI subset — no Lean, no live network. Use when iterating locally.
 ci: fmt-check lint test
@@ -39,15 +39,19 @@ conformance:
 analysis:
 	cargo test -p uor-addr-1 --release --test analysis
 
-# Axis 6 — rustdoc with broken-intra-doc-links denied.
+# Axis 6 — TC-05 replay round-trip via `prism_verify::certify_from_trace`.
+replay:
+	cargo test -p uor-addr-1 --release --test replay
+
+# Axis 7 — rustdoc with broken-intra-doc-links denied.
 doc-check:
 	RUSTDOCFLAGS="-D rustdoc::broken-intra-doc-links" cargo doc --workspace --no-deps
 
-# Axis 7 — Lean proofs (lake build).
+# Axis 8 — Lean proofs (lake build).
 verify:
 	cd uor-addr-1-lean && lake build
 
-# Axis 8 — live cross-validation. Gated; opt in via UOR_ADDR_LIVE=1.
+# Axis 9 — live cross-validation. Gated; opt in via UOR_ADDR_LIVE=1.
 cn:
 	UOR_ADDR_LIVE=1 cargo test -p uor-addr-1 --release --test cross_validation -- --ignored
 

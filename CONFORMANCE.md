@@ -35,6 +35,11 @@ after JCS+NFC canonicalisation:
 6. **Wire-format width (CL-W01).** The κ-label is exactly 71 bytes,
    begins with the 7-byte ASCII prefix `"sha256:"`, and continues with
    64 ASCII bytes drawn from `{'0'..'9', 'a'..'f'}`.
+7. **TC-05 replay round-trip (CL-R01).** Every `Grounded<AddressLabel>`
+   the pipeline emits is replayable through `prism_verify::certify_from_trace`
+   into a `Certified<GroundingCertificate>` carrying the **same**
+   `ContentFingerprint` (QS-05 — bit-identical round-trip), without the
+   verifier re-invoking the canonical hash axis.
 
 ## Conformance classes
 
@@ -129,6 +134,25 @@ on its own. The Lean library depends only on the
 | CL-A02   | `UorAddr1.AlgebraicClosure.free_rank_residual_zero`                                | `UorAddr1/AlgebraicClosure.lean`              | After ψ_9 the FreeRank residual is 0                            |
 | CL-N01   | `UorAddr1.NfcIdempotence.nfc_is_idempotent`                                        | `UorAddr1/NfcIdempotence.lean`                | `nfc (nfc s) = nfc s` (axiomatised — Unicode-spec lemma)        |
 | CL-V01   | `UorAddr1.VerbDiscipline.verb_arena_psi_residuals_only`                            | `UorAddr1/VerbDiscipline.lean`                | The verb's term-arena coproduct contains only ψ-Term variants   |
+
+### CL-R — Replay class — TC-05 round-trip via `uor-prism-verify`
+
+Verified by **runtime round-trip tests** at
+`crates/uor-addr-1/tests/replay.rs` exercising the wiki TC-05
+commitment: every `Grounded<AddressLabel>` the address pipeline emits
+can be replayed by a downstream verifier through
+`prism_verify::certify_from_trace` to produce a
+`Certified<GroundingCertificate>` **without** re-invoking the canonical
+hash axis on the original input. The replayed certificate's
+`ContentFingerprint` is bit-identical to the source (QS-05 replay
+equivalence). See [ARCHITECTURE.md §6](ARCHITECTURE.md#6-verifier-surface-tc-05-adr-019-anamorphism)
+for the architectural framing.
+
+| ID       | Invariant                                                                                  | Pinned by                                                       |
+|----------|--------------------------------------------------------------------------------------------|-----------------------------------------------------------------|
+| CL-R00   | `prism_verify::certify_from_trace(Trace::empty())` returns `ReplayError::EmptyTrace`       | `tests::replay::cl_r00__verifier_facade_is_wired`               |
+| CL-R01   | Single-input round-trip: replayed `ContentFingerprint` equals source                       | `tests::replay::cl_r01__grounded_address_label_round_trips_through_verifier` |
+| CL-R02   | All 12 reference fixtures round-trip: replayed `ContentFingerprint` equals source per input | `tests::replay::cl_r02__every_reference_fixture_round_trips`    |
 
 ## Contract evolution
 

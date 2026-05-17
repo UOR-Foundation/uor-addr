@@ -11,7 +11,8 @@
 #![allow(clippy::needless_range_loop)]
 #![allow(non_snake_case)]
 
-use uor_addr_1::{address, jcs_nfc, sha256};
+use prism::vocabulary::Hasher;
+use uor_addr_1::{address, jcs_nfc, Sha256Hasher};
 
 /// Deterministic PRNG seed — `UOR_ADDR_ANALYSIS_SEED`. Anchored so
 /// CI failures are reproducible from the commit hash alone.
@@ -282,19 +283,17 @@ fn cp_k02__deep_key_permutation_invariance() {
 }
 
 // ───────────────────────────────────────────────────────────────────────────
-// Crate-internal sha256 cross-check — sanity-grounds the hex-decode
-// helpers used above against the FIPS-180-4 reference exposed by the
-// crate.
+// κ-derivation cross-check — runs the same `prism::crypto::Sha256Hasher`
+// the ψ_9 resolver uses through its `Hasher` interface, then asserts the
+// output matches the hex-decoded suffix of the κ-label produced by
+// `address()`. This grounds the κ-derivation identity end-to-end.
 // ───────────────────────────────────────────────────────────────────────────
 
 #[test]
 fn sha256_one_shot_matches_pipeline() {
-    // For canonical input b, sha256(jcs_nfc(b)) should equal the
-    // 32-byte digest implied by `address(b)`. This grounds the
-    // κ-derivation identity end-to-end.
     let raw = br#"{"foo":"bar"}"#;
     let canonical = jcs_nfc(raw).expect("valid");
-    let one_shot = sha256(&canonical);
+    let one_shot: [u8; 32] = Sha256Hasher::initial().fold_bytes(&canonical).finalize();
     let outcome = address(raw).expect("valid");
     let from_label = hex_decode(&outcome.address[7..]);
     assert_eq!(one_shot.as_slice(), from_label.as_slice());

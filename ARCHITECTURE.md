@@ -5,21 +5,28 @@
 > and [ANALYSIS.md](ANALYSIS.md). Wiki ADRs cited below live at
 > <https://github.com/UOR-Foundation/UOR-Framework/wiki>.
 
-## 1. Position in the Foundation surface
+## 1. Position in the Prism stack
 
 `uor-addr-1` is a Prism application of the UOR Foundation, declared as a
-single `PrismModel<H, B, A, R>` over `uor-foundation@0.4.5` with the
-following substitution-axis selections:
+single `PrismModel<H, B, A, R>` over the **`uor-prism` standard library
+façade** (wiki ADR-031) with the following substitution-axis selections:
 
 | Position        | Selection                                            |
 |-----------------|------------------------------------------------------|
-| `HostTypes`     | `uor_foundation::DefaultHostTypes`                   |
+| `HostTypes`     | `prism::vocabulary::DefaultHostTypes`                |
 | `HostBounds`    | `AddrBounds` — the 24 ADR-037 capacity ceilings      |
-| `AxisTuple + Hasher` | `Sha256Hasher` — pure-Rust FIPS-180-4 SHA-256   |
+| `AxisTuple + Hasher` | `prism::crypto::Sha256Hasher` — Prism-published HashAxis (re-exported from [`crate::shapes`]) |
 | `ResolverTuple` | `AddressResolverTuple<H>` — eight ψ-stage resolvers  |
 
 There is no second model, no auxiliary axis, no out-of-band side
 channel. The crate is the model and nothing else.
+
+The dependency posture follows ADR-031: `uor-prism` is the canonical
+public surface, but `uor-foundation` and `uor-foundation-sdk` remain
+direct dependencies because the SDK macros (`prism_model!`, `verb!`,
+`resolver!`, `output_shape!`) expand to absolute `::uor_foundation::*`
+paths. The verifier-side dev-dependency is `uor-prism-verify` — see §6
+below.
 
 ## 2. The typed-iso surface
 
@@ -50,8 +57,11 @@ Lives at: `crates/uor-addr-1/src/ops/`.
 
 - `ops::canonicalize::jcs_nfc(raw)` — JCS-RFC8785 + Unicode-NFC
   canonicalisation of unstructured JSON bytes; runs **before** `JsonInput::new`.
-- `ops::sha256::sha256(canonical)` — one-shot SHA-256 over canonical bytes;
-  exposed for direct cross-validation only, not used by the ψ-pipeline.
+
+The SHA-256 implementation is **not** carried in this module: it lives
+in `prism::crypto::Sha256Hasher` (re-exported via [`crate::shapes`])
+and is invoked only inside the ψ_9 resolver body. Boundary code
+performs no hashing.
 
 These functions are not part of the typed-iso surface; their output
 flows into `JsonInput::new(canonical)`. No σ-residual leaks past the
@@ -105,11 +115,38 @@ arithmetic identity.
 `AddressModel::forward` per constraint **TC-02** (no
 `Grounded<AddressLabel>` construction outside the foundation pipeline).
 The `AddressWitness` newtype carries the foundation-sealed
-`Grounded<AddressLabel>` by borrow; downstream consumers can replay it
-through `prism-verify` per **TC-05** once `prism` ships, producing a
-`Certified<GroundingCertificate>` without re-invoking the deciders.
+`Grounded<AddressLabel>` by borrow. Downstream consumers replay it
+through `prism_verify::certify_from_trace` per **TC-05** to obtain a
+`Certified<GroundingCertificate>` **without** re-invoking the canonical
+hash axis on the original input — the verifier reads the
+`ContentFingerprint` from the trace and re-packages it. The round-trip
+is exercised by [CL-R01](CONFORMANCE.md#cl-r--replay-class--tc-05-round-trip-via-uor-prism-verify).
 
-## 6. The κ-derivation identity
+## 6. Verifier surface (TC-05, ADR-019 anamorphism)
+
+The verifier-side dev-dependency `uor-prism-verify` exposes a single
+function — `certify_from_trace<TR_MAX>(&Trace<TR_MAX>) ->
+Result<Certified<GroundingCertificate>, ReplayError>` — and the
+wire-format types (`Trace`, `TraceEvent`, `ContentFingerprint`,
+`GroundingCertificate`, `Certified`). The full TC-05 round-trip used by
+`tests/replay.rs` is:
+
+```rust
+let outcome  = uor_addr_1::address(input_bytes)?;     // mint
+let grounded = outcome.witness.grounded();
+let trace    = grounded.derivation().replay::<256>(); // anamorphism
+let certified = prism_verify::certify_from_trace(&trace)?;
+assert_eq!(certified.certificate().content_fingerprint(),
+           grounded.content_fingerprint());           // QS-05 equivalence
+```
+
+QS-05 (replay equivalence — bit-identical certificate) is what the test
+asserts. The verifier path makes **zero** calls into
+`prism::crypto::Sha256Hasher` and observes neither the canonical-form
+bytes nor the JCS+NFC transform — only the trace and the original
+`ContentFingerprint` carried inside it.
+
+## 7. The κ-derivation identity
 
 ψ_9 is the load-bearing terminal stage. Given canonical-form bytes
 `c : [u8]`, its emitted 71-byte κ-label is structurally determined:
@@ -126,7 +163,7 @@ the ASCII literal `"sha256:"`, the trailing 64 bytes lie within
 `[0..16] ↦ '0'..'9' | 'a'..'f'`. The HexEncoding bijection lemma proves
 no two distinct digests map to the same label.
 
-## 7. What this crate deliberately is not
+## 8. What this crate deliberately is not
 
 - **Not** a custom axis. The earlier framing of UOR-ADDR-1 as a
   `ContentAddressingAxis` violates ADR-035's ψ-residuals discipline —
@@ -145,10 +182,10 @@ no two distinct digests map to the same label.
   is spec-in-Lean + invariant-grep + parametric runtime tests +
   empirical analysis, **not** A/B comparison against a reference impl.
 
-## 8. Outstanding reconciliation
+## 9. Outstanding reconciliation
 
 The canonical-form bytes this crate hashes (plain UTF-8 JCS-RFC8785
-JSON bytes) differ structurally from what `uor-foundation@0.4.5`'s
+JSON bytes) differ structurally from what `uor-foundation@0.4`'s
 `Element::canonical_bytes` docstring specifies — Amendment 43 §2:
 `header(k) ‖ le_bytes(x, k+1)`, the byte layout of a ring element in
 R_n. Two parties speaking UOR-ADDR-1 (this crate) agree with each other;

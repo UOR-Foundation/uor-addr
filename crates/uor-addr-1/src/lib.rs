@@ -18,7 +18,8 @@
 //!
 //! | Wiki commitment                                            | Crate realisation                                         |
 //! |------------------------------------------------------------|-----------------------------------------------------------|
-//! | ADR-007 / ADR-010 pluggable Hasher (foundation ships none) | [`Sha256Hasher`] (`impl Hasher<32>`, FIPS-180-4)          |
+//! | ADR-007 / ADR-010 pluggable Hasher (substrate ships none) | [`Sha256Hasher`] — re-export of `prism::crypto::Sha256Hasher` |
+//! | ADR-031 Prism standard library (`uor-prism` façade)        | `prism::pipeline` / `vocabulary` / `seal` / `crypto`       |
 //! | ADR-018 / ADR-037 HostBounds capacity ceilings             | [`AddrBounds`] (24 ADR-037 constants)                     |
 //! | ADR-020 PrismModel<H, B, A, R> declaration                 | [`AddressModel`] (via `prism_model!`)                     |
 //! | ADR-024 implementation closure (verb!-emitted bodies)      | [`address_inference`] (via `verb!`)                       |
@@ -76,4 +77,3 @@ pub use verbs::{address_inference, VERB_TERMS_ADDRESS_INFERENCE};
 
 // Boundary helpers — not part of the ψ-pipeline transform.
 pub use ops::canonicalize::jcs_nfc;
-pub use ops::sha256::{sha256, SHA256_INITIAL_STATE};

@@ -16,17 +16,20 @@ failure:
 |----|-----------------------------------|--------------------------------------------------------|---------------------------|
 | 1  | Format                            | `just fmt-check`                                       | (hygiene)                 |
 | 2  | Lint (`-D warnings`)              | `just lint`                                            | (hygiene)                 |
-| 3  | Workspace unit + integration tests| `just test`                                            | CS-*, CD-*, CS-S01, CS-S02|
+| 3  | Workspace unit + integration tests| `just test`                                            | CS-*, CD-*, CL-R-*        |
 | 4  | Conformance suite (release)       | `just conformance`                                     | CD-*, CS-S01, CS-S02      |
 | 5  | Analysis suite (release)          | `just analysis`                                        | CP-*                      |
-| 6  | Rustdoc (broken-intra-doc-links)  | `just doc-check`                                       | (hygiene)                 |
-| 7  | Lean proofs                       | `just verify`                                          | CL-*                      |
-| 8  | Optional: live cross-validation   | `just cn` (skipped if `UOR_ADDR_LIVE` is unset)        | CN-*                      |
+| 6  | Replay round-trip (release)       | `just replay`                                          | CL-R-*                    |
+| 7  | Rustdoc (broken-intra-doc-links)  | `just doc-check`                                       | (hygiene)                 |
+| 8  | Lean proofs                       | `just verify`                                          | CL-W,H,K,A,N,V (formal)   |
+| 9  | Optional: live cross-validation   | `just cn` (skipped if `UOR_ADDR_LIVE` is unset)        | CN-*                      |
 
-Total wall-clock budget on a 4-core dev machine: ≈ 4 minutes (axes 1–7).
+Total wall-clock budget on a 4-core dev machine: ≈ 4 minutes (axes 1–8).
 Axis 5 runs at sample sizes pinned in [CONFORMANCE.md §CP](CONFORMANCE.md#cp--probabilistic-class--empirical-scaling)
 (up to 1 000 000 samples) — the release profile keeps it under 60 s in
-practice.
+practice. Axis 6 (replay) runs in milliseconds; it exercises the TC-05
+round-trip through `prism_verify::certify_from_trace` for one input
+plus the 12-fixture baseline.
 
 ## 2. The six V&V axes — what each one proves
 
@@ -40,8 +43,9 @@ common doc-rot.
 
 ### 2.2 Typed-surface invariants (axis 3)
 
-`cargo test --workspace` runs the 23 unit tests and the 8 integration
-tests under `crates/uor-addr-1/tests/byte_identity.rs`. This axis pins:
+`cargo test --workspace` runs the 17 lib unit tests and the integration
+suites — `byte_identity.rs` (8), `conformance.rs` (14), `analysis.rs`
+(8), `replay.rs` (3). This axis pins:
 
 - The ψ-residuals discipline (`CS-V01`, `CS-V02`) — the verb's term
   arena contains exactly the ψ_1/ψ_7/ψ_8/ψ_9 variants and no
@@ -51,6 +55,7 @@ tests under `crates/uor-addr-1/tests/byte_identity.rs`. This axis pins:
 - Byte identity against the 12 reference fixtures (`CD-D02`, `CD-D03`).
 - The pipeline invariants (`CD-D01`, `CD-I01a–d`, `CD-S01a`, `CD-W01`,
   `CD-G01`).
+- TC-05 replay round-trip (`CL-R00`–`CL-R02`).
 
 If `cargo test` passes, the typed-iso surface is structurally correct
 for every input in the fixture set.
@@ -111,7 +116,7 @@ can re-establish CN-RC01/CN-RC02 confidence on demand.
 `uor-addr-1` is verified to be valid for **arbitrary use cases to
 arbitrary precision** in three converging senses:
 
-1. **Universal quantification** (axis 7, Lean). The κ-derivation
+1. **Universal quantification** (axis 8, Lean). The κ-derivation
    identity and algebraic-closure encoding are proved for *every*
    well-formed input by mechanically checked theorems — not by
    sampling. The Lean axis is the ceiling of precision: the property
@@ -147,6 +152,7 @@ just fmt-check
 just lint
 just test
 just conformance
+just replay
 just analysis
 just doc-check
 just verify
@@ -168,6 +174,7 @@ Mirror `just vv` in CI. The recommended pipeline:
 | lint+test    | `just ci`          | yes                            |
 | conformance  | `just conformance` | yes                            |
 | analysis     | `just analysis`    | yes (release-mode, ≤ 60 s)     |
+| replay       | `just replay`      | yes (TC-05 round-trip)         |
 | doc-check    | `just doc-check`   | yes                            |
 | verify       | `just verify`      | yes (Lean build is hermetic)   |
 | cn           | `just cn`          | no (live external dep)         |
