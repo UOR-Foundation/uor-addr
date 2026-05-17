@@ -69,9 +69,12 @@
 //! terminal resolvers do not enumerate; they thread the canonical-
 //! form bytes forward through the structural ψ-functor each realises.
 //! From outside, `forward()` is one structural inference per
-//! `JsonInput` — the ψ-pipeline maps typed canonical-form bytes to
+//! `JsonValue` — the ψ-pipeline maps typed `JsonValue` tagged bytes to
 //! the κ-label by structural transformation, never by search.
 
+extern crate alloc;
+
+use alloc::vec::Vec;
 use core::marker::PhantomData;
 
 use prism::pipeline::{
@@ -85,8 +88,9 @@ use prism::uor_foundation::pipeline::{
 };
 use prism::vocabulary::{Hasher, HostBounds};
 
-use crate::model::{AddressLabel, ADDRESS_LABEL_BYTES, JSON_INPUT_MAX_BYTES};
-use crate::shapes::bounds::AddrBounds;
+use crate::model::{AddressLabel, ADDRESS_LABEL_BYTES};
+use crate::shapes::bounds::{AddrBounds, JSON_VALUE_MAX_BYTES};
+use crate::value::canonicalize_into;
 
 // ─── Carrier layout constants ──────────────────────────────────────────
 
@@ -94,7 +98,7 @@ use crate::shapes::bounds::AddrBounds;
 const WIRE_FORMAT_ADDRESS_BYTES: usize = ADDRESS_LABEL_BYTES;
 
 /// Maximum canonical-form JSON byte width carried in a ψ-stage carrier.
-/// Bounded by `JsonInput::MAX_BYTES` minus the 4-byte length prefix and
+/// Bounded by `JSON_VALUE_MAX_BYTES` minus the 4-byte length prefix and
 /// the geometry-tail header reserved at the back.
 const CARRIER_BYTES: usize = <AddrBounds as HostBounds>::TERM_VALUE_MAX_BYTES;
 
@@ -116,12 +120,12 @@ const LENGTH_PREFIX_BYTES: usize = 4;
 #[allow(dead_code)]
 const CARRIER_PAYLOAD_MAX: usize = CARRIER_BYTES - LENGTH_PREFIX_BYTES - GEOMETRY_TAIL_BYTES;
 
-/// Compile-time invariant: the JsonInput cap must fit within the
-/// carrier-payload region.
+/// Compile-time invariant: the typed `JsonValue` cap must fit within
+/// the carrier-payload region.
 const _: () = {
     assert!(
-        JSON_INPUT_MAX_BYTES <= CARRIER_PAYLOAD_MAX,
-        "JsonInput::MAX_BYTES must fit within CARRIER_BYTES - LENGTH_PREFIX_BYTES - GEOMETRY_TAIL_BYTES"
+        JSON_VALUE_MAX_BYTES <= CARRIER_PAYLOAD_MAX,
+        "JSON_VALUE_MAX_BYTES must fit within CARRIER_BYTES - LENGTH_PREFIX_BYTES - GEOMETRY_TAIL_BYTES"
     );
 };
 
@@ -152,12 +156,12 @@ const PSI_8_HOMOTOPY_GROUPS_TAG: u64 = 8;
 // ─── ShapeViolation IRIs ───────────────────────────────────────────────
 
 const INPUT_LEN_VIOLATION: ShapeViolation = ShapeViolation {
-    shape_iri: "https://uor.foundation/addr/resolver/JsonInputBytes",
-    constraint_iri: "https://uor.foundation/addr/resolver/JsonInputBytes/maxBytes",
-    property_iri: "https://uor.foundation/addr/resolver/JsonInputBytes/byteCount",
+    shape_iri: "https://uor.foundation/addr/resolver/JsonValueBytes",
+    constraint_iri: "https://uor.foundation/addr/resolver/JsonValueBytes/maxBytes",
+    property_iri: "https://uor.foundation/addr/resolver/JsonValueBytes/byteCount",
     expected_range: "http://www.w3.org/2001/XMLSchema#nonNegativeInteger",
     min_count: 0,
-    max_count: JSON_INPUT_MAX_BYTES as u32,
+    max_count: JSON_VALUE_MAX_BYTES as u32,
     kind: ViolationKind::ValueCheck,
 };
 
@@ -283,7 +287,7 @@ fn decode_carrier(bytes: &[u8]) -> Result<DecodedCarrier<'_>, ShapeViolation> {
     }
     let canonical_len =
         u32::from_be_bytes(bytes[..LENGTH_PREFIX_BYTES].try_into().unwrap_or([0; 4])) as usize;
-    if canonical_len > JSON_INPUT_MAX_BYTES {
+    if canonical_len > JSON_VALUE_MAX_BYTES {
         return Err(INPUT_LEN_VIOLATION);
     }
     let canonical = &bytes[LENGTH_PREFIX_BYTES..LENGTH_PREFIX_BYTES + canonical_len];
@@ -332,7 +336,7 @@ fn validate_upstream(
 }
 
 /// Emit a structural carrier with the given stage tag. The canonical-
-/// form JSON bytes preserve the typed `JsonInput` data; the geometry
+/// form JSON bytes preserve the typed `JsonValue` data; the geometry
 /// data (vertex_count = 71, highest_dim = 0, positions = [0..71))
 /// lives in [`GEOMETRY_TAIL_AFTER_STAGE_TAG`] as a compile-time
 /// constant and is bit-copied into the carrier as-is.
@@ -341,7 +345,7 @@ fn emit_carrier(canonical: &[u8], stage_tag: u64, out: &mut [u8]) -> Result<usiz
     if out.len() < CARRIER_BYTES {
         return Err(CARRIER_BUFFER_VIOLATION);
     }
-    if canonical.len() > JSON_INPUT_MAX_BYTES {
+    if canonical.len() > JSON_VALUE_MAX_BYTES {
         return Err(INPUT_LEN_VIOLATION);
     }
 
@@ -376,7 +380,7 @@ impl<H: Hasher> prism::uor_foundation::pipeline::__sdk_seal::Sealed for AddressN
 impl<H: Hasher> NerveResolver<H> for AddressNerveResolver<H> {
     #[inline]
     fn resolve(&self, input: &[u8], out: &mut [u8]) -> Result<usize, ShapeViolation> {
-        if input.len() > JSON_INPUT_MAX_BYTES {
+        if input.len() > JSON_VALUE_MAX_BYTES {
             return Err(INPUT_LEN_VIOLATION);
         }
         emit_carrier(input, PSI_1_NERVE_TAG, out)
@@ -534,20 +538,31 @@ impl<H: Hasher> HomotopyGroupResolver<H> for AddressHomotopyGroupResolver<H> {
 /// ψ_9 `KInvariant` resolver — the terminal ψ-stage that materialises
 /// the 71-byte wire-format content address.
 ///
-/// **The κ-derivation.** ψ_9 projects the typed canonical-form bytes
-/// through the canonical hash axis (`H: Hasher` — the substitution-axis
-/// selection per ADR-030):
+/// **The κ-derivation, in two stages per ADR-046's resolver-body
+/// iterative-resolution discipline.**
 ///
-/// ```text
-/// digest = H::initial().fold_bytes(canonical_bytes).finalize()
-/// label  = b"sha256:" ‖ hex_lower(digest)
-/// ```
+/// 1. **Canonicalisation** — decode the carrier's structurally-tagged
+///    `JsonValue` bytes (see [`crate::value`] for the layout grammar)
+///    via `value::canonicalize_into`, emitting JCS-RFC8785 + Unicode
+///    NFC canonical-form bytes **inside the typed-iso surface**. This
+///    is the σ-projection ADR-035 forbids in the verb body but
+///    ADR-046 explicitly admits in resolver bodies. Object keys are
+///    re-ordered per JCS §3.2.3; string values are NFC-normalised.
 ///
-/// One σ-projection total per `forward()` — deterministic in the typed
-/// input, no enumeration. The wiki's iterative-resolution discipline
-/// converges here: all 71 free sites pin simultaneously to the
-/// κ-derivation; `FreeRank` over `AddressLabel` drops from 71 to 0 in
-/// this single terminal stage.
+/// 2. **Hash-axis invocation** — project the canonical bytes through
+///    the canonical hash axis (`H: Hasher` — the substitution-axis
+///    selection per ADR-030):
+///
+///    ```text
+///    digest = H::initial().fold_bytes(canonical_bytes).finalize()
+///    label  = b"sha256:" ‖ hex_lower(digest)
+///    ```
+///
+/// One σ-projection of the hash axis total per `forward()` —
+/// deterministic in the typed input, no enumeration. The wiki's
+/// iterative-resolution discipline converges here: all 71 free sites
+/// pin simultaneously to the κ-derivation; `FreeRank` over
+/// `AddressLabel` drops from 71 to 0 in this single terminal stage.
 ///
 /// This is the ONE place in the crate where the canonical hash axis is
 /// consumed. The verb body's term composition never invokes the axis
@@ -576,10 +591,19 @@ impl<H: Hasher> KInvariantResolver<H> for AddressKInvariantResolver<H> {
         let carrier = decode_carrier(input.as_bytes())?;
         validate_upstream(&carrier, PSI_8_HOMOTOPY_GROUPS_TAG)?;
 
-        // Structural κ-derivation: project the typed canonical-form
+        // Stage 1 — JCS-RFC8785 + Unicode-NFC canonicalisation of the
+        // typed `JsonValue` tagged bytes. ADR-046 admits the
+        // σ-residuals this step needs (object-key comparison,
+        // byte-level NFC normalisation of strings) inside the
+        // resolver body; ADR-035 continues to forbid them in the
+        // verb body.
+        let mut canonical = Vec::with_capacity(carrier.canonical.len());
+        canonicalize_into(carrier.canonical, &mut canonical)?;
+
+        // Stage 2 — structural κ-derivation: project the canonical-form
         // bytes via the canonical hash axis to a 32-byte digest. One
-        // σ-projection — no enumeration.
-        let digest: [u8; 32] = H::initial().fold_bytes(carrier.canonical).finalize_to_32();
+        // σ-projection of the hash axis — no enumeration.
+        let digest: [u8; 32] = H::initial().fold_bytes(&canonical).finalize_to_32();
 
         // Emit `"sha256:"` (7 bytes) + 64-lowercase-hex digest = 71 bytes.
         out[..7].copy_from_slice(b"sha256:");

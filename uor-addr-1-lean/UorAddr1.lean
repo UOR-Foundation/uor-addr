@@ -7,3 +7,4 @@ import UorAddr1.KappaDerivation
 import UorAddr1.AlgebraicClosure
 import UorAddr1.NfcIdempotence
 import UorAddr1.VerbDiscipline
+import UorAddr1.TypedInput

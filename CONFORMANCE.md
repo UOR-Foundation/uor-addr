@@ -16,7 +16,7 @@ after JCS+NFC canonicalisation:
    ASCII byte sequence — the κ-label — and the same `b` always produces
    the same κ-label.
 2. **κ-derivation identity (CL-K01).** The κ-label is byte-equal to
-   `b"sha256:" ‖ hex_lower(SHA-256(jcs_nfc(b)))`, computed by exactly
+   `b"sha256:" ‖ hex_lower(SHA-256(jcs_nfc_canonicalise(b)))`, computed by exactly
    **one** σ-projection of the canonical hash axis inside the ψ_9
    resolver — never inside the verb body.
 3. **Algebraic-closure shape (CL-A01).** The output shape
@@ -40,6 +40,20 @@ after JCS+NFC canonicalisation:
    into a `Certified<GroundingCertificate>` carrying the **same**
    `ContentFingerprint` (QS-05 — bit-identical round-trip), without the
    verifier re-invoking the canonical hash axis.
+8. **Typed-input case distinction (CT-T*).** Different JSON cases —
+   `null`, `false`, `true`, number, string, array, object — produce
+   structurally-distinct `JsonValue` instances and therefore distinct
+   κ-labels, even when the input texts look similar (`42` ≠ `"42"`,
+   `null` ≠ `false`).
+9. **Typed-input bound enforcement (CT-B*).** Any input that violates a
+   typed-input bound declared in `crate::shapes::bounds`
+   (`MAX_JSON_DEPTH`, `MAX_STRING_BYTES`, `MAX_NUMBER_DIGITS`,
+   `MAX_OBJECT_KEYS`, `MAX_ARRAY_ELEMENTS`, `JSON_VALUE_MAX_BYTES`)
+   is rejected at `JsonValue::parse` with a `ShapeViolation` keyed to
+   the violated bound's IRI; the constructor never silently truncates.
+10. **Cost-model selection (CT-C01).** The PrismModel's 5th parameter
+    `C` is explicitly bound to `prism::pipeline::EmptyCommitment`
+    (wiki ADR-048). UOR-ADDR-1 carries no auxiliary cost surface.
 
 ## Conformance classes
 
@@ -75,7 +89,7 @@ Verified by **runtime tests over a fixed fixture set** under
 |----------|-------------------------------------------------------------------------------------------|----------------------------------------------------------------------------|
 | CD-D01   | `address(b)` is a pure function: idempotent across N repeated calls                       | `tests::conformance::address_is_pure_function`                             |
 | CD-D02   | The 12 reference fixtures reproduce byte-for-byte                                         | `tests::byte_identity::shim_layer_reproduces_harvested_fixtures`           |
-| CD-D03   | `jcs_nfc(raw)` reproduces the reference canonical-form bytes for each fixture             | `tests::byte_identity::canonicalize_kernel_matches_expected_canonical_form`|
+| CD-D03   | `canonicalize(raw)` (the in-surface canonicalizer) reproduces the reference canonical-form bytes for each fixture | `tests::byte_identity::canonicalize_kernel_matches_expected_canonical_form`|
 | CD-I01a  | Key-order invariance: `{"a":1,"b":2}` ≡ `{"b":2,"a":1}` under `address`                  | `tests::byte_identity::pipeline_key_order_invariant`                       |
 | CD-I01b  | Whitespace invariance: `{"foo": "bar"}` ≡ `{"foo":"bar"}` under `address`                | `tests::conformance::whitespace_invariance`                                |
 | CD-I01c  | NFC invariance: composed `caf\u{E9}` ≡ decomposed `cafe\u{301}` under `address`          | `tests::byte_identity::pipeline_nfc_invariant`                             |
@@ -99,8 +113,36 @@ distribution. See [ANALYSIS.md](ANALYSIS.md) for derivations.
 | CP-C01   | Pairwise κ-label collisions are absent across N distinct synthetic JSON inputs (birthday bound ≪ `2^{-100}` at N=1e6) | `tests::analysis::no_collisions_at_scale`                              | 1 000 000   | n/a     |
 | CP-A01   | Single-byte-mutation Hamming distance to baseline ≥ 100 bits for ≥ 99% of trials                                       | `tests::analysis::avalanche_distance_distribution`                     | 10 000      | 0.001   |
 | CP-N01   | NFC round-trip stability: `nfc(nfc(s)) = nfc(s)` for arbitrary Unicode-string JSON leaf inputs                          | `tests::analysis::nfc_idempotent_at_scale`                             | 100 000     | exact   |
-| CP-K01   | JCS+NFC canonical form has fixed point: `jcs_nfc(jcs_nfc(b)) = jcs_nfc(b)` for already-canonical inputs                | `tests::analysis::jcs_nfc_idempotent_at_scale`                         | 100 000     | exact   |
+| CP-K01   | JCS+NFC canonical form has fixed point: `canonicalize(canonicalize(b)) = canonicalize(b)` for already-canonical inputs | `tests::analysis::cp_k01__canonicalize_idempotent_at_scale`            | 100 000     | exact   |
 | CP-K02   | Permuting object keys at depth ≤ 4 leaves the κ-label unchanged                                                        | `tests::analysis::deep_key_permutation_invariance`                     | 10 000      | exact   |
+
+### CT — Typed-input class — `JsonValue` shape claims
+
+Verified by **runtime parser + pipeline tests** at
+`crates/uor-addr-1/tests/typed_input.rs`. The typed `JsonValue` input
+shape lets us distinguish JSON cases structurally (not just by
+canonical-form serialisation), reject violators of any typed-input
+bound at construction, and collapse structural-equivalence classes
+to one κ-label.
+
+| ID       | Invariant                                                                                          | Pinned by                                                              |
+|----------|----------------------------------------------------------------------------------------------------|------------------------------------------------------------------------|
+| CT-T01   | `42` and `"42"` produce distinct κ-labels (integer ≠ string of same digits)                       | `tests::typed_input::ct_t01__integer_distinct_from_string_of_same_digits` |
+| CT-T02   | `null` and `false` produce distinct κ-labels                                                      | `tests::typed_input::ct_t02__null_distinct_from_false`                 |
+| CT-T03   | `true`, `false`, `null` are pairwise distinct                                                     | `tests::typed_input::ct_t03__three_scalars_pairwise_distinct`          |
+| CT-T04   | `{}` and `[]` produce distinct κ-labels                                                           | `tests::typed_input::ct_t04__empty_object_distinct_from_empty_array`   |
+| CT-T05   | `[1,2,3]` (numbers) and `["1","2","3"]` (strings) produce distinct κ-labels                       | `tests::typed_input::ct_t05__number_array_distinct_from_string_array`  |
+| CT-E01   | Key-order invariance (structural equivalence; restatement of CD-I01a at the typed-input layer)    | `tests::typed_input::ct_e01__key_ordering_invariance`                  |
+| CT-E02   | Whitespace invariance (structural equivalence; restatement of CD-I01b)                            | `tests::typed_input::ct_e02__whitespace_invariance`                    |
+| CT-E03   | NFC invariance (composed `caf\u{E9}` ≡ decomposed `cafe\u{301}`; restatement of CD-I01c)         | `tests::typed_input::ct_e03__nfc_invariance`                           |
+| CT-E04   | Nested key-order invariance through depth 3                                                       | `tests::typed_input::ct_e04__nested_key_ordering_invariance`           |
+| CT-B01   | Over-deep nesting (> `MAX_JSON_DEPTH`) is rejected at parse with `TooLarge`                       | `tests::typed_input::ct_b01__over_deep_nesting_rejected_at_parse`      |
+| CT-B02   | Over-wide string (> `MAX_STRING_BYTES`) is rejected at parse with `TooLarge`                      | `tests::typed_input::ct_b02__over_wide_string_rejected_at_parse`       |
+| CT-B03   | Exactly-at-bound depth is accepted (the bound is `≤`, not `<`)                                    | `tests::typed_input::ct_b03__exactly_at_depth_bound_accepted`          |
+| CT-B04   | Invalid JSON syntax is rejected with `InvalidJson` (distinct from typed-input size violations)    | `tests::typed_input::ct_b04__invalid_json_rejected_distinct_from_size_bound` |
+| CT-C01   | The PrismModel's `TypedCommitment` is `EmptyCommitment` (wiki ADR-048; no auxiliary cost surface) | `tests::typed_input::ct_c01__cost_model_is_empty_commitment`           |
+| CT-P01   | `JsonValue::parse` returns Ok with non-empty tagged bytes for a valid input                       | `tests::typed_input::ct_p01__parse_returns_tagged_bytes`               |
+| CT-P02   | `JsonValue::parse` rejects invalid JSON with the `validUtf8Json` violation IRI                    | `tests::typed_input::ct_p02__parse_rejects_invalid_json`               |
 
 ### CN — Network class — cross-validation against reference
 
@@ -134,6 +176,9 @@ on its own. The Lean library depends only on the
 | CL-A02   | `UorAddr1.AlgebraicClosure.free_rank_residual_zero`                                | `UorAddr1/AlgebraicClosure.lean`              | After ψ_9 the FreeRank residual is 0                            |
 | CL-N01   | `UorAddr1.NfcIdempotence.nfc_is_idempotent`                                        | `UorAddr1/NfcIdempotence.lean`                | `nfc (nfc s) = nfc s` (axiomatised — Unicode-spec lemma)        |
 | CL-V01   | `UorAddr1.VerbDiscipline.verb_arena_psi_residuals_only`                            | `UorAddr1/VerbDiscipline.lean`                | The verb's term-arena coproduct contains only ψ-Term variants   |
+| CL-CT01  | `UorAddr1.TypedInput.case_tags_are_pairwise_distinct`                              | `UorAddr1/TypedInput.lean`                    | Different JSON cases carry pairwise-distinct structural tag bytes |
+| CL-CT02  | `UorAddr1.TypedInput.depth_bound_is_strict`                                        | `UorAddr1/TypedInput.lean`                    | Admissibility iff `depth ≤ MAX_JSON_DEPTH` (at-bound accepted; over-bound rejected) |
+| CL-CT03  | `UorAddr1.TypedInput.empty_commitment_is_the_cost_surface`                         | `UorAddr1/TypedInput.lean`                    | The PrismModel's `C` is bound to `EmptyCommitment` (ADR-048)    |
 
 ### CL-R — Replay class — TC-05 round-trip via `uor-prism-verify`
 

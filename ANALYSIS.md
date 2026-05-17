@@ -128,18 +128,19 @@ sequences). The Lean theorem `UorAddr1.NfcIdempotence.nfc_is_idempotent`
 
 ## 6. JCS+NFC fixed-point — CP-K01
 
-**Claim.** For canonical-form input `b`, `jcs_nfc(b) = b`.
+**Claim.** For canonical-form input `b`, `canonicalize(b) = b`.
 
-**Why this matters.** `jcs_nfc` is the host-boundary transform that
-produces the typed `JsonInput`. If the function is not idempotent on
+**Why this matters.** `canonicalize` is the public surface of the
+in-`ψ_9`-resolver canonicalizer — the same code path the
+κ-derivation runs internally. If the function is not idempotent on
 its own output, two semantically-equal inputs that differ only in
-already-canonical features could yield different `JsonInput` values
-and therefore different κ-labels. Idempotence of the output is what
-makes "the canonical form" canonical.
+already-canonical features could yield different `JsonValue`
+canonical forms and therefore different κ-labels. Idempotence of
+the output is what makes "the canonical form" canonical.
 
 **Sample size.** N = 100 000 — synthetic JSON values constructed from
-JCS-canonical primitives only. The test runs `jcs_nfc` twice and
-compares; failure is exact.
+JCS-canonical primitives only. The test runs `canonicalize` twice
+and compares; failure is exact.
 
 ## 7. Deep key-permutation invariance — CP-K02
 
@@ -149,6 +150,53 @@ unchanged.
 **Sample size.** N = 10 000 randomly-generated JSON objects at depth
 4, with random per-object key permutations applied at each depth.
 Failure is exact.
+
+## 7.5. Typed-input case distinction — CT-T
+
+**Claim.** The κ-derivation distinguishes the six JSON cases
+structurally: `42` (a number) and `"42"` (a string of the same
+digits) produce distinct κ-labels with the SHA-256 sensitivity
+bound; `null`, `false`, and `true` are pairwise distinct under the
+same bound; arrays and objects with same-shape payloads but
+different container types are distinguished by their structural tag
+byte.
+
+**Why this matters.** The typed `JsonValue` input shape stamps a
+1-byte case tag into the structurally-tagged serialisation the
+ψ-pipeline carries. Two inputs whose textual rendering looks alike
+but whose typed cases differ end up with distinct tagged bytes (the
+tag byte differs by construction); their canonical-form bytes also
+differ (RFC 8259 distinguishes the cases at the syntactic level —
+`42` vs `"42"` differ in canonical form); SHA-256's sensitivity drives
+them to distinct κ-labels. CT-T01..CT-T05 pin five concrete sample
+pairs; the universal claim that any two semantically-distinct typed
+inputs yield distinct κ-labels follows from canonical-form
+distinctness (CT-E01..CT-E04 prove the converse:
+canonical-form-equivalent inputs yield identical κ-labels) plus the
+SHA-256 sensitivity bound from §4. The Lean theorem
+`UorAddr1.TypedInput.case_tags_are_pairwise_distinct` mechanises the
+tag-byte half.
+
+## 7.6. Typed-input bound enforcement — CT-B
+
+The typed-input bounds declared in `crate::shapes::bounds`
+(`MAX_JSON_DEPTH = 32`, `MAX_STRING_BYTES = 1024`,
+`MAX_NUMBER_DIGITS = 64`, `MAX_OBJECT_KEYS = 256`,
+`MAX_ARRAY_ELEMENTS = 256`, `JSON_VALUE_MAX_BYTES = 3968`) are
+enforced *exactly* at `JsonValue::parse`. There is no statistical
+claim; failure is total. The Lean theorem
+`UorAddr1.TypedInput.depth_bound_is_strict` mechanises the depth
+half.
+
+- CT-B01 — any input of depth > `MAX_JSON_DEPTH` is rejected.
+- CT-B02 — any string of width > `MAX_STRING_BYTES` is rejected.
+- CT-B03 — depth = `MAX_JSON_DEPTH` is accepted (the bound is `≤`).
+- CT-B04 — invalid JSON syntax is rejected with the `validUtf8Json`
+  violation IRI, distinct from typed-input size violations.
+
+These bounds are the operational definition of "well-formed input"
+the §8 precision claims condition on. Inputs outside the bounds
+never enter the ψ-pipeline and never produce a κ-label.
 
 ## 8. The "arbitrary precision" framing
 

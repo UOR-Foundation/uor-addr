@@ -1,24 +1,22 @@
-//! Byte-identity tests: reproduce the 12 fixtures Maura Clark harvested
-//! from `mcp.uor.foundation/tools/encode_address` (mcp-uor-server v0.2.1,
-//! algorithm `uor-sha256-v1`, canonicalisation `jcs-rfc8785+nfc`) through
-//! the pure-UOR `AddressModel` pipeline declared in this crate.
-//!
-//! Provenance of the expected values: vendored from
-//! `https://github.com/maurathat/uor-addr-1/blob/main/tests/cross_validation.rs`
-//! (harvested 2026-05-12).
+//! Byte-identity tests: reproduce the 12 reference fixtures harvested
+//! from the [UOR Foundation](https://uor.foundation) canonical
+//! endpoint `mcp.uor.foundation/tools/encode_address` (mcp-uor-server
+//! v0.2.1, algorithm `uor-sha256-v1`, canonicalisation
+//! `jcs-rfc8785+nfc`) through the pure-Prism `AddressModel` pipeline
+//! declared in this crate.
 //!
 //! Two layers of assertion:
 //!
 //! 1. [`shim_layer_reproduces_harvested_fixtures`] — `pipeline::address`
 //!    routes through `AddressModel::forward` → ψ-chain → ψ_9 resolver →
 //!    `H::initial().fold_bytes(canonical).finalize()` and returns the
-//!    same 71-byte address Maura's reference produced.
+//!    same 71-byte address the reference endpoint produced.
 //!
 //! 2. [`canonicalize_kernel_matches_expected_canonical_form`] — the
-//!    boundary `jcs_nfc` transform produces the expected canonical-form
-//!    bytes for each fixture.
+//!    in-surface canonicalizer (reached via [`canonicalize`])
+//!    produces the expected canonical-form bytes for each fixture.
 
-use uor_addr_1::{address, jcs_nfc};
+use uor_addr_1::{address, canonicalize};
 
 struct Fixture {
     name: &'static str,
@@ -148,7 +146,7 @@ fn shim_layer_reproduces_harvested_fixtures() {
 fn canonicalize_kernel_matches_expected_canonical_form() {
     let mut failures = Vec::new();
     for fixture in fixtures() {
-        match jcs_nfc(fixture.raw_json) {
+        match canonicalize(fixture.raw_json) {
             Ok(canon) => {
                 if canon != fixture.expected_canonical_form {
                     failures.push(format!(

@@ -6,7 +6,7 @@
 
 #![allow(non_snake_case)]
 
-use uor_addr_1::{address, jcs_nfc, AddressFailure};
+use uor_addr_1::{address, canonicalize, AddressFailure};
 
 // ───────────────────────────────────────────────────────────────────────────
 // CS — Structural class (source-grep + runtime invariants)
@@ -324,9 +324,9 @@ fn pipeline_rejects_oversize_canonical_form() {
 #[test]
 fn pipeline_rejects_invalid_json() {
     let err = address(b"not json").expect_err("must reject");
-    matches!(err, AddressFailure::InvalidJson);
-    let err2 = jcs_nfc(b"{invalid").expect_err("must reject");
-    let _ = err2; // ShapeViolation
+    assert!(matches!(err, AddressFailure::InvalidJson));
+    let err2 = canonicalize(b"{invalid").expect_err("must reject");
+    assert!(err2.constraint_iri.contains("validUtf8Json"));
 }
 
 // ───────────────────────────────────────────────────────────────────────────

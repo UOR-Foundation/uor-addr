@@ -12,7 +12,7 @@
 #![allow(non_snake_case)]
 
 use prism::vocabulary::Hasher;
-use uor_addr_1::{address, jcs_nfc, Sha256Hasher};
+use uor_addr_1::{address, canonicalize, Sha256Hasher};
 
 /// Deterministic PRNG seed — `UOR_ADDR_ANALYSIS_SEED`. Anchored so
 /// CI failures are reproducible from the commit hash alone.
@@ -216,18 +216,18 @@ fn cp_n01__nfc_idempotent_at_scale() {
     let mut rng = XorShift64::new(SEED.wrapping_add(4));
     for _ in 0..n {
         // Generate a Unicode string containing combining-character
-        // sequences and ensure `jcs_nfc(jcs_nfc(x)) = jcs_nfc(x)`.
+        // sequences and ensure `canonicalize(canonicalize(x)) = canonicalize(x)`.
         let raw = random_unicode_json_string(&mut rng);
-        let once = match jcs_nfc(&raw) {
+        let once = match canonicalize(&raw) {
             Ok(c) => c,
             // Skip inputs that aren't valid UTF-8 JSON; we're testing
             // idempotence on the canonicalisable subset.
             Err(_) => continue,
         };
-        let twice = jcs_nfc(&once).expect("first round already canonical");
+        let twice = canonicalize(&once).expect("first round already canonical");
         assert_eq!(
             once, twice,
-            "CP-N01: jcs_nfc not idempotent on input {raw:?}"
+            "CP-N01: canonicalize not idempotent on input {raw:?}"
         );
     }
 }
@@ -237,18 +237,18 @@ fn cp_n01__nfc_idempotent_at_scale() {
 // ───────────────────────────────────────────────────────────────────────────
 
 #[test]
-fn cp_k01__jcs_nfc_idempotent_at_scale() {
+fn cp_k01__canonicalize_idempotent_at_scale() {
     // Debug N = 1_000; release N = 100_000.
     let n: u64 = 1_000 * SCALE;
     let mut rng = XorShift64::new(SEED.wrapping_add(5));
     for _ in 0..n {
         let raw = random_canonical_json(&mut rng);
-        let once = jcs_nfc(&raw).expect("valid");
-        let twice = jcs_nfc(&once).expect("valid second round");
+        let once = canonicalize(&raw).expect("valid");
+        let twice = canonicalize(&once).expect("valid second round");
         assert_eq!(
             once,
             twice,
-            "CP-K01: jcs_nfc not idempotent on canonical input {:?}",
+            "CP-K01: canonicalize not idempotent on canonical input {:?}",
             std::str::from_utf8(&raw).unwrap_or("(non-utf8)")
         );
     }
@@ -292,7 +292,7 @@ fn cp_k02__deep_key_permutation_invariance() {
 #[test]
 fn sha256_one_shot_matches_pipeline() {
     let raw = br#"{"foo":"bar"}"#;
-    let canonical = jcs_nfc(raw).expect("valid");
+    let canonical = canonicalize(raw).expect("valid");
     let one_shot: [u8; 32] = Sha256Hasher::initial().fold_bytes(&canonical).finalize();
     let outcome = address(raw).expect("valid");
     let from_label = hex_decode(&outcome.address[7..]);

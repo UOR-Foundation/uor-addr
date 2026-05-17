@@ -48,10 +48,11 @@
 
 use prism::pipeline::verb;
 
-use crate::model::{AddressLabel, JsonInput};
+use crate::model::AddressLabel;
+use crate::value::JsonValue;
 
 verb! {
-    pub fn address_inference(input: JsonInput) -> AddressLabel {
+    pub fn address_inference(input: JsonValue) -> AddressLabel {
         k_invariants(homotopy_groups(postnikov_tower(nerve(input))))
     }
 }
