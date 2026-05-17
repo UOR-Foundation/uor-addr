@@ -10,9 +10,11 @@ members = ["crates/uor-addr-1"]
 # this façade rather than the substrate directly.
 uor-prism          = { version = "0.1.1", default-features = false }
 uor-prism-verify   = { version = "0.1.1", default-features = false }
-# Substrate kept as a direct dep because the SDK macros expand to
-# absolute `::uor_foundation::*` paths; the façade alone is insufficient
-# until ADR-031 fully relocates the macro emission targets.
+# Substrate kept as a direct dep because the SDK macros emit code
+# referencing absolute `::uor_foundation::*` paths. This is the same
+# dependency posture every Prism application that uses the SDK macros
+# follows; the façade re-exports cover the import surface, the
+# substrate covers the macro-emission target.
 uor-foundation     = { version = "0.4.12" }
 uor-foundation-sdk = { version = "0.4.12" }
 

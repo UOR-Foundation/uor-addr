@@ -141,8 +141,11 @@ arbitrary precision** in three converging senses:
    CD-S01 and CP-A01 establish that distinct canonical-form bytes
    yield distinct κ-labels with collision probability ≤ `2^{-128}`
    across any feasible-N input set — i.e. SHA-256's full standard
-   security margin. Tighter precision requires a different hash axis
-   (out of scope for v0.1.0).
+   security margin. Tighter precision requires a different HashAxis
+   selection from `prism::crypto` (e.g. `Sha512Hasher`,
+   `Sha3_256Hasher`, or `Blake3Hasher`); each is a separate
+   PrismModel declaration with its own κ-label width and a separate
+   conformance contract.
 
 3. **Empirical precision** (axis 5). The CP class establishes
    distributional uniformity of digest bytes at α = 0.001 over
