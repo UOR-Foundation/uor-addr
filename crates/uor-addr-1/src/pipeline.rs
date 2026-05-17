@@ -1,25 +1,29 @@
 //! `uor-addr-1`'s public entry point — the ψ-pipeline content-address
-//! inference.
+//! inference over the typed [`JsonValue`] input.
 //!
-//! 1. The host runs the boundary [`crate::ops::canonicalize::jcs_nfc`]
-//!    transform on a raw JSON byte sequence to produce canonical-form
-//!    bytes.
+//! 1. The host-boundary parser [`crate::JsonValue::parse`] consumes
+//!    raw JSON bytes, builds the structurally-tagged byte form, and
+//!    validates every typed-input bound declared in
+//!    [`crate::shapes::bounds`]. The output is a typed `JsonValue` —
+//!    no canonicalisation has happened yet.
 //! 2. [`AddressModel`]'s `forward()` (from the foundation `PrismModel`
 //!    trait) invokes the ψ-chain verb
 //!    ([`crate::verbs::address_inference`]) end-to-end via foundation's
 //!    catamorphism. The catamorphism dispatches each resolver-bound
 //!    ψ-Term through [`crate::resolvers::AddressResolverTuple`].
 //! 3. The terminal ψ_9 resolver
-//!    ([`crate::resolvers::AddressKInvariantResolver`]) structurally
-//!    κ-derives the 71-byte wire-format address from the typed
-//!    `JsonInput` via the canonical hash axis (one σ-projection —
-//!    deterministic, no enumeration). The κ-label IS the
-//!    `sha256:<64hex>` ASCII bytes.
+//!    ([`crate::resolvers::AddressKInvariantResolver`]) decodes the
+//!    structurally-tagged bytes, performs JCS-RFC8785 + Unicode NFC
+//!    canonicalisation **inside the typed-iso surface** per ADR-046's
+//!    resolver-body iterative-resolution discipline, projects through
+//!    the canonical hash axis (one σ-projection — deterministic, no
+//!    enumeration), and structurally κ-derives the 71-byte
+//!    wire-format address.
 //! 4. [`address`] returns the 71-byte address — well-formed
-//!    `JsonInput` always yields exactly one κ-label.
+//!    `JsonValue` always yields exactly one κ-label.
 //!
 //! Per wiki ADR-039 (verdict realisation), the address-derivation
-//! verdict envelope is **total**: every well-formed `JsonInput`
+//! verdict envelope is **total**: every well-formed `JsonValue`
 //! produces an `Ok(AddressOutcome)` carrying the κ-label, because the
 //! constraint nerve N(C) is non-empty for every input. There is no
 //! `PipelineFailure::DidNotAdmit`-style admission filter at the host
@@ -32,14 +36,14 @@ extern crate alloc;
 
 use alloc::string::String;
 
-use prism::pipeline::PrismModel;
+use prism::pipeline::{EmptyCommitment, PrismModel};
 use prism::vocabulary::DefaultHostTypes;
 
-use crate::model::{AddressLabel, AddressModel, JsonInput, ADDRESS_LABEL_BYTES};
-use crate::ops::canonicalize::jcs_nfc;
+use crate::model::{AddressLabel, AddressModel, ADDRESS_LABEL_BYTES};
 use crate::resolvers::AddressResolverTuple;
 use crate::shapes::bounds::AddrBounds;
 use crate::shapes::Sha256Hasher;
+use crate::value::JsonValue;
 
 /// The result of a successful [`address`] invocation.
 ///
@@ -84,7 +88,10 @@ impl core::fmt::Debug for AddressWitness {
 pub enum AddressFailure {
     /// The input bytes were not valid UTF-8 JSON.
     InvalidJson,
-    /// The canonical-form bytes exceeded [`crate::model::JSON_INPUT_MAX_BYTES`].
+    /// The parsed JSON value's structurally-tagged byte serialization
+    /// (or one of its sub-bounds — depth, string width, number width,
+    /// object key count, array element count) exceeds a typed-input
+    /// ceiling declared in [`crate::shapes::bounds`].
     TooLarge,
     /// Defensive: foundation's catamorphism or a resolver returned a
     /// shape violation. Unreachable for well-formed inputs — the
@@ -95,30 +102,45 @@ pub enum AddressFailure {
 /// **uor-addr-1's public entry point** — one ψ-pipeline content-address
 /// inference per JSON input.
 ///
-/// 1. JCS+NFC canonicalises `input_bytes` at the host boundary.
-/// 2. Constructs a typed [`JsonInput`].
-/// 3. Invokes [`AddressModel`]'s `forward()` (from the foundation
+/// 1. [`JsonValue::parse`] parses `input_bytes` and validates every
+///    typed-input bound (depth, per-string/number width, container
+///    arity, total serialized size).
+/// 2. Invokes [`AddressModel`]'s `forward()` (from the foundation
 ///    `PrismModel` trait) which always produces a κ-label for
 ///    well-formed inputs.
-/// 4. Returns the [`AddressOutcome`] carrying the κ-label.
+/// 3. Returns the [`AddressOutcome`] carrying the κ-label.
+///
+/// JCS-RFC8785 + Unicode NFC canonicalisation runs **inside** the
+/// ψ_9 resolver body — it is part of the typed-iso surface, not a
+/// host-boundary preprocessing step.
 ///
 /// # Errors
 ///
 /// - [`AddressFailure::InvalidJson`] — `input_bytes` is not valid UTF-8 JSON.
-/// - [`AddressFailure::TooLarge`] — canonical-form bytes exceed the
-///   `JsonInput` cap.
+/// - [`AddressFailure::TooLarge`] — the parsed JSON value exceeds a
+///   typed-input ceiling (depth, string/number width, container
+///   arity, or total serialized byte width).
 /// - [`AddressFailure::PipelineFailure`] — defensive variant for
 ///   substrate-level shape violations; unreachable in normal flow.
 pub fn address(input_bytes: &[u8]) -> Result<AddressOutcome, AddressFailure> {
-    let canonical = jcs_nfc(input_bytes).map_err(|_| AddressFailure::InvalidJson)?;
-    let json_input = JsonInput::new(canonical).map_err(|_| AddressFailure::TooLarge)?;
+    let json_value = JsonValue::parse(input_bytes).map_err(|violation| {
+        // The `validUtf8Json` violation is the InvalidJson surface; every
+        // other typed-input violation collapses to TooLarge so the public
+        // API stays a clean three-state enum.
+        if violation.constraint_iri.ends_with("/validUtf8Json") {
+            AddressFailure::InvalidJson
+        } else {
+            AddressFailure::TooLarge
+        }
+    })?;
 
     let grounded = <AddressModel as PrismModel<
         DefaultHostTypes,
         AddrBounds,
         Sha256Hasher,
         AddressResolverTuple<Sha256Hasher>,
-    >>::forward(json_input)
+        EmptyCommitment,
+    >>::forward(json_value)
     .map_err(|_| AddressFailure::PipelineFailure)?;
 
     // Read the 71-byte κ-label out of the Grounded value.

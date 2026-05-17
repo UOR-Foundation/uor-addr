@@ -13,7 +13,10 @@
 
 pub mod bounds;
 
-pub use bounds::AddrBounds;
+pub use bounds::{
+    AddrBounds, JSON_VALUE_MAX_BYTES, MAX_ARRAY_ELEMENTS, MAX_JSON_DEPTH, MAX_NUMBER_DIGITS,
+    MAX_OBJECT_KEYS, MAX_STRING_BYTES,
+};
 /// Canonical `Hasher<32>` selection for the address-derivation pipeline.
 /// Re-exported from the Prism standard library; see wiki ADR-031.
 pub use prism::crypto::Sha256Hasher;

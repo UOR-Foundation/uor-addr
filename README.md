@@ -1,17 +1,15 @@
 # uor-addr-1
 
-> Pure-UOR refactor of Maura Clark's [`uor-addr-1`][upstream] proposal —
-> JSON content addressing as a Prism application of the UOR Foundation,
-> grounded against the wiki specification at
-> <https://github.com/UOR-Foundation/UOR-Framework/wiki>.
-
-[upstream]: https://github.com/maurathat/uor-addr-1
+> Pure-Prism JSON content addressing — a [UOR Foundation](https://uor.foundation)
+> reference implementation of UOR-ADDR-1, grounded against the wiki
+> specification at <https://github.com/UOR-Foundation/UOR-Framework/wiki>.
 
 ## What this crate is
 
-A `PrismModel<HostTypes, HostBounds, Hasher, ResolverTuple>` whose
-ψ-pipeline derives a 71-byte `sha256:<64hex>` content address from a
-canonical-form (JCS-RFC8785 + Unicode NFC) JSON byte sequence:
+A `PrismModel<HostTypes, HostBounds, Hasher, ResolverTuple,
+TypedCommitment>` whose typed-iso surface derives a 71-byte
+`sha256:<64hex>` content address from any JSON value of bounded
+depth and width:
 
 ```rust
 use uor_addr_1::address;
@@ -23,11 +21,18 @@ assert_eq!(
 );
 ```
 
-The 12 byte-identity fixtures Maura Clark harvested from
-`mcp.uor.foundation/tools/encode_address` (mcp-uor-server v0.2.1,
-algorithm `uor-sha256-v1`, canonicalisation `jcs-rfc8785+nfc`) are
-reproduced verbatim through this pipeline — see
-`tests/byte_identity.rs`.
+The PrismModel's `Input` is the typed `JsonValue` shape; the host
+boundary does only parsing. JCS-RFC8785 + Unicode NFC
+canonicalisation and the SHA-256 σ-projection both run **inside**
+the ψ-pipeline (the ψ_9 resolver body) per wiki ADR-046. Output is
+byte-identical to the UOR Foundation's canonical reference at
+`mcp.uor.foundation/tools/encode_address`; 12 reference fixtures
+covering scalar / object / array / Unicode-normalisation /
+nested-structure cases are pinned in `tests/byte_identity.rs`.
+
+See [`examples/`](examples/) for runnable use-case demonstrations:
+dedupe cache keys, signature payloads under structural-equivalence
+collapse, replay-verification round-trips.
 
 ## Validation & verification against the wiki specification
 
@@ -78,7 +83,7 @@ The verb body is exactly the wiki's canonical k-invariants branch:
 
 ```rust
 verb! {
-    pub fn address_inference(input: JsonInput) -> AddressLabel {
+    pub fn address_inference(input: JsonValue) -> AddressLabel {
         k_invariants(homotopy_groups(postnikov_tower(nerve(input))))
     }
 }
@@ -96,8 +101,8 @@ ADR-035 forbids σ-residuals — `Term::FirstAdmit`,
 `verbs::tests::verb_arena_contains_no_sigma_residuals` walks the
 emitted `Term` arena and asserts none of those variants appear. This
 is the load-bearing pure-prism invariant: from outside, `forward()`
-is one structural inference per `JsonInput`; the ψ-pipeline maps
-typed canonical-form bytes to the κ-label by structural
+is one structural inference per `JsonValue`; the ψ-pipeline maps
+the typed JSON-value tagged bytes to the κ-label by structural
 transformation, never by search.
 
 ### Iterative-resolution discipline — ADR-046 (resolver-body discipline)
@@ -178,11 +183,11 @@ for the canonical k-invariants branch on a non-cryptographic domain.
 ## The ψ-chain
 
 ```text
-JsonInput  (canonical-form JCS+NFC bytes)
+JsonValue  (typed JSON value, structurally-tagged bytes)
    ↓ ψ_1 Nerve            (Constraints → SimplicialComplex)
    ↓ ψ_7 PostnikovTower   (SimplicialComplex → PostnikovTower)
    ↓ ψ_8 HomotopyGroups   (PostnikovTower → HomotopyGroups)
-   ↓ ψ_9 KInvariants      (HomotopyGroups → KInvariants)
+   ↓ ψ_9 KInvariants      (HomotopyGroups → KInvariants — JCS+NFC + SHA-256)
 AddressLabel — the κ-label (71-byte `sha256:<64hex>`)
 ```
 
@@ -191,25 +196,28 @@ AddressLabel — the κ-label (71-byte `sha256:<64hex>`)
 ```
 crates/uor-addr-1/
 ├── Cargo.toml
+├── examples/           — runnable use-case demos (just examples)
+│   ├── address_value.rs
+│   ├── dedupe_cache.rs
+│   ├── typed_distinction.rs
+│   └── replay_verification.rs
 └── src/
-    ├── lib.rs           — façade
-    ├── model.rs         — JsonInput, AddressLabel, AddressModel (prism_model!)
-    ├── verbs.rs         — address_inference (the ψ-chain verb, verb!)
-    ├── resolvers.rs     — eight ψ-stage resolvers (resolver!)
-    ├── pipeline.rs      — public entry point `address(bytes) → AddressOutcome`
-    ├── shapes/
-    │   ├── mod.rs       — re-export of prism::crypto::Sha256Hasher (ADR-031)
-    │   └── bounds.rs    — AddrBounds (HostBounds, ADR-037)
-    └── ops/
-        ├── mod.rs
-        └── canonicalize.rs — JCS+NFC host-boundary transform
+    ├── lib.rs          — façade
+    ├── model.rs        — AddressLabel, AddressModel (prism_model! with EmptyCommitment)
+    ├── value.rs        — JsonValue typed input + tagged byte layout + parser + canonicalizer + canonicalize()
+    ├── verbs.rs        — address_inference (the ψ-chain verb, verb!)
+    ├── resolvers.rs    — eight ψ-stage resolvers (resolver!); ψ_9 owns canonicalization
+    ├── pipeline.rs     — public entry point `address(bytes) → AddressOutcome`
+    └── shapes/
+        ├── mod.rs      — re-export of prism::crypto::Sha256Hasher (ADR-031)
+        └── bounds.rs   — AddrBounds (HostBounds, ADR-037) + typed-input bounds
 ```
 
 ## Build
 
 ```bash
 cargo build           # requires rustc >= 1.83 (uor-foundation@0.4 MSRV)
-cargo test            # 50 tests across lib + 5 integration suites
+cargo test            # 75 passing tests + 2 ignored live tests
 cargo clippy --all-targets -- -D warnings
 ```
 
@@ -217,54 +225,86 @@ cargo clippy --all-targets -- -D warnings
 feature flag; only `alloc` is required.
 `#![forbid(unsafe_code)]` — zero unsafe blocks.
 
+## Use-case examples
+
+Four runnable examples cover the load-bearing use cases for
+content-addressed JSON. Each panics on a failed invariant, so they
+double as small executable conformance demos.
+
+| Example                                                                            | Use case                                                                                                                     |
+|------------------------------------------------------------------------------------|------------------------------------------------------------------------------------------------------------------------------|
+| [`address_value`](crates/uor-addr-1/examples/address_value.rs)                     | Mint a κ-label from raw JSON bytes — the minimal entry point                                                                |
+| [`dedupe_cache`](crates/uor-addr-1/examples/dedupe_cache.rs)                       | Three syntactic variants (key order, whitespace, NFC) collapse to one address — a cache key / blob-store dedupe demonstration |
+| [`typed_distinction`](crates/uor-addr-1/examples/typed_distinction.rs)             | `42` ≠ `"42"`, `null` ≠ `false`, `{} ≠ []` — typed-input distinction matters for signature payloads                          |
+| [`replay_verification`](crates/uor-addr-1/examples/replay_verification.rs)         | TC-05 round-trip: a third party re-derives the κ-label's `Certified<GroundingCertificate>` without invoking the hash axis    |
+
+```bash
+cargo run -p uor-addr-1 --example address_value
+cargo run -p uor-addr-1 --example dedupe_cache
+cargo run -p uor-addr-1 --example typed_distinction
+cargo run -p uor-addr-1 --example replay_verification
+
+# Or run all four in sequence as part of the V&V gate:
+just examples
+```
+
 ## Verification & Validation
 
 This crate ships a multi-axis V&V framework. The single normative
 acceptance gate is:
 
 ```bash
-just vv          # full V&V: fmt, lint, tests, conformance, analysis, doc-check, Lean
+just vv          # full V&V: fmt, lint, tests, conformance, analysis, replay, doc-check, Lean
 ```
 
 The framework establishes correctness for **arbitrary use cases to
-arbitrary precision** across three convergent surfaces — universal
+arbitrary precision** across four convergent surfaces — universal
 quantification (Lean), cryptographic precision (SHA-256 sensitivity),
-and statistical precision (calibrated χ² at α = 0.001):
+statistical precision (calibrated χ² at α = 0.001), and typed-input
+structural distinction (`CT-T` case-tag pinning):
 
-| Doc                                     | Role                                                                                          |
-|-----------------------------------------|-----------------------------------------------------------------------------------------------|
-| [ARCHITECTURE.md](ARCHITECTURE.md)     | Normative pure-prism architectural specification — vocabulary used by the rest of the V&V    |
-| [CONFORMANCE.md](CONFORMANCE.md)       | Conformance contract — 30+ invariant IDs (CS / CD / CP / CN / CL) referenced by tests        |
-| [VERIFICATION.md](VERIFICATION.md)     | V&V index — maps `just vv` axes to conformance-class IDs                                      |
-| [ANALYSIS.md](ANALYSIS.md)             | Derivation of CP sample sizes, χ² thresholds, and the "arbitrary precision" framing          |
-| [uor-addr-1-lean/](uor-addr-1-lean/)   | Lean 4 library — 11 mechanised theorems against UOR-Framework's `UOR.Enforcement` shapes      |
+| Doc                                     | Role                                                                                                          |
+|-----------------------------------------|---------------------------------------------------------------------------------------------------------------|
+| [ARCHITECTURE.md](ARCHITECTURE.md)     | Normative pure-prism architectural specification — vocabulary used by the rest of the V&V                    |
+| [CONFORMANCE.md](CONFORMANCE.md)       | Conformance contract — 60+ invariant IDs (CS / CD / CP / CN / CT / CL incl. CL-CT, CL-R) referenced by tests |
+| [VERIFICATION.md](VERIFICATION.md)     | V&V index — maps `just vv` axes to conformance-class IDs                                                      |
+| [ANALYSIS.md](ANALYSIS.md)             | Derivation of CP sample sizes, χ² thresholds, CT typed-input bounds, and "arbitrary precision" framing       |
+| [uor-addr-1-lean/](uor-addr-1-lean/)   | Lean 4 library — 14 mechanised theorems against UOR-Framework's `UOR.Enforcement` shapes                      |
 
-Lean proofs pin the universally-quantified claims: the κ-derivation is
-a function of the digest (`CL-K01`), distinct digests yield distinct
-κ-labels (`CL-K02`), the algebraic-closure Euler-characteristic
-identity holds (`CL-A01`), the wire-format width is structurally 71
-bytes (`CL-W01`), and hex encoding is injective on `[0, 16)`
-(`CL-H01`). Statistical axes (CP) cover what no finite proof can — that
-the implementation's empirical distribution matches its theoretical
-behaviour at 10⁶ samples and α = 10⁻³.
+Lean proofs pin the universally-quantified claims: the κ-derivation
+is a function of the digest (`CL-K01`), distinct digests yield
+distinct κ-labels (`CL-K02`), the algebraic-closure
+Euler-characteristic identity holds (`CL-A01`), the wire-format
+width is structurally 71 bytes (`CL-W01`), hex encoding is injective
+on `[0, 16)` (`CL-H01`), JSON cases carry pairwise-distinct
+structural tags (`CL-CT01`), the parse-time depth bound is strict
+(`CL-CT02`), the cost-model commitment is `EmptyCommitment`
+(`CL-CT03`). Statistical axes (CP) cover what no finite proof can —
+that the implementation's empirical distribution matches its
+theoretical behaviour at 10⁶ samples and α = 10⁻³. Typed-input axes
+(CT) pin the structural distinction the `JsonValue` shape buys:
+`42` ≠ `"42"`, `null` ≠ `false`, NFC-equivalent strings collapse to
+one κ-label, over-deep/over-wide inputs are rejected at parse.
 
-## What changed from the upstream proposal
+## The architectural shape
 
-The earlier `uor-addr-1` framing — `sha256:<64hex>` as a parallel
-application-layer primitive distinct from `uor-foundation`'s
-internal fingerprints — was a misreading of the foundation surface.
-The correct framing, established directly by the wiki:
+Four commitments fix the implementation as a pure-Prism application
+of the wiki specification:
 
 1. **The hash function is a `Hasher` impl, not a custom axis.** Per
    ADR-007 the `Hasher` trait is pluggable; the foundation ships no
-   concrete impl. `Sha256Hasher` here is one valid selection.
-2. **The canonicalisation step is a host-boundary transform, not a
-   ψ-stage.** `ops::canonicalize::jcs_nfc` runs at the host
-   boundary before `JsonInput::new`; it is not part of the
-   typed-iso surface.
+   concrete impl. `Sha256Hasher` here is the `prism::crypto`
+   standard-library re-export (ADR-031).
+2. **The canonicalisation step lives inside the typed-iso surface**
+   per ADR-046. ψ_9's `AddressKInvariantResolver` decodes the
+   structurally-tagged `JsonValue` bytes, applies JCS-RFC8785 +
+   Unicode NFC, and feeds the canonical bytes to the hash axis —
+   all inside the resolver body. The host boundary only parses raw
+   bytes into the typed `JsonValue` (`JsonValue::parse`); it does
+   no canonicalisation.
 3. **`Term::AxisInvocation` is forbidden in the verb body** per
    ADR-035. The canonical hash axis is consumed inside the ψ_9
-   resolver body via `H::initial().fold_bytes(bytes).finalize()`,
+   resolver body via `H::initial().fold_bytes(canonical).finalize()`,
    generic over the model's `H: Hasher` selection. One σ-projection
    per `address()` call — deterministic in the typed input, no
    enumeration.
@@ -283,11 +323,13 @@ other; a UOR-ADDR-1 party and a foundation-grounded party computing
 `Element::digest` over the same JSON value disagree, even when both
 name `sha256` as the algorithm.
 
-Closing that gap is an upstream wiki/foundation decision (publish a
-canonical JSON-to-R_n ingress producing Amendment-43-§2 canonical
-bytes, or document UOR-ADDR-1 as a foundation-adjacent JSON-domain
-flavour with its own canonical form). This crate is byte-identical
-to Maura's reference; the reconciliation is orthogonal to the prism
+Closing that gap is a [UOR Foundation](https://uor.foundation)
+wiki / foundation decision (publish a canonical JSON-to-R_n ingress
+producing Amendment-43-§2 canonical bytes, or document UOR-ADDR-1 as
+a foundation-adjacent JSON-domain flavour with its own canonical
+form). This crate is byte-identical to the
+`mcp.uor.foundation/tools/encode_address` reference across every
+input in its domain; the reconciliation is orthogonal to the Prism
 grounding.
 
 ## License

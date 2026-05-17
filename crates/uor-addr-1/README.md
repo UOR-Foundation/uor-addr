@@ -49,11 +49,16 @@ for the full V&V gate (`just vv`) and reproduction commands.
 
 ## Architecture
 
-The crate is the single `PrismModel<HostTypes, HostBounds, Hasher, ResolverTuple>`
-declared over `uor-foundation@0.4.5`. Internally the ψ-pipeline derives
-the κ-label through four typed stages — Nerve → PostnikovTower →
-HomotopyGroups → KInvariants — with the canonical hash axis consumed
-exactly once in the terminal ψ_9 resolver per wiki ADR-046.
+The crate is a single
+`PrismModel<HostTypes, HostBounds, Hasher, ResolverTuple, TypedCommitment>`
+declared over the `uor-prism` standard-library façade (wiki ADR-031),
+with `TypedCommitment = EmptyCommitment` per ADR-048. The PrismModel's
+`Input` is the typed [`JsonValue`] — a JSON value of bounded depth
+and width carried as a structurally-tagged byte serialization. The
+ψ-pipeline derives the κ-label through four typed stages
+(Nerve → PostnikovTower → HomotopyGroups → KInvariants); JCS-RFC8785
++ Unicode NFC canonicalisation and the canonical hash axis are both
+consumed inside the terminal ψ_9 resolver per wiki ADR-046.
 
 For the full architectural specification (substitution axes,
 discipline-scope boundaries, algebraic-closure encoding, seal regime),
@@ -67,8 +72,7 @@ Rust 1.83 or later.
 
 Licensed under the Apache License, Version 2.0. See [LICENSE](LICENSE).
 
-## Author
+## Authorship
 
-Standard authored by Maura Clark. Reference implementation by
-Alex Flom, grounded against the
-[UOR Foundation wiki specification](https://github.com/UOR-Foundation/UOR-Framework/wiki).
+Maintained by [The UOR Foundation](https://uor.foundation), grounded
+against the [UOR Foundation wiki specification](https://github.com/UOR-Foundation/UOR-Framework/wiki).
