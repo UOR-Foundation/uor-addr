@@ -1,4 +1,4 @@
-# Verification & Validation — `uor-addr-1`
+# Verification & Validation — `uor-addr`
 
 > V&V index. This document maps the conformance contract
 > ([CONFORMANCE.md](CONFORMANCE.md)) onto a single reproducible
@@ -66,7 +66,7 @@ for every input in the fixture set.
 
 ### 2.3 Conformance — runtime invariant suite (axis 4)
 
-`just conformance` runs `cargo test -p uor-addr-1 --release --test conformance`.
+`just conformance` runs `cargo test -p uor-addr --release --test conformance`.
 This axis re-runs the byte-identity fixtures at release-mode speed (so
 parametric extensions are tractable) and adds the source-grep
 invariants (`CS-S01`, `CS-S02`, plus the source-greps for `verbs.rs`
@@ -76,7 +76,7 @@ trace back to a CONFORMANCE.md row by ID.
 
 ### 2.4 Analysis — empirical scaling (axis 5)
 
-`just analysis` runs `cargo test -p uor-addr-1 --release --test analysis`
+`just analysis` runs `cargo test -p uor-addr --release --test analysis`
 covering the CP class. See [ANALYSIS.md](ANALYSIS.md) for the
 mathematical statement, derivation of the sample sizes, and the
 significance level for each test. The tests use a deterministic PRNG
@@ -85,7 +85,7 @@ seed so failures are reproducible.
 ### 2.5 Use-case examples — executable conformance demos (axis 7)
 
 `just examples` runs the four `cargo run --example` invocations
-under `crates/uor-addr-1/examples/`. Each example panics on a failed
+under `crates/uor-addr/examples/`. Each example panics on a failed
 invariant, so passing the axis is a structural requirement — the
 examples function as runnable conformance demos for the use cases
 in [README.md §Use-case examples](README.md#use-case-examples).
@@ -95,20 +95,20 @@ round-trip (CL-R*).
 
 ### 2.6 Lean proofs — universally quantified guarantees (axis 9)
 
-`just verify` runs `cd uor-addr-1-lean && lake build`. The Lean library
+`just verify` runs `cd uor-addr-lean && lake build`. The Lean library
 imports `UOR.Prelude` from the
 [UOR-Framework](https://github.com/UOR-Foundation/UOR-Framework) at
 revision `main`. Theorems are listed in
 [CONFORMANCE.md §CL](CONFORMANCE.md#cl--formal-class--lean-mechanised-theorems).
 Two flagship theorems:
 
-- **`UorAddr1.KappaDerivation.kappa_determined_by_digest`**: the
+- **`UorAddr.KappaDerivation.kappa_determined_by_digest`**: the
   κ-label is a *function* of the digest — universally quantified
   over all 32-byte digest values. This pins
   [CD-D01](CONFORMANCE.md#cd--deterministic-class--per-input-byte-identity)
   to *every* possible canonical-form byte sequence, not just the
   empirical sample.
-- **`UorAddr1.AlgebraicClosure.euler_char_eq_site_count`**: the
+- **`UorAddr.AlgebraicClosure.euler_char_eq_site_count`**: the
   Euler-characteristic identity is mechanically verified — not just
   asserted at compile time via the `const _: () = { … }` block in
   `resolvers.rs`.
@@ -120,7 +120,7 @@ over the typed-input domain).
 ### 2.7 Cross-validation — network axis (axis 10)
 
 `just cn` is gated behind `UOR_ADDR_LIVE=1`. It runs the
-`crates/uor-addr-1/tests/cross_validation.rs` integration tests, which
+`crates/uor-addr/tests/cross_validation.rs` integration tests, which
 issue HTTP requests to `mcp.uor.foundation/tools/encode_address` and
 compare the κ-labels byte-for-byte. CI does not require this axis (the
 reference may be down) but the gate is provided so external operators
@@ -128,7 +128,7 @@ can re-establish CN-RC01/CN-RC02 confidence on demand.
 
 ## 3. Precision policy
 
-`uor-addr-1` is verified to be valid for **arbitrary use cases to
+`uor-addr` is verified to be valid for **arbitrary use cases to
 arbitrary precision** in three converging senses:
 
 1. **Universal quantification** (axis 9, Lean). The κ-derivation
@@ -179,7 +179,7 @@ UOR_ADDR_LIVE=1 just cn   # optional, requires network
 ```
 
 The Lean step requires `lake` (provided by `elan`) and pins
-`leanprover/lean4:v4.16.0` via `uor-addr-1-lean/lean-toolchain`. The
+`leanprover/lean4:v4.16.0` via `uor-addr-lean/lean-toolchain`. The
 devcontainer at [.devcontainer/devcontainer.json](.devcontainer/devcontainer.json)
 ships `elan` and `just`; running `just verify` once will install the
 pinned toolchain on first use.

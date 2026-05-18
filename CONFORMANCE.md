@@ -1,13 +1,34 @@
-# Conformance Contract — `uor-addr-1`
+# Conformance Contract — `uor-addr`
 
 > Normative conformance contract. Each invariant has a stable ID
 > (e.g. `CS-V01`) referenced by tests, code comments, and PR
 > descriptions. Adding, retiring, or renumbering an ID is a contract
 > change. See [ARCHITECTURE.md](ARCHITECTURE.md) for the architectural
-> vocabulary and [VERIFICATION.md](VERIFICATION.md) for the
-> reproducible acceptance gate.
+> vocabulary, [STANDARDS.md](STANDARDS.md) for the authoritative
+> source references each realization conforms to, and
+> [VERIFICATION.md](VERIFICATION.md) for the reproducible acceptance
+> gate.
 
-## The contract — what `uor-addr-1` claims
+## Scope across realizations
+
+This document originally specified the conformance contract for the
+JSON realization (`uor_addr::json`). Additional shipped realizations
+extend the contract under the same invariant-ID scheme:
+
+| Realization | Conformance fixtures | Test file |
+|---|---|---|
+| `uor_addr::json` (JCS-RFC8785 + NFC) | 12-fixture `mcp.uor.foundation/tools/encode_address` baseline + JCS test vectors | [tests/byte_identity.rs](crates/uor-addr/tests/byte_identity.rs), [tests/conformance.rs](crates/uor-addr/tests/conformance.rs) |
+| `uor_addr::sexp` (Rivest 1997 canonical) | Sexp.txt §4.2/§4.3 canonical-form fixtures + typed-distinction theorem corpus | [tests/sexp_conformance.rs](crates/uor-addr/tests/sexp_conformance.rs) |
+| `uor_addr::variant::storage` (ADR-048 non-default `C`) | predicate-evaluation + bandwidth-additivity + typed-commitment conformance | [tests/variant_storage.rs](crates/uor-addr/tests/variant_storage.rs) |
+| Common architectural surface (`AddressInput` trait) | `AddressInput` trait conformance + verb-arena ψ-Term composition + output-shape IRI/site-count | [tests/common_surface.rs](crates/uor-addr/tests/common_surface.rs) |
+
+The CS-V01 / CD-D01 / CL-K01 / CL-W01 / CL-R01 / CT-T\* / CT-B\*
+invariant classes apply to **every** UOR-ADDR realization (the
+architectural commitment is realization-neutral). Per-realization
+conformance suites instantiate them over their typed-input shapes
+and canonicalization byte-output discipline.
+
+## The contract — what `uor-addr` claims (JSON realization baseline)
 
 For every well-formed JSON byte sequence `b` of length ≤ 3968 bytes
 after JCS+NFC canonicalisation:
@@ -63,7 +84,7 @@ two-letter class prefix.
 ### CS — Structural class — shape and typed surface
 
 Verified by **source-grep + compile-time invariants + unit tests** under
-`crates/uor-addr-1/src/`. CI fails if any structural claim drifts.
+`crates/uor-addr/src/`. CI fails if any structural claim drifts.
 
 | ID       | Invariant                                                                                 | Pinned by                                                                                       |
 |----------|-------------------------------------------------------------------------------------------|-------------------------------------------------------------------------------------------------|
@@ -80,8 +101,8 @@ Verified by **source-grep + compile-time invariants + unit tests** under
 ### CD — Deterministic class — per-input byte identity
 
 Verified by **runtime tests over a fixed fixture set** under
-`crates/uor-addr-1/tests/byte_identity.rs` and
-`crates/uor-addr-1/tests/conformance.rs`. The fixture baseline is the
+`crates/uor-addr/tests/byte_identity.rs` and
+`crates/uor-addr/tests/conformance.rs`. The fixture baseline is the
 12 cases harvested from `mcp.uor.foundation/tools/encode_address`
 (mcp-uor-server v0.2.1, algorithm `uor-sha256-v1`).
 
@@ -102,7 +123,7 @@ Verified by **runtime tests over a fixed fixture set** under
 ### CP — Probabilistic class — empirical scaling
 
 Verified by **parametric large-sample runtime tests** in release mode
-under `crates/uor-addr-1/tests/analysis.rs`. Failures are statistical;
+under `crates/uor-addr/tests/analysis.rs`. Failures are statistical;
 each test names its sample size, significance level, and reference
 distribution. See [ANALYSIS.md](ANALYSIS.md) for derivations.
 
@@ -119,7 +140,7 @@ distribution. See [ANALYSIS.md](ANALYSIS.md) for derivations.
 ### CT — Typed-input class — `JsonValue` shape claims
 
 Verified by **runtime parser + pipeline tests** at
-`crates/uor-addr-1/tests/typed_input.rs`. The typed `JsonValue` input
+`crates/uor-addr/tests/typed_input.rs`. The typed `JsonValue` input
 shape lets us distinguish JSON cases structurally (not just by
 canonical-form serialisation), reject violators of any typed-input
 bound at construction, and collapse structural-equivalence classes
@@ -147,7 +168,7 @@ to one κ-label.
 ### CN — Network class — cross-validation against reference
 
 Verified by **live HTTP calls to `mcp.uor.foundation`** at
-`crates/uor-addr-1/tests/cross_validation.rs`. Gated behind `#[ignore]`;
+`crates/uor-addr/tests/cross_validation.rs`. Gated behind `#[ignore]`;
 runs only under `just cn` (CI optional).
 
 | ID       | Invariant                                                                                  | Pinned by                                          |
@@ -157,7 +178,7 @@ runs only under `just cn` (CI optional).
 
 ### CL — Formal class — Lean mechanised theorems
 
-Verified by **`lake build`** under `uor-addr-1-lean/`. Theorems pin
+Verified by **`lake build`** under `uor-addr-lean/`. Theorems pin
 universally quantified claims that no finite sample suite can establish
 on its own. The Lean library depends only on the
 [UOR-Framework Lean library](https://github.com/UOR-Foundation/UOR-Framework)
@@ -165,25 +186,25 @@ on its own. The Lean library depends only on the
 
 | ID       | Theorem name                                                                       | File                                          | Statement                                                       |
 |----------|------------------------------------------------------------------------------------|-----------------------------------------------|-----------------------------------------------------------------|
-| CL-W01   | `UorAddr1.AddressShape.address_label_width_is_seventy_one`                         | `UorAddr1/AddressShape.lean`                  | `kappaLabel.size = 71` for every digest input                   |
-| CL-W02   | `UorAddr1.AddressShape.address_prefix_is_sha256_colon`                             | `UorAddr1/AddressShape.lean`                  | `kappaLabel[0..7] = "sha256:".toUInt8Array`                     |
-| CL-W03   | `UorAddr1.AddressShape.address_hex_digits_are_lowercase`                           | `UorAddr1/AddressShape.lean`                  | `∀ i ∈ [7, 71), kappaLabel[i] ∈ {'0'..'9', 'a'..'f'}`           |
-| CL-H01   | `UorAddr1.HexEncoding.hex_lower_injective`                                         | `UorAddr1/HexEncoding.lean`                   | `hexLower` is injective on `[0, 16)`                            |
-| CL-H02   | `UorAddr1.HexEncoding.hex_byte_pair_roundtrip`                                     | `UorAddr1/HexEncoding.lean`                   | `decodeNibble (hexLower n) = n` for `n < 16`                    |
-| CL-K01   | `UorAddr1.KappaDerivation.kappa_determined_by_digest`                              | `UorAddr1/KappaDerivation.lean`               | Equal digests ⟹ equal κ-labels                                 |
-| CL-K02   | `UorAddr1.KappaDerivation.distinct_digests_yield_distinct_labels`                  | `UorAddr1/KappaDerivation.lean`               | Unequal digests ⟹ unequal κ-labels (hex injectivity lifted)    |
-| CL-A01   | `UorAddr1.AlgebraicClosure.euler_char_eq_site_count`                               | `UorAddr1/AlgebraicClosure.lean`              | `β_0 − β_1 + … = 71`                                            |
-| CL-A02   | `UorAddr1.AlgebraicClosure.free_rank_residual_zero`                                | `UorAddr1/AlgebraicClosure.lean`              | After ψ_9 the FreeRank residual is 0                            |
-| CL-N01   | `UorAddr1.NfcIdempotence.nfc_is_idempotent`                                        | `UorAddr1/NfcIdempotence.lean`                | `nfc (nfc s) = nfc s` (axiomatised — Unicode-spec lemma)        |
-| CL-V01   | `UorAddr1.VerbDiscipline.verb_arena_psi_residuals_only`                            | `UorAddr1/VerbDiscipline.lean`                | The verb's term-arena coproduct contains only ψ-Term variants   |
-| CL-CT01  | `UorAddr1.TypedInput.case_tags_are_pairwise_distinct`                              | `UorAddr1/TypedInput.lean`                    | Different JSON cases carry pairwise-distinct structural tag bytes |
-| CL-CT02  | `UorAddr1.TypedInput.depth_bound_is_strict`                                        | `UorAddr1/TypedInput.lean`                    | Admissibility iff `depth ≤ MAX_JSON_DEPTH` (at-bound accepted; over-bound rejected) |
-| CL-CT03  | `UorAddr1.TypedInput.empty_commitment_is_the_cost_surface`                         | `UorAddr1/TypedInput.lean`                    | The PrismModel's `C` is bound to `EmptyCommitment` (ADR-048)    |
+| CL-W01   | `UorAddr.AddressShape.address_label_width_is_seventy_one`                         | `UorAddr/AddressShape.lean`                  | `kappaLabel.size = 71` for every digest input                   |
+| CL-W02   | `UorAddr.AddressShape.address_prefix_is_sha256_colon`                             | `UorAddr/AddressShape.lean`                  | `kappaLabel[0..7] = "sha256:".toUInt8Array`                     |
+| CL-W03   | `UorAddr.AddressShape.address_hex_digits_are_lowercase`                           | `UorAddr/AddressShape.lean`                  | `∀ i ∈ [7, 71), kappaLabel[i] ∈ {'0'..'9', 'a'..'f'}`           |
+| CL-H01   | `UorAddr.HexEncoding.hex_lower_injective`                                         | `UorAddr/HexEncoding.lean`                   | `hexLower` is injective on `[0, 16)`                            |
+| CL-H02   | `UorAddr.HexEncoding.hex_byte_pair_roundtrip`                                     | `UorAddr/HexEncoding.lean`                   | `decodeNibble (hexLower n) = n` for `n < 16`                    |
+| CL-K01   | `UorAddr.KappaDerivation.kappa_determined_by_digest`                              | `UorAddr/KappaDerivation.lean`               | Equal digests ⟹ equal κ-labels                                 |
+| CL-K02   | `UorAddr.KappaDerivation.distinct_digests_yield_distinct_labels`                  | `UorAddr/KappaDerivation.lean`               | Unequal digests ⟹ unequal κ-labels (hex injectivity lifted)    |
+| CL-A01   | `UorAddr.AlgebraicClosure.euler_char_eq_site_count`                               | `UorAddr/AlgebraicClosure.lean`              | `β_0 − β_1 + … = 71`                                            |
+| CL-A02   | `UorAddr.AlgebraicClosure.free_rank_residual_zero`                                | `UorAddr/AlgebraicClosure.lean`              | After ψ_9 the FreeRank residual is 0                            |
+| CL-N01   | `UorAddr.NfcIdempotence.nfc_is_idempotent`                                        | `UorAddr/NfcIdempotence.lean`                | `nfc (nfc s) = nfc s` (axiomatised — Unicode-spec lemma)        |
+| CL-V01   | `UorAddr.VerbDiscipline.verb_arena_psi_residuals_only`                            | `UorAddr/VerbDiscipline.lean`                | The verb's term-arena coproduct contains only ψ-Term variants   |
+| CL-CT01  | `UorAddr.TypedInput.case_tags_are_pairwise_distinct`                              | `UorAddr/TypedInput.lean`                    | Different JSON cases carry pairwise-distinct structural tag bytes |
+| CL-CT02  | `UorAddr.TypedInput.depth_bound_is_strict`                                        | `UorAddr/TypedInput.lean`                    | Admissibility iff `depth ≤ MAX_JSON_DEPTH` (at-bound accepted; over-bound rejected) |
+| CL-CT03  | `UorAddr.TypedInput.empty_commitment_is_the_cost_surface`                         | `UorAddr/TypedInput.lean`                    | The PrismModel's `C` is bound to `EmptyCommitment` (ADR-048)    |
 
 ### CL-R — Replay class — TC-05 round-trip via `uor-prism-verify`
 
 Verified by **runtime round-trip tests** at
-`crates/uor-addr-1/tests/replay.rs` exercising the wiki TC-05
+`crates/uor-addr/tests/replay.rs` exercising the wiki TC-05
 commitment: every `Grounded<AddressLabel>` the address pipeline emits
 can be replayed by a downstream verifier through
 `prism_verify::certify_from_trace` to produce a
