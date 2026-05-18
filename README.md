@@ -35,20 +35,35 @@ across realizations.
 
 ## Realizations shipped
 
-| Module | Realization | Authoritative source | Conformance fixtures |
-|---|---|---|---|
-| [`uor_addr::json`](crates/uor-addr/src/json/) | JSON under JCS-RFC8785 + Unicode NFC, σ-projection = SHA-256 | [RFC 8785](https://datatracker.ietf.org/doc/rfc8785/) + [RFC 8259](https://datatracker.ietf.org/doc/rfc8259/) + [UAX #15](https://www.unicode.org/reports/tr15/) + [FIPS 180-4](https://nvlpubs.nist.gov/nistpubs/FIPS/NIST.FIPS.180-4.pdf) | 12-fixture `mcp.uor.foundation/tools/encode_address` baseline + 8-fixture Maura Clark baseline + JCS-RFC8785 published test vectors |
-| [`uor_addr::sexp`](crates/uor-addr/src/sexp/) | S-expressions under Rivest 1997 canonical form, σ-projection = SHA-256 | [Rivest 1997 *S-expressions*](https://people.csail.mit.edu/rivest/Sexp.txt) + [RFC 2693 §3](https://datatracker.ietf.org/doc/html/rfc2693#section-3) | 8-fixture Rivest §4.2/§4.3 canonical-form conformance + typed-distinction theorem corpus |
-| [`uor_addr::variant::storage`](crates/uor-addr/src/variant/storage.rs) | Cost-model-bearing JSON variant binding `C = AndCommitment<EmptyCommitment, SingletonCommitment<LexicographicLessEqThreshold>>` | [ADR-048](https://github.com/UOR-Foundation/UOR-Framework/wiki/ADR-048) + [QS-06](https://github.com/UOR-Foundation/UOR-Framework/wiki/QS-06) + [ADR-047 U6](https://github.com/UOR-Foundation/UOR-Framework/wiki/ADR-047) | 5-fixture predicate-evaluation, bandwidth-additivity, and typed-commitment conformance |
+### Format-specific realizations
+
+| Module | Realization | Authoritative source |
+|---|---|---|
+| [`uor_addr::json`](crates/uor-addr/src/json/) | JSON under JCS-RFC8785 + Unicode NFC | [RFC 8785](https://datatracker.ietf.org/doc/rfc8785/) + [RFC 8259](https://datatracker.ietf.org/doc/rfc8259/) + [UAX #15](https://www.unicode.org/reports/tr15/) + [FIPS 180-4](https://nvlpubs.nist.gov/nistpubs/FIPS/NIST.FIPS.180-4.pdf) |
+| [`uor_addr::sexp`](crates/uor-addr/src/sexp/) | S-expressions under Rivest 1997 canonical form | [Rivest 1997 *S-expressions*](https://people.csail.mit.edu/rivest/Sexp.txt) + [RFC 2693 §3](https://datatracker.ietf.org/doc/html/rfc2693#section-3) |
+| [`uor_addr::xml`](crates/uor-addr/src/xml/) | XML under W3C Canonical XML 1.1 (subset) | [W3C XML-C14N 1.1](https://www.w3.org/TR/xml-c14n11/) + [XML 1.0](https://www.w3.org/TR/xml/) |
+| [`uor_addr::asn1`](crates/uor-addr/src/asn1/) | ASN.1 under X.690 DER | [ITU-T X.690](https://www.itu.int/rec/T-REC-X.690) + [ITU-T X.680](https://www.itu.int/rec/T-REC-X.680) |
+| [`uor_addr::ring`](crates/uor-addr/src/ring/) | Ring elements under Amendment 43 §2 canonical bytes | [UOR-Framework Amendment 43](https://github.com/UOR-Foundation/UOR-Framework/wiki/Amendment-43) |
+| [`uor_addr::codemodule`](crates/uor-addr/src/codemodule/) | Code-module AST under CCMAS canonical form | [CCMAS grammar](crates/uor-addr/src/codemodule/mod.rs) + [Rivest 1997](https://people.csail.mit.edu/rivest/Sexp.txt) |
+
+### Schema-pinned descendants
+
+| Module | Specializes | Schema |
+|---|---|---|
+| [`uor_addr::schema::photo`](crates/uor-addr/src/schema/photo.rs) | JSON | subject + captured_at + location + camera_make + camera_model + content_hash + provenance |
+| [`uor_addr::schema::document`](crates/uor-addr/src/schema/document.rs) | JSON | title + authors[] + version + sections[].(heading+body) + citations[].(key+url) |
+| [`uor_addr::schema::codemodule_signed`](crates/uor-addr/src/schema/codemodule_signed.rs) | CCMAS | adds a `(3:sig <64-hex>)` signature sub-form requirement |
+
+### Cost-model-bearing variants
+
+| Module | `C` binding | Reference |
+|---|---|---|
+| [`uor_addr::variant::storage`](crates/uor-addr/src/variant/storage.rs) | `AndCommitment<EmptyCommitment, SingletonCommitment<LexicographicLessEqThreshold>>` | [ADR-048](https://github.com/UOR-Foundation/UOR-Framework/wiki/ADR-048) + [QS-06](https://github.com/UOR-Foundation/UOR-Framework/wiki/QS-06) |
+| [`uor_addr::variant::signed`](crates/uor-addr/src/variant/signed.rs) | `SingletonCommitment<UltrametricCloseTo<2>>` | [ADR-048](https://github.com/UOR-Foundation/UOR-Framework/wiki/ADR-048) + [ADR-049](https://github.com/UOR-Foundation/UOR-Framework/wiki/ADR-049) |
 
 See [`STANDARDS.md`](STANDARDS.md) for the complete index of
-authoritative source references.
-
-Deferred realizations (per ADR-031's demand-driven clause):
-`uor-addr-xml` (XML-C14N), `uor-addr-asn1` (DER), `uor-addr-ring`
-(Amendment 43 §2), `uor-addr-codemodule`, schema-pinned descendants
-(`uor-addr-photo`, `uor-addr-document`, `uor-addr-codemodule-signed`),
-and the `uor-addr-signed` variant.
+authoritative source references and per-realization conformance
+fixture maps.
 
 ## The common architectural surface
 
@@ -152,17 +167,39 @@ zero unsafe blocks anywhere in the crate.
 
 ## Use-case examples
 
+Every shipped realization has a comprehensive runnable example;
+`just examples` runs all 16 in sequence as part of the V&V gate:
+
 ```bash
-# JSON realization
+# Common architectural surface
+cargo run -p uor-addr --example common_surface
+
+# JSON realization (RFC 8785 + RFC 8259 + UAX #15 + FIPS 180-4)
 cargo run -p uor-addr --example address_value
 cargo run -p uor-addr --example dedupe_cache
 cargo run -p uor-addr --example typed_distinction
 cargo run -p uor-addr --example replay_verification
 
-# S-expression realization
-cargo run -p uor-addr --example sexp_address
+# Other format-specific realizations
+cargo run -p uor-addr --example sexp_address              # Rivest 1997 canonical S-exprs
+cargo run -p uor-addr --example xml_realization           # W3C XML-C14N 1.1 subset
+cargo run -p uor-addr --example asn1_realization          # ITU-T X.690 DER
+cargo run -p uor-addr --example ring_realization          # Amendment 43 §2
+cargo run -p uor-addr --example codemodule_realization    # CCMAS
 
-# Or run every example in sequence as part of the V&V gate:
+# Schema-pinned descendants
+cargo run -p uor-addr --example photo_schema              # PhotoValue over JSON
+cargo run -p uor-addr --example document_schema           # DocumentValue over JSON
+cargo run -p uor-addr --example codemodule_signed_schema  # SignedCodeModuleValue over CCMAS
+
+# Cost-model-bearing variants
+cargo run -p uor-addr --example storage_variant           # ADR-048 + QS-06
+cargo run -p uor-addr --example signed_variant            # ADR-048 + ADR-049
+
+# Cross-realization showcase
+cargo run -p uor-addr --example multi_realization
+
+# All in sequence as part of the V&V gate:
 just examples
 ```
 

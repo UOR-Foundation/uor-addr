@@ -56,25 +56,23 @@ UOR-ADDR's reach has three concentric layers:
 UOR-ADDR's contribution is the realization of these layers across the
 framework's supported formats and domain schemas.
 
-## What this crate ships today
+## What this crate ships
 
-| Module | Layer | Status |
-|---|---|---|
-| [`uor_addr::common`](crates/uor-addr/src/common.rs) | Common architectural surface | Complete — `AddressInput` trait + architectural docs |
-| [`uor_addr::label`](crates/uor-addr/src/label.rs) | Common output shape | Complete — `AddressLabel` (71-Site SHA-256 specialization, IRI `…/sha256`) |
-| [`uor_addr::json`](crates/uor-addr/src/json/) | Format-specific realization | Complete — JSON under JCS-RFC8785 + Unicode NFC, conformance against `mcp.uor.foundation/tools/encode_address` baseline + 12-fixture JCS test vectors |
-| [`uor_addr::sexp`](crates/uor-addr/src/sexp/) | Format-specific realization | Complete — S-expressions under Rivest 1997 canonical form, conformance against Sexp.txt §4.2/§4.3 |
-| [`uor_addr::variant::storage`](crates/uor-addr/src/variant/storage.rs) | Cost-model-bearing variant | Complete — `C = AndCommitment<EmptyCommitment, SingletonCommitment<LexicographicLessEqThreshold>>` per ADR-048 + QS-06 |
-
-Deferred per ADR-031's demand-driven clause:
-- `uor-addr-xml` (XML-C14N)
-- `uor-addr-asn1` (DER)
-- `uor-addr-ring` (Amendment 43 §2)
-- `uor-addr-codemodule` (canonical AST)
-- Schema-pinned descendants: `uor-addr-photo`, `uor-addr-document`,
-  `uor-addr-codemodule-signed`
-- `uor-addr-signed` cost-model variant (pending publication of a
-  signature `ObservablePredicate` in `prism::pipeline`)
+| Module | Layer |
+|---|---|
+| [`uor_addr::common`](crates/uor-addr/src/common.rs) | Common architectural surface — `AddressInput` trait |
+| [`uor_addr::label`](crates/uor-addr/src/label.rs) | Common output shape — `AddressLabel` (71-Site SHA-256 specialization, IRI `…/sha256`) |
+| [`uor_addr::json`](crates/uor-addr/src/json/) | Format: JSON under JCS-RFC8785 + Unicode NFC |
+| [`uor_addr::sexp`](crates/uor-addr/src/sexp/) | Format: S-expressions under Rivest 1997 canonical form |
+| [`uor_addr::xml`](crates/uor-addr/src/xml/) | Format: XML under W3C Canonical XML 1.1 (subset) |
+| [`uor_addr::asn1`](crates/uor-addr/src/asn1/) | Format: ASN.1 under ITU-T X.690 DER |
+| [`uor_addr::ring`](crates/uor-addr/src/ring/) | Format: ring elements under UOR-Framework Amendment 43 §2 |
+| [`uor_addr::codemodule`](crates/uor-addr/src/codemodule/) | Format: code-module AST under CCMAS |
+| [`uor_addr::schema::photo`](crates/uor-addr/src/schema/photo.rs) | Schema-pinned descendant of `json` |
+| [`uor_addr::schema::document`](crates/uor-addr/src/schema/document.rs) | Schema-pinned descendant of `json` |
+| [`uor_addr::schema::codemodule_signed`](crates/uor-addr/src/schema/codemodule_signed.rs) | Schema-pinned descendant of `codemodule` |
+| [`uor_addr::variant::storage`](crates/uor-addr/src/variant/storage.rs) | Cost-model variant — `AndCommitment<EmptyCommitment, SingletonCommitment<LexicographicLessEqThreshold>>` |
+| [`uor_addr::variant::signed`](crates/uor-addr/src/variant/signed.rs) | Cost-model variant — `SingletonCommitment<UltrametricCloseTo<2>>` |
 
 See [STANDARDS.md](STANDARDS.md) for the complete index of
 authoritative source references for every shipped realization.
