@@ -31,15 +31,17 @@ lint:
 test:
 	cargo test --workspace
 
-# Axis 4 — conformance suite (release). Covers JSON realization
-# (`conformance`), S-expression realization (`sexp_conformance`),
-# storage cost-model variant (`variant_storage`), and the common
+# Axis 4 — conformance suite (release). Covers the JSON realization
+# (`conformance`), the S-expression realization (`sexp_conformance`),
+# the storage cost-model variant (`variant_storage`), every shipped
+# realization end-to-end (`all_realizations`), and the common
 # architectural surface (`common_surface`).
 conformance:
 	cargo test -p uor-addr --release --test conformance
 	cargo test -p uor-addr --release --test common_surface
 	cargo test -p uor-addr --release --test sexp_conformance
 	cargo test -p uor-addr --release --test variant_storage
+	cargo test -p uor-addr --release --test all_realizations
 
 # Axis 5 — analysis suite (release, large samples).
 analysis:
@@ -52,11 +54,28 @@ replay:
 # Axis 7 — runnable use-case examples. Each example panics on a failed
 # invariant; passing requires every example to exit cleanly.
 examples:
+	# Common architectural surface
+	cargo run -p uor-addr --example common_surface
+	# JSON realization
 	cargo run -p uor-addr --example address_value
 	cargo run -p uor-addr --example dedupe_cache
 	cargo run -p uor-addr --example typed_distinction
 	cargo run -p uor-addr --example replay_verification
+	# Other format-specific realizations
 	cargo run -p uor-addr --example sexp_address
+	cargo run -p uor-addr --example xml_realization
+	cargo run -p uor-addr --example asn1_realization
+	cargo run -p uor-addr --example ring_realization
+	cargo run -p uor-addr --example codemodule_realization
+	# Schema-pinned descendants
+	cargo run -p uor-addr --example photo_schema
+	cargo run -p uor-addr --example document_schema
+	cargo run -p uor-addr --example codemodule_signed_schema
+	# Cost-model variants
+	cargo run -p uor-addr --example storage_variant
+	cargo run -p uor-addr --example signed_variant
+	# Cross-realization showcase
+	cargo run -p uor-addr --example multi_realization
 
 # Axis 8 — rustdoc with broken-intra-doc-links denied.
 doc-check:

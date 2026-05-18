@@ -44,9 +44,35 @@ common doc-rot.
 
 ### 2.2 Typed-surface invariants (axis 3)
 
-`cargo test --workspace` runs the 27 lib unit tests and the integration
-suites — `byte_identity.rs` (8), `conformance.rs` (14), `typed_input.rs`
-(16), `analysis.rs` (8), `replay.rs` (3). This axis pins:
+`cargo test --workspace` runs **113 tests across all realizations**:
+
+- 38 lib unit tests (`json::*`, `sexp::*`, `label::*`, `variant::storage::*`)
+- 14 [`common_surface.rs`](crates/uor-addr/tests/common_surface.rs) tests
+  pinning the `AddressInput` trait contract, the `AddressLabel` IRI /
+  site-count formula, and end-to-end κ-derivation through the common
+  surface.
+- 8 [`byte_identity.rs`](crates/uor-addr/tests/byte_identity.rs) tests
+  pinning JSON byte-equality against the 12-fixture
+  `mcp.uor.foundation/tools/encode_address` baseline.
+- 14 [`conformance.rs`](crates/uor-addr/tests/conformance.rs) tests
+  covering JSON CD-* invariants + the source-grep invariants
+  (`CS-S01`, `CS-S02`).
+- 16 [`typed_input.rs`](crates/uor-addr/tests/typed_input.rs) tests
+  pinning JSON typed-input case distinction (CT-T\*),
+  whitespace/NFC/key-ordering equivalence (CT-E\*), and bound
+  enforcement (CT-B\*).
+- 8 [`analysis.rs`](crates/uor-addr/tests/analysis.rs) tests pinning
+  the CP class.
+- 3 [`replay.rs`](crates/uor-addr/tests/replay.rs) tests pinning
+  TC-05 round-trip (`CL-R00`–`CL-R02`).
+- 7 [`sexp_conformance.rs`](crates/uor-addr/tests/sexp_conformance.rs)
+  tests pinning Rivest §4.2/§4.3 canonical-form conformance plus
+  cross-format distinction against the JSON realization.
+- 5 [`variant_storage.rs`](crates/uor-addr/tests/variant_storage.rs)
+  tests pinning the ADR-048 non-default `C` selection, predicate
+  evaluation, and bandwidth-additivity.
+
+This axis pins:
 
 - The ψ-residuals discipline (`CS-V01`, `CS-V02`) — the verb's term
   arena contains exactly the ψ_1/ψ_7/ψ_8/ψ_9 variants and no
@@ -66,13 +92,23 @@ for every input in the fixture set.
 
 ### 2.3 Conformance — runtime invariant suite (axis 4)
 
-`just conformance` runs `cargo test -p uor-addr --release --test conformance`.
-This axis re-runs the byte-identity fixtures at release-mode speed (so
-parametric extensions are tractable) and adds the source-grep
-invariants (`CS-S01`, `CS-S02`, plus the source-greps for `verbs.rs`
-that confirm the verb body matches `ARCHITECTURE.md` §3.2 verbatim).
-Tests in this suite are named `<id>__<short_description>` so failures
-trace back to a CONFORMANCE.md row by ID.
+`just conformance` runs four conformance suites at release-mode
+speed (parametric extensions tractable):
+
+- `cargo test -p uor-addr --release --test conformance` —
+  JSON conformance (CD-\*, CS-S01, CS-S02) + the source-grep
+  invariants over `json/verbs.rs`, `json/resolvers.rs`,
+  `json/pipeline.rs`.
+- `cargo test -p uor-addr --release --test common_surface` —
+  common architectural surface (`AddressInput` trait + verb-arena
+  ψ-Term composition + `AddressLabel` IRI / site-count).
+- `cargo test -p uor-addr --release --test sexp_conformance` —
+  S-expression conformance against Rivest 1997 §4.2/§4.3.
+- `cargo test -p uor-addr --release --test variant_storage` —
+  cost-model variant conformance against ADR-048 + QS-06.
+
+Tests are named `<id>__<short_description>` so failures trace back
+to a CONFORMANCE.md row by ID.
 
 ### 2.4 Analysis — empirical scaling (axis 5)
 
@@ -84,14 +120,15 @@ seed so failures are reproducible.
 
 ### 2.5 Use-case examples — executable conformance demos (axis 7)
 
-`just examples` runs the four `cargo run --example` invocations
+`just examples` runs the five `cargo run --example` invocations
 under `crates/uor-addr/examples/`. Each example panics on a failed
 invariant, so passing the axis is a structural requirement — the
 examples function as runnable conformance demos for the use cases
 in [README.md §Use-case examples](README.md#use-case-examples).
-The four examples cover content-address minting (CT-T*), structural
-equivalence (CT-E*), typed distinction (CT-T*), and TC-05 replay
-round-trip (CL-R*).
+The four JSON examples cover content-address minting (CT-T\*),
+structural equivalence (CT-E\*), typed distinction (CT-T\*), and
+TC-05 replay round-trip (CL-R\*); the `sexp_address` example
+demonstrates the S-expression realization end-to-end.
 
 ### 2.6 Lean proofs — universally quantified guarantees (axis 9)
 

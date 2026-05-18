@@ -27,35 +27,29 @@
 //!
 //! ## Module layout
 //!
-//! - [`common`] — the shared architectural surface: trait, output
-//!   shape, cost-model commitment, V&V framing.
-//! - [`json`] — the JSON realization under JCS-RFC8785 + Unicode NFC
-//!   with `H = prism::crypto::Sha256Hasher`. Ships the
-//!   `mcp.uor.foundation/tools/encode_address`-compatible κ-label.
-//! - [`sexp`] — the S-expression realization under canonical
-//!   S-expression form with `H = prism::crypto::Sha256Hasher`.
-//! - [`variant::storage`] — the cost-model-bearing variant of the JSON
-//!   realization binding
-//!   `C = AndCommitment<EmptyCommitment, SingletonCommitment<LexicographicLessEqThreshold>>`
-//!   per ADR-048's typed-commitment surface and QS-06's storage-tier
-//!   admission exemplar.
+//! - [`common`] — the shared architectural surface (trait, V&V
+//!   framing).
+//! - [`label`] — the shared `AddressLabel` output shape
+//!   (`https://uor.foundation/addr/AddressLabel/sha256`).
+//! - **Format-specific realizations** — [`json`] (JCS-RFC8785 + NFC),
+//!   [`sexp`] (Rivest 1997), [`xml`] (W3C XML-C14N 1.1 subset),
+//!   [`asn1`] (X.690 DER), [`ring`] (UOR-Framework Amendment 43 §2),
+//!   [`codemodule`] (CCMAS).
+//! - **Schema-pinned descendants** — [`schema::photo`],
+//!   [`schema::document`], [`schema::codemodule_signed`].
+//! - **Cost-model-bearing variants** — [`variant::storage`]
+//!   (`AndCommitment<…, LexicographicLessEqThreshold>`),
+//!   [`variant::signed`] (`SingletonCommitment<UltrametricCloseTo<2>>`).
 //!
-//! ## What's shipped vs deferred
+//! ## What's shipped
 //!
-//! The architecture document
-//! ([`ARCHITECTURE.md`](https://github.com/UOR-Foundation/uor-addr/blob/main/ARCHITECTURE.md))
-//! lists additional format-specific realizations (`uor-addr-xml` under
-//! XML-C14N, `uor-addr-asn1` under DER, `uor-addr-ring` under
-//! Amendment 43 §2's `Element::canonical_bytes`, `uor-addr-codemodule`
-//! under canonical AST serialization) and additional schema-pinned
-//! descendants (`uor-addr-photo`, `uor-addr-document`,
-//! `uor-addr-codemodule-signed`) and additional cost-model-bearing
-//! variants (`uor-addr-signed`). Per ADR-031's demand-driven clause,
-//! those land as sibling modules (or sibling crates if their
-//! dependency surface differs from this crate's) when their
-//! respective reference baselines (XML-C14N test vectors, DER test
-//! vectors, Amendment 43 reference data, signature-commitment
-//! predicates, etc.) are ready for V&V instantiation.
+//! The full UOR-ADDR architectural surface — common trait + six
+//! format-specific realizations + three schema-pinned descendants +
+//! two cost-model-bearing variants. See
+//! [`ARCHITECTURE.md`](https://github.com/UOR-Foundation/uor-addr/blob/main/ARCHITECTURE.md)
+//! for the architectural commitments each realization upholds and
+//! [`STANDARDS.md`](https://github.com/UOR-Foundation/uor-addr/blob/main/STANDARDS.md)
+//! for the authoritative-source citations.
 //!
 //! ## Validation & verification against the wiki specification
 //!
@@ -99,11 +93,16 @@
 
 extern crate alloc;
 
+pub mod asn1;
+pub mod codemodule;
 pub mod common;
 pub mod json;
 pub mod label;
+pub mod ring;
+pub mod schema;
 pub mod sexp;
 pub mod variant;
+pub mod xml;
 
 // Common architectural surface re-exports (per ARCHITECTURE.md
 // "What UOR-ADDR provides"). Downstream realizations consume these.

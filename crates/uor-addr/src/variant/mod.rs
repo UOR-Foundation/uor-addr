@@ -30,4 +30,5 @@
 //! lands when the signature predicate is added per ADR-049's
 //! demand-driven discipline.
 
+pub mod signed;
 pub mod storage;
