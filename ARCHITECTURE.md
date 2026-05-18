@@ -56,6 +56,29 @@ UOR-ADDR's reach has three concentric layers:
 UOR-ADDR's contribution is the realization of these layers across the
 framework's supported formats and domain schemas.
 
+## The schema-import discipline
+
+UOR-ADDR follows UOR's substitution-axis discipline (ADR-007 /
+ADR-030 / ADR-052) for schema-pinned descendants: **well-known
+kinds and types map to existing standards** rather than UOR-native
+inventions. The schemas shipped here import from the published
+taxonomies that already exist for those types:
+
+- Photo content-addressing imports [schema.org/Photograph](https://schema.org/Photograph).
+- Document content-addressing imports [schema.org/Article](https://schema.org/Article) (and its 14 standard subtypes).
+- Signed-software-attestation addressing imports
+  [in-toto Statement v1](https://in-toto.io/Statement/v1) — the same
+  envelope used by sigstore, SLSA, and the broader supply-chain
+  ecosystem.
+
+UOR-native primitives are reserved for low-level concerns where no
+standard exists or where UOR's typed-iso surface explicitly defines
+the canonical bytes: cryptographic primitives (the σ-projection
+axis selection per ADR-047), codec layouts ([`crate::ring`]'s
+Amendment 43 §2 form), and the [`crate::codemodule`] CCMAS
+canonical AST. These are the **only** UOR-defined shapes; everything
+else imports.
+
 ## What this crate ships
 
 | Module | Layer |
@@ -68,9 +91,9 @@ framework's supported formats and domain schemas.
 | [`uor_addr::asn1`](crates/uor-addr/src/asn1/) | Format: ASN.1 under ITU-T X.690 DER |
 | [`uor_addr::ring`](crates/uor-addr/src/ring/) | Format: ring elements under UOR-Framework Amendment 43 §2 |
 | [`uor_addr::codemodule`](crates/uor-addr/src/codemodule/) | Format: code-module AST under CCMAS |
-| [`uor_addr::schema::photo`](crates/uor-addr/src/schema/photo.rs) | Schema-pinned descendant of `json` |
-| [`uor_addr::schema::document`](crates/uor-addr/src/schema/document.rs) | Schema-pinned descendant of `json` |
-| [`uor_addr::schema::codemodule_signed`](crates/uor-addr/src/schema/codemodule_signed.rs) | Schema-pinned descendant of `codemodule` |
+| [`uor_addr::schema::photo`](crates/uor-addr/src/schema/photo.rs) | Schema-pinned descendant of `json` — imports [schema.org/Photograph](https://schema.org/Photograph) |
+| [`uor_addr::schema::document`](crates/uor-addr/src/schema/document.rs) | Schema-pinned descendant of `json` — imports [schema.org/Article](https://schema.org/Article) |
+| [`uor_addr::schema::codemodule_signed`](crates/uor-addr/src/schema/codemodule_signed.rs) | Schema-pinned descendant of `json` — imports [in-toto Statement v1](https://in-toto.io/Statement/v1) |
 | [`uor_addr::variant::storage`](crates/uor-addr/src/variant/storage.rs) | Cost-model variant — `AndCommitment<EmptyCommitment, SingletonCommitment<LexicographicLessEqThreshold>>` |
 | [`uor_addr::variant::signed`](crates/uor-addr/src/variant/signed.rs) | Cost-model variant — `SingletonCommitment<UltrametricCloseTo<2>>` |
 

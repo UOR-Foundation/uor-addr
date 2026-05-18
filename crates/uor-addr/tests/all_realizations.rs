@@ -136,28 +136,25 @@ fn codemodule_realization_emits_well_formed_kappa() {
 // ─── Schema descendants ────────────────────────────────────────────────
 
 #[test]
-fn photo_schema_admits_then_addresses() {
+fn photo_schema_admits_valid_schema_org_photograph() {
+    // schema.org/Photograph JSON-LD instance.
     let raw = br#"{
-        "subject": "test",
-        "captured_at": 1700000000,
-        "location": {"latitude": 0.0, "longitude": 0.0},
-        "camera_make": "Acme",
-        "camera_model": "X-1",
-        "content_hash": "0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef",
-        "provenance": "test"
+        "@context": "https://schema.org",
+        "@type": "Photograph",
+        "contentUrl": "https://example.org/skyline.jpg",
+        "creator": {"@type": "Person", "name": "Ada Lovelace"}
     }"#;
     let from_photo = uor_addr::schema::photo::address(raw)
         .expect("κ-label")
         .address;
     let from_json = uor_addr::json::address(raw).expect("κ-label").address;
     assert_well_formed_kappa(&from_photo);
-    // Schema admission applies at parse time only — κ-label matches the JSON realization.
     assert_eq!(from_photo, from_json);
 }
 
 #[test]
-fn photo_schema_rejects_missing_required_field() {
-    let bad = br#"{"subject": "x"}"#;
+fn photo_schema_rejects_non_schema_org_input() {
+    let bad = br#"{"@context": "https://example.org", "@type": "Photograph"}"#;
     let err = uor_addr::schema::photo::address(bad).expect_err("must reject");
     assert!(matches!(
         err,
@@ -166,13 +163,14 @@ fn photo_schema_rejects_missing_required_field() {
 }
 
 #[test]
-fn document_schema_admits_then_addresses() {
+fn document_schema_admits_valid_schema_org_article() {
+    // schema.org/Article JSON-LD instance.
     let raw = br#"{
-        "title": "Paper",
-        "authors": ["Ada"],
-        "version": "1.0",
-        "sections": [{"heading": "h", "body": "b"}],
-        "citations": [{"key": "k", "url": "https://x"}]
+        "@context": "https://schema.org",
+        "@type": "Article",
+        "headline": "On Typed Content Addressing",
+        "author": {"@type": "Person", "name": "Ada Lovelace"},
+        "datePublished": "2025-01-15"
     }"#;
     let from_doc = uor_addr::schema::document::address(raw)
         .expect("κ-label")
@@ -183,33 +181,55 @@ fn document_schema_admits_then_addresses() {
 }
 
 #[test]
-fn codemodule_signed_schema_requires_signature_item() {
-    // Unsigned module rejected.
-    let unsigned = uor_addr::codemodule::CodeModuleValue::module("u", &[])
-        .expect("valid")
-        .tagged_bytes()
-        .to_vec();
-    let err = uor_addr::schema::codemodule_signed::address(&unsigned).expect_err("no sig");
+fn document_schema_admits_article_subtypes() {
+    for ty in ["Article", "NewsArticle", "ScholarlyArticle", "BlogPosting"] {
+        let raw = alloc::format!(
+            r#"{{"@context":"https://schema.org","@type":"{ty}","headline":"x","author":"y","datePublished":"2025-01-15"}}"#
+        );
+        uor_addr::schema::document::address(raw.as_bytes()).expect("valid subtype");
+    }
+}
+
+#[test]
+fn codemodule_signed_schema_admits_in_toto_statement_v1() {
+    // in-toto Statement v1 attestation with SLSA Provenance v1 predicate.
+    let raw = br#"{
+        "_type": "https://in-toto.io/Statement/v1",
+        "subject": [
+            {
+                "name": "uor-addr-v0.1.0",
+                "digest": {
+                    "sha256": "0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef"
+                }
+            }
+        ],
+        "predicateType": "https://slsa.dev/provenance/v1",
+        "predicate": {"buildDefinition": {"buildType": "uor:test"}}
+    }"#;
+    let from_signed = uor_addr::schema::codemodule_signed::address(raw)
+        .expect("κ-label")
+        .address;
+    let from_json = uor_addr::json::address(raw).expect("κ-label").address;
+    assert_well_formed_kappa(&from_signed);
+    assert_eq!(from_signed, from_json);
+}
+
+#[test]
+fn codemodule_signed_schema_rejects_wrong_statement_iri() {
+    let bad = br#"{
+        "_type": "https://example.org/CustomStatement",
+        "subject": [{"name": "x", "digest": {"sha256": "0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef"}}],
+        "predicateType": "x",
+        "predicate": {}
+    }"#;
+    let err = uor_addr::schema::codemodule_signed::address(bad).expect_err("must reject");
     assert!(matches!(
         err,
         uor_addr::schema::codemodule_signed::AddressFailure::SchemaViolation
     ));
-
-    // Signed module admitted.
-    let signed =
-        uor_addr::schema::codemodule_signed::SignedCodeModuleValue::from_module_with_signature(
-            "demo",
-            &[uor_addr::codemodule::CodeModuleValue::atom("body").expect("valid")],
-            "0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef",
-        )
-        .expect("valid")
-        .tagged_bytes()
-        .to_vec();
-    let from_signed = uor_addr::schema::codemodule_signed::address(&signed)
-        .expect("κ-label")
-        .address;
-    assert_well_formed_kappa(&from_signed);
 }
+
+extern crate alloc;
 
 // ─── Cost-model variants ───────────────────────────────────────────────
 

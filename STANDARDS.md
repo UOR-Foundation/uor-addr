@@ -136,30 +136,63 @@ relation.
 
 ## Schema-pinned descendants
 
+UOR-ADDR's schema-import discipline: well-known kinds and types
+map to **existing standards** rather than UOR-native inventions.
+The shipped schemas therefore import from published taxonomies.
+
 ### Photo schema (`uor_addr::schema::photo`)
 
-Schema-pinned descendant of [`uor_addr::json`]. Admits only JSON
-objects carrying the required fields documented in the module's
-module-level docstring:
-[`uor_addr::schema::photo`](crates/uor-addr/src/schema/photo.rs).
+Schema-pinned descendant of [`uor_addr::json`]. **Imports
+schema.org's `Photograph` type.**
 
-Conformance corpus:
-[`uor_addr::schema::photo::tests`](crates/uor-addr/src/schema/photo.rs)
-plus
-[`tests/all_realizations.rs`](crates/uor-addr/tests/all_realizations.rs).
+| Concern | Authoritative source |
+|---|---|
+| schema.org Photograph | <https://schema.org/Photograph> |
+| schema.org ImageObject (parent) | <https://schema.org/ImageObject> |
+| schema.org MediaObject (parent) | <https://schema.org/MediaObject> |
+| schema.org CreativeWork (parent) | <https://schema.org/CreativeWork> |
+| JSON-LD 1.1 | <https://www.w3.org/TR/json-ld11/> |
+
+Required `@type = "Photograph"`, `@context ∈ {https://schema.org, http://schema.org}`,
+`contentUrl`, `creator`. Conformance corpus:
+[`crates/uor-addr/src/schema/photo.rs`](crates/uor-addr/src/schema/photo.rs).
 
 ### Document schema (`uor_addr::schema::document`)
 
-Schema-pinned descendant of [`uor_addr::json`]. Admits only JSON
-objects carrying the required title / authors / version / sections /
-citations structure documented in the module:
-[`uor_addr::schema::document`](crates/uor-addr/src/schema/document.rs).
+Schema-pinned descendant of [`uor_addr::json`]. **Imports
+schema.org's `Article` type** (extending `CreativeWork`).
+
+| Concern | Authoritative source |
+|---|---|
+| schema.org Article | <https://schema.org/Article> |
+| schema.org Article subtypes (NewsArticle, ScholarlyArticle, BlogPosting, …) | <https://schema.org/Article#subtypes> |
+| schema.org CreativeWork (parent) | <https://schema.org/CreativeWork> |
+
+Required `@context = schema.org`, `@type ∈ {Article, NewsArticle, Report,
+ScholarlyArticle, SocialMediaPosting, TechArticle, BlogPosting, …}` (15
+admissible subtypes), `headline`, `author`, `datePublished`.
+Conformance corpus:
+[`crates/uor-addr/src/schema/document.rs`](crates/uor-addr/src/schema/document.rs).
 
 ### Signed code-module schema (`uor_addr::schema::codemodule_signed`)
 
-Schema-pinned descendant of [`uor_addr::codemodule`]. Admits only
-CCMAS Modules carrying a `(3:sig <64-hex>)` signature sub-form:
-[`uor_addr::schema::codemodule_signed`](crates/uor-addr/src/schema/codemodule_signed.rs).
+Schema-pinned descendant of [`uor_addr::json`]. **Imports the
+industry-standard in-toto Statement v1 attestation envelope** used
+by sigstore, SLSA, and the broader software-supply-chain
+attestation ecosystem.
+
+| Concern | Authoritative source |
+|---|---|
+| in-toto Statement v1 | <https://in-toto.io/Statement/v1> |
+| in-toto Attestation Framework v1 | <https://github.com/in-toto/attestation/blob/main/spec/v1/README.md> |
+| in-toto Statement v1 spec | <https://github.com/in-toto/attestation/blob/main/spec/v1/statement.md> |
+| SLSA Provenance v1 (common predicate) | <https://slsa.dev/spec/v1.0/provenance> |
+| sigstore signature spec | <https://docs.sigstore.dev/cosign/signature_specification/> |
+
+Required `_type = "https://in-toto.io/Statement/v1"`, non-empty
+`subject[]` with `name` + `digest.sha256` (64 lowercase-hex chars),
+`predicateType`, `predicate` (object). Conformance corpus:
+[`crates/uor-addr/src/schema/codemodule_signed.rs`](crates/uor-addr/src/schema/codemodule_signed.rs).
 
 ## Cost-model-bearing variants
 
