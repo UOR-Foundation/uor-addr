@@ -1,267 +1,352 @@
-# Architecture — `uor-addr-1`
+# UOR-ADDR — architecture
 
 > Normative architectural specification. The vocabulary defined here is
 > referenced by [CONFORMANCE.md](CONFORMANCE.md), [VERIFICATION.md](VERIFICATION.md),
-> and [ANALYSIS.md](ANALYSIS.md). Wiki ADRs cited below live at
+> [ANALYSIS.md](ANALYSIS.md), and [STANDARDS.md](STANDARDS.md). Wiki ADRs
+> cited below live at
 > <https://github.com/UOR-Foundation/UOR-Framework/wiki>.
 
-## 1. Position in the Prism stack
+This document defines what UOR-ADDR is and what its role is in the
+UOR-Framework wiki's conceptual model. The wiki is the normative source;
+UOR-ADDR's architecture is determined by the framework's existing
+commitments specialized to the typed content-addressing problem.
 
-`uor-addr-1` is a Prism application of the UOR Foundation, declared as a
-single `PrismModel<H, B, A, R, C>` over the **`uor-prism` standard
-library façade** (wiki ADR-031) with the following substitution-axis
-selections:
+## What UOR-ADDR is
 
-| Position             | Selection                                                                                                  |
-|----------------------|------------------------------------------------------------------------------------------------------------|
-| `HostTypes`          | `prism::vocabulary::DefaultHostTypes`                                                                      |
-| `HostBounds`         | `AddrBounds` — 24 ADR-037 capacity ceilings + 6 typed-input bounds (`MAX_JSON_DEPTH` etc.)                |
-| `AxisTuple + Hasher` | `prism::crypto::Sha256Hasher` — Prism-published HashAxis (re-exported from [`crate::shapes`])             |
-| `ResolverTuple`      | `AddressResolverTuple<H>` — eight ψ-stage resolvers                                                        |
-| `TypedCommitment`    | `prism::pipeline::EmptyCommitment` — wiki ADR-048; no auxiliary cost-model surface beyond the κ-derivation |
+UOR-ADDR is the framework's **typed reference vocabulary** for typed
+content-addressing. It is a body of prism_model declarations realizing
+the framework's architecture for the content-addressing problem across
+the formats that admit bounded recursive structural typing.
 
-There is no second model, no auxiliary axis, no out-of-band side
-channel. The crate is the model and nothing else.
+UOR-ADDR is not a separate informatical system at the wiki's conceptual
+model layer. It is informatical content *inside* Prism — specifically,
+a collection of `PrismModel` declarations whose `Input` types are typed
+values of various recursively-grammared formats, whose `Output` type is
+the shared κ-label output type `AddressLabel`, whose verb arena is the
+common `address_inference` shape composing ψ_1 + ψ_7 + ψ_8 + ψ_9, and
+whose typed-iso surface realizes the framework's "context-bijective"
+typed-reference property at the standard-library layer.
 
-The dependency posture follows ADR-031: `uor-prism` is the canonical
-public surface, but `uor-foundation` and `uor-foundation-sdk` remain
-direct dependencies because the SDK macros (`prism_model!`, `verb!`,
-`resolver!`, `output_shape!`) expand to absolute `::uor_foundation::*`
-paths. The verifier-side dev-dependency is `uor-prism-verify` — see §6
-below.
+UOR-ADDR's reach has three concentric layers:
 
-## 2. The typed-iso surface
+- The **common architectural surface** — declarations that every
+  format-specific addressing realization shares (the output shape, the
+  verb arena, the resolver-tuple shape, the `AddressInput` trait, the
+  cost-model commitment surface, the V&V framing, the TC-05 replay
+  discipline, the example shape).
+
+- The **format-specific realizations** — concrete `PrismModel`
+  declarations for each format with bounded recursive structural
+  typing (JSON under JCS-RFC8785, S-expression under Rivest's
+  canonical form, XML under Canonical XML, ASN.1 under DER,
+  code-module AST under format-specific canonicalization,
+  ring-element under Amendment 43 §2's `Element::canonical_bytes`,
+  and any other recursively-grammared format the framework supports).
+  Each format-specific realization declares its typed input shape, its
+  canonicalization realization, its `HostBounds` impl, its application
+  registry via `register_shape!`, its conformance corpus against the
+  format's reference baselines, and its V&V theorem instantiation.
+
+- The **schema-pinned descendants** — concrete `PrismModel`
+  declarations specializing a format-specific realization with
+  domain-specific structural typing. A schema is a substitution-axis
+  per ADR-007/030/052 declaring the typed feature hierarchy's
+  domain-specific refinement.
+
+UOR-ADDR's contribution is the realization of these layers across the
+framework's supported formats and domain schemas.
+
+## What this crate ships today
+
+| Module | Layer | Status |
+|---|---|---|
+| [`uor_addr::common`](crates/uor-addr/src/common.rs) | Common architectural surface | Complete — `AddressInput` trait + architectural docs |
+| [`uor_addr::label`](crates/uor-addr/src/label.rs) | Common output shape | Complete — `AddressLabel` (71-Site SHA-256 specialization, IRI `…/sha256`) |
+| [`uor_addr::json`](crates/uor-addr/src/json/) | Format-specific realization | Complete — JSON under JCS-RFC8785 + Unicode NFC, conformance against `mcp.uor.foundation/tools/encode_address` baseline + 12-fixture JCS test vectors |
+| [`uor_addr::sexp`](crates/uor-addr/src/sexp/) | Format-specific realization | Complete — S-expressions under Rivest 1997 canonical form, conformance against Sexp.txt §4.2/§4.3 |
+| [`uor_addr::variant::storage`](crates/uor-addr/src/variant/storage.rs) | Cost-model-bearing variant | Complete — `C = AndCommitment<EmptyCommitment, SingletonCommitment<LexicographicLessEqThreshold>>` per ADR-048 + QS-06 |
+
+Deferred per ADR-031's demand-driven clause:
+- `uor-addr-xml` (XML-C14N)
+- `uor-addr-asn1` (DER)
+- `uor-addr-ring` (Amendment 43 §2)
+- `uor-addr-codemodule` (canonical AST)
+- Schema-pinned descendants: `uor-addr-photo`, `uor-addr-document`,
+  `uor-addr-codemodule-signed`
+- `uor-addr-signed` cost-model variant (pending publication of a
+  signature `ObservablePredicate` in `prism::pipeline`)
+
+See [STANDARDS.md](STANDARDS.md) for the complete index of
+authoritative source references for every shipped realization.
+
+## What the wiki's conceptual model says about UOR-ADDR
+
+UOR-ADDR appears inside the wiki's conceptual model at three SD-level
+positions, none of them as its own informatical system. Each position
+is the framework's existing commitment to typed reference vocabulary
+specialized to the content-addressing problem.
+
+### Position at SD1 — Prism Structure
+
+UOR-ADDR is informatical content of the Substrate's *Type Vocabulary*
+attribute and the Runtime's *Sealed Type* attribute per SD1's
+`exhibits` relations. The `AddressLabel` output type is a
+`ConstrainedTypeShape` declared in the substrate's type vocabulary; it
+is also a `GroundedShape` that the runtime's pipeline emits as a sealed
+value. Format-specific typed input shapes (`JsonValue`, `SExprValue`)
+are similarly substrate-vocabulary entries; they are
+`ConstrainedTypeShape` impls registered into the foundation's shape-IRI
+registry per ADR-057 via the `register_shape!` SDK macro.
+
+UOR-ADDR's existence at SD1 is the framework's commitment that
+content-addressing's typed surface lives inside the substrate's
+vocabulary — the addressing prism_models compose foundation primitives
+through the standard-library Layer-3 sub-crate machinery per ADR-031.
+There is no separate addressing substrate; the framework's substrate
+vocabulary suffices.
+
+### Position at SD2 — Principal Data Path
+
+Every UOR-ADDR prism_model's `forward(input)` invocation is one
+instantiation of SD2's four-stage pipeline: Grounding takes the
+format's Host Bytes and yields a Datum of the format's typed input
+shape; Compile Unit Construction wraps the Datum in a typed Compile
+Unit; Validation confirms structural conformance to the format's typed
+input shape's constraint geometry; Pipeline Run executes the
+catamorphism over the `address_inference` verb arena, emitting the
+κ-label as the Grounded Output plus the Trace.
+
+SD2's cost-model commitments C1–C4 hold for every UOR-ADDR prism_model:
+
+- **C1 (operational cost = declared bandwidth at equality)** — UOR-ADDR
+  prism_models bind `C = EmptyCommitment` by default. Cost-model
+  variants (`uor-addr-storage`) bind non-default `C` and C1's equality
+  reading applies with the K-predicate bandwidth carried by their `C`
+  selection.
+- **C2 (zero runtime movement)** — every UOR-ADDR prism_model's
+  `address_inference` verb arena composes only ψ-Term variants per
+  ADR-035; the verb body is ψ-residual-clean per CS-V01 and passes
+  the framework's `verb_arena_contains_no_sigma_residuals` test. The
+  canonicalization lives inside `AddressKInvariantResolver`'s body
+  per ADR-046's sanctioned σ-residual scope.
+- **C3 (structural inference)** — every UOR-ADDR `forward(input)`
+  invocation is one structural emission of the κ-label; no
+  host-side retry loop, no search over the typed-iso surface, no
+  iterative refinement.
+- **C4 (σ-projection axis qualification)** — every UOR-ADDR
+  prism_model's `A` slot binds `prism::crypto::Sha256Hasher`
+  (`H::IDENTIFIER = "sha256"`, `H::DIGEST_BYTES = 32`), an
+  ADR-047-conforming axis.
+
+### Position at SD3 — Verification
+
+Every UOR-ADDR prism_model's emitted Trace is replayable through
+`prism_verify::certify_from_trace`, yielding a `Certified<AddressLabel>`
+whose κ-label is byte-identical to the original Grounded Output's
+κ-label. The replay path is the anamorphism dual to SD2's catamorphism
+per ADR-019.
+
+### Position at SD5 — Distribute And Run
+
+Every UOR-ADDR prism_model's Compiled Executable distributes through
+SD5's Publication / Retrieval / Execution / Verification handoff path.
+
+## Relationship to the wiki's three-layer structure
+
+The framework declares a three-layer architecture at ADR-024 + ADR-031:
+substrate (the closure-vocabulary layer hosted in `uor-foundation`),
+standard library (the Layer-3 sub-crate ecosystem hosted in `prism`),
+applications (downstream prism_model declarations consuming the
+standard library).
+
+UOR-ADDR sits at the **standard-library layer**. Per ADR-031's
+demand-driven clause, the inclusion of UOR-ADDR into the prism standard
+library is operational policy of the prism workspace's maintenance —
+UOR-ADDR's architectural content does not change under inclusion; the
+crate's module path changes from `uor-addr::*` to `prism::addr::*` and
+the workspace home moves from the standalone repo to
+`github.com/UOR-Foundation/prism`.
+
+## What UOR-ADDR provides
+
+### Common output shape
+
+`AddressLabel` — a `ConstrainedTypeShape` parameterized at the
+architectural level on the realization's selected hash axis `H: Hasher`,
+realized concretely for `H = Sha256Hasher` (the first-published axis
+selection across UOR-ADDR's realizations). The shape's `SITE_COUNT` is
+structurally derived:
 
 ```text
-JsonValue  (typed JSON value, structurally-tagged bytes, ≤ JSON_VALUE_MAX_BYTES)
-   ↓ ψ_1 Nerve            (Constraints → SimplicialComplex)
-   ↓ ψ_7 PostnikovTower   (SimplicialComplex → PostnikovTower)
-   ↓ ψ_8 HomotopyGroups   (PostnikovTower → HomotopyGroups)
-   ↓ ψ_9 KInvariants      (HomotopyGroups → KInvariants — JCS+NFC canonicalisation + κ-derivation)
-AddressLabel  (the κ-label, 71 ASCII bytes — `sha256:<64hex>`)
+SITE_COUNT = H::IDENTIFIER.len() + 1 + 2 × H::DIGEST_BYTES
 ```
 
-The verb body is exactly the wiki's **canonical k-invariants branch**
-(ADR-035): the longest discriminating ψ-chain that reaches `KInvariants`
-through `Nerve → PostnikovTower → HomotopyGroups`. Off-path resolver
-positions (`ChainComplex`, `HomologyGroups`, `CochainComplex`,
-`CohomologyGroups`) are populated for `ResolverTuple` completeness but
-never appear in the verb's term arena.
+For `H = Sha256Hasher` (`IDENTIFIER = "sha256"`, `DIGEST_BYTES = 32`),
+the specialization is the **71-Site shape** emitting `sha256:<64hex>`
+ASCII bytes. The content-addressed IRI is
+`https://uor.foundation/addr/AddressLabel/sha256` — the IRI specializes
+per axis (the framework's typed-iso commitment per ADR-001 + ADR-017).
 
-The PrismModel's `Input` is [`crate::JsonValue`] — an RFC 8259 JSON
-value of bounded depth and width, carried as a structurally-tagged
-byte serialization (one tag byte per case + length-prefixed payloads).
-The 1-byte tags distinguish the six JSON cases (null = `0x00`, false
-= `0x01`, true = `0x02`, number = `0x03`, string = `0x04`, array =
-`0x05`, object = `0x06`); recursive children live in the same flat
-buffer. The host-boundary parser [`crate::JsonValue::parse`] performs
-the only structural σ-projection — JSON tokenisation — and validates
-every typed-input bound (depth, per-value width, container arity,
-total serialised size) before construction; failure surfaces as a
-[`prism::pipeline::ShapeViolation`] keyed to the violated bound's IRI.
+The output space is **π_0-only** by structural property of the
+σ-projection + hex-serialization composition; `χ(N(C)) = SITE_COUNT`;
+`β_0 = SITE_COUNT`; `β_k = 0` for `k ≥ 1`.
 
-Canonicalisation moves from the host boundary into the **typed-iso
-surface**. ψ_9's `AddressKInvariantResolver` decodes the tagged
-bytes, applies JCS-RFC8785 + Unicode NFC, and feeds the canonical
-bytes to the canonical hash axis — all inside the resolver body per
-ADR-046. The verb body composes only ψ-Term variants; no σ-residual
-leaks into the verb arena (CS-V01 preserved).
-
-## 3. Discipline-scope boundaries
-
-Three orthogonal disciplines partition the implementation surface; each
-admits a distinct class of operation and is enforced at a distinct layer.
-
-### 3.1 Host-boundary transforms (pre-`Input`)
-
-Lives at: `crates/uor-addr-1/src/value.rs`.
-
-The host boundary performs exactly **one** σ-projection — JSON
-tokenisation — and validates every typed-input bound before
-construction. There is no second host-boundary path; in particular
-the crate carries **no parallel canonicalisation implementation**
-of its own.
-
-- `JsonValue::parse(raw)` — the **only** host-boundary transform.
-  Parses raw bytes as RFC 8259 JSON, validates every typed-input
-  bound declared in [`crate::shapes::bounds`], and emits the
-  structurally-tagged byte form the typed-iso surface carries.
-  Failure surfaces as a `ShapeViolation` keyed to the violated
-  bound's IRI.
-- `value::canonicalize(raw)` — a convenience helper that internally
-  routes through `JsonValue::parse` + the typed-iso canonicalizer
-  and returns the JCS-RFC8785 + Unicode NFC canonical-form bytes.
-  This is the same code path ψ_9 invokes — no second implementation
-  is carried.
-
-The SHA-256 implementation is **not** carried in this module: it lives
-in `prism::crypto::Sha256Hasher` (re-exported via [`crate::shapes`])
-and is invoked only inside the ψ_9 resolver body. Boundary code
-performs no hashing.
-
-The parser's output is a typed `JsonValue` — no canonicalisation has
-happened yet; the byte form is the structurally-tagged
-parse-tree-shaped serialisation. The typed-iso surface owns the
-canonicalisation step.
-
-### 3.2 Verb body — ψ-residuals discipline (ADR-035)
-
-Lives at: `crates/uor-addr-1/src/verbs.rs`.
-
-The verb body composes only ψ-Term variants. **Forbidden** in the verb
-arena: `Term::AxisInvocation`, `Term::FirstAdmit`, and
-`PrimitiveOp::{Le, Lt, Ge, Gt, Concat}`. Enforced by the
-[CL-V01](CONFORMANCE.md#cl-formal-class--lean-mechanised-theorems) /
-[CS-V01](CONFORMANCE.md#cs-structural-class--shape-and-typed-surface)
-invariants.
-
-### 3.3 Resolver bodies — iterative-resolution discipline (ADR-046)
-
-Lives at: `crates/uor-addr-1/src/resolvers.rs`.
-
-Resolver bodies **admit** σ-residuals; this is the wiki-sanctioned layer
-where the canonical hash axis is consumed **and** where canonicalisation
-runs. The terminal ψ_9 resolver `AddressKInvariantResolver::resolve`
-performs two σ-residual-bearing steps per dispatch:
-
-1. **Canonicalisation** — decode the carrier's structurally-tagged
-   `JsonValue` bytes via [`crate::value::canonicalize_into`],
-   producing JCS-RFC8785 + Unicode NFC canonical-form bytes. Object
-   keys are re-ordered per JCS §3.2.3 (lexicographic by UTF-16 code
-   unit); string values are NFC-normalised. The σ-residuals this
-   step carries (key comparison, byte-level NFC) are admissible at
-   the resolver layer per ADR-046; they are forbidden in the verb
-   body per ADR-035.
-2. **Hash-axis invocation** —
-   `H::initial().fold_bytes(canonical).finalize()` produces the
-   32-byte SHA-256 digest. Exactly one σ-projection of the hash axis
-   per `forward()` — deterministic in the typed input, no
-   enumeration.
-
-The non-terminal resolvers (ψ_1 / ψ_7 / ψ_8 — on-path; ψ_2 / ψ_3 /
-ψ_5 / ψ_6 — off-path for ResolverTuple completeness) thread the
-typed `JsonValue` tagged bytes forward through the structural
-ψ-functor each realises without modifying them.
-
-## 4. Algebraic-closure encoding
-
-`AddressLabel` is the ψ-pipeline label. Its `ConstrainedTypeShape` declares
-71 disjoint `ConstraintRef::Site` instances — one per wire-format-address
-byte position. The constraint nerve N(C) is 71 isolated vertices with no
-higher simplices:
-
-```
-β_0 = 71,        β_k = 0 for k ≥ 1
-χ(N(C)) = β_0 − β_1 + … = 71 = SITE_COUNT
-```
-
-This satisfies the wiki's canonical closure criterion (ADR-024 substrate
-closure / ADR-026 prism closure) at the declaration level. The criterion
-is asserted at **compile time** via a `const _: () = { … }` block in
-`resolvers.rs`; the runtime resolver bodies emit carriers directly
-without re-validating. The Lean theorem
-`UorAddr1.AlgebraicClosure.euler_char_eq_site_count` mechanises the
-arithmetic identity.
-
-## 5. Seal regime
-
-`AddressLabel` reaches the typed-iso surface only through
-`AddressModel::forward` per constraint **TC-02** (no
-`Grounded<AddressLabel>` construction outside the foundation pipeline).
-The `AddressWitness` newtype carries the foundation-sealed
-`Grounded<AddressLabel>` by borrow. Downstream consumers replay it
-through `prism_verify::certify_from_trace` per **TC-05** to obtain a
-`Certified<GroundingCertificate>` **without** re-invoking the canonical
-hash axis on the original input — the verifier reads the
-`ContentFingerprint` from the trace and re-packages it. The round-trip
-is exercised by [CL-R01](CONFORMANCE.md#cl-r--replay-class--tc-05-round-trip-via-uor-prism-verify).
-
-## 6. Verifier surface (TC-05, ADR-019 anamorphism)
-
-The verifier-side dev-dependency `uor-prism-verify` exposes a single
-function — `certify_from_trace<TR_MAX>(&Trace<TR_MAX>) ->
-Result<Certified<GroundingCertificate>, ReplayError>` — and the
-wire-format types (`Trace`, `TraceEvent`, `ContentFingerprint`,
-`GroundingCertificate`, `Certified`). The full TC-05 round-trip used by
-`tests/replay.rs` is:
+### Common verb arena
 
 ```rust
-let outcome  = uor_addr_1::address(input_bytes)?;     // mint
-let grounded = outcome.witness.grounded();
-let trace    = grounded.derivation().replay::<256>(); // anamorphism
-let certified = prism_verify::certify_from_trace(&trace)?;
-assert_eq!(certified.certificate().content_fingerprint(),
-           grounded.content_fingerprint());           // QS-05 equivalence
+verb! {
+    pub fn address_inference(input: V) -> AddressLabel {
+        k_invariants(homotopy_groups(postnikov_tower(nerve(input))))
+    }
+}
 ```
 
-QS-05 (replay equivalence — bit-identical certificate) is what the test
-asserts. The verifier path makes **zero** calls into
-`prism::crypto::Sha256Hasher` and observes neither the canonical-form
-bytes nor the JCS+NFC transform — only the trace and the original
-`ContentFingerprint` carried inside it.
+The SDK `verb!` macro emits a concrete declaration per realization
+(one `verb!` invocation per format module, with the same body
+structure and different input type `V`). The verb arena composes only
+ψ-Term variants per ADR-035 — `Term::Nerve`, `Term::PostnikovTower`,
+`Term::HomotopyGroups`, `Term::KInvariants` — plus the
+`Term::Variable` for the input parameter and the implicit output
+binding. The verb body emission contains no σ-residuals per CS-V01.
 
-## 7. The κ-derivation identity
+ψ_2..ψ_6 are off-path on the address-derivation transform per
+ADR-036's `ResolverCategory` enumeration. Their resolver impls emit
+the identity-shaped carrier; the verb arena does not invoke them.
 
-ψ_9 is the load-bearing terminal stage. Given a typed `JsonValue`
-whose structurally-tagged bytes are `t : [u8]`, its emitted 71-byte
-κ-label is structurally determined by the composition:
+### Common resolver tuple shape
 
+`AddressResolverTuple<H>` is the per-realization resolver-tuple shape,
+parameterized on the hash axis `H`. It declares the eight
+resolver-trait impls per ADR-036's `ResolverCategory` enumeration:
+
+- `AddressNerveResolver<H>` — ψ_1.
+- `AddressChainComplexResolver<H>` — ψ_2. Off-path.
+- `AddressHomologyGroupResolver<H>` — ψ_3. Off-path.
+- `AddressCochainComplexResolver<H>` — ψ_5. Off-path.
+- `AddressCohomologyGroupResolver<H>` — ψ_6. Off-path.
+- `AddressPostnikovResolver<H>` — ψ_7.
+- `AddressHomotopyGroupResolver<H>` — ψ_8.
+- `AddressKInvariantResolver<H>` — ψ_9. Body: invokes
+  `<V as AddressInput>::canonicalize_into` (concrete `V` per the
+  enclosing format module) on the typed input's parser-emitted byte
+  sequence, then invokes `H`'s σ-projection on the canonical bytes
+  (sanctioned σ-residual per ADR-046), then emits the κ-label as
+  `<H::IDENTIFIER>:<digest_hex>` ASCII at the `AddressLabel` carrier.
+
+### AddressInput trait
+
+```rust
+pub trait AddressInput:
+    prism::pipeline::ConstrainedTypeShape
+    + prism::pipeline::IntoBindingValue
+    + Sized
+{
+    type Registry: prism::pipeline::ShapeRegistryProvider;
+
+    fn canonicalize_into(
+        parser_emitted: &[u8],
+        out: &mut [u8],
+    ) -> Result<usize, ShapeViolation>;
+
+    fn parse(input: &[u8]) -> Result<Self, ShapeViolation>;
+}
 ```
-canonical(t) = jcs_nfc_canonicalise(decode_tagged(t))
-κ(t)         = b"sha256:" ‖ hex_lower(H::initial().fold_bytes(canonical(t)).finalize())
+
+`AddressInput` composes three substrate commitments —
+`ConstrainedTypeShape` for the constraint geometry, `IntoBindingValue`
+for the catamorphism's typed-input serialization, the `Registry`
+associated type for the application's ADR-057 recursive-shape registry
+— plus the two methods supplying the format's canonicalization and
+parsing. Every format-specific typed input shape implements
+`AddressInput`.
+
+### Common cost-model commitment surface
+
+The default cost-model commitment is `EmptyCommitment`. Every
+format-specific realization that does not declare a non-default `C`
+inherits the empty selection. The cost-model-bearing variants
+([`uor_addr::variant::storage`] and future siblings) demonstrate the
+architectural surface admits non-default
+`C: TypedCommitment` parameterizations.
+
+### Common PrismModel form
+
+```rust
+prism_model! {
+    pub struct AddressModel;
+    pub struct AddressRoute;
+    impl PrismModel<
+        DefaultHostTypes,
+        B,
+        H,
+        AddressResolverTuple<H>,
+        C,
+    > for AddressModel {
+        type Input = V;
+        type Output = AddressLabel;
+        type Route = AddressRoute;
+        fn route(input: Self::Input) -> Self::Output {
+            address_inference(input)
+        }
+    }
+}
 ```
 
-where `decode_tagged` reverses the structurally-tagged serialisation
-to an RFC 8259 JSON value, `jcs_nfc_canonicalise` is the JCS-RFC8785
-+ Unicode-NFC canonicalisation step (executed inside the resolver
-body per ADR-046 — exposed publicly as
-[`crate::canonicalize`] for callers that want the canonical bytes
-outside the κ-derivation), `‖` is byte concatenation, and
-`hex_lower` emits two lowercase ASCII hex digits per input byte. The Lean theorem
-`UorAddr1.KappaDerivation.kappa_determined_by_digest` pins the
-restricted identity at the type level (given a digest, the κ-label
-is determined); `UorAddr1.AddressShape.address_label_width_is_seventy_one`
-pins the 71-byte width; `UorAddr1.HexEncoding.encode_byte_injective`
-proves no two distinct digests map to the same κ-label.
+Each format-specific module declares its concrete `prism_model!`
+invocation binding `V`, `B`, `H`, and `C` to its selections. The
+framework's typed-iso commitment carries through each axis selection.
 
-Two `JsonValue` inputs that decode to **canonicalisation-equivalent**
-JSON values produce identical κ-labels (CT-E* tests pin this at the
-sample). Two `JsonValue` inputs that decode to canonicalisation-distinct
-JSON values — in particular, values whose typed cases differ even when
-their textual rendering looks alike — produce distinct κ-labels with
-the SHA-256 sensitivity bound (CT-T* tests).
+## V&V framework
 
-## 8. What this crate deliberately is not
+UOR-ADDR provides the common V&V framing every realization
+instantiates, with eight required axes (rustdoc, clippy, fmt-check,
+test, conformance, replay, analysis, cross-validation) and a Lean
+theorem corpus.
 
-- **Not** a custom axis. The earlier framing of UOR-ADDR-1 as a
-  `ContentAddressingAxis` violates ADR-035's ψ-residuals discipline —
-  axis invocations belong inside resolver bodies per ADR-046, not in
-  the typed-iso surface.
-- **Not** an enumerator. There is no σ-enumeration anywhere. The
-  ψ-pipeline maps typed canonical-form bytes to the κ-label by
-  structural transformation in exactly one σ-projection.
-- **Not** chain-coupled. The output is a chain-agnostic
-  `sha256:<64hex>`; there is no chain-fork mediation, no consensus
-  artefact, no block-header interaction.
-- **Not** differential against a second implementation. The
-  cross-validation fixtures harvested from
-  `mcp.uor.foundation/tools/encode_address` (v0.2.1, algorithm
-  `uor-sha256-v1`) are the byte-identity baseline; the V&V approach
-  is spec-in-Lean + invariant-grep + parametric runtime tests +
-  empirical analysis, **not** A/B comparison against a reference impl.
+Format-specific realizations and schema-pinned descendants instantiate
+the theorem corpus over their typed input shapes; cost-model-bearing
+variants add their cost-model-specific theorems.
 
-## 9. Outstanding reconciliation
+## TC-05 replay
 
-The canonical-form bytes this crate hashes (plain UTF-8 JCS-RFC8785
-JSON bytes) differ structurally from what `uor-foundation@0.4`'s
-`Element::canonical_bytes` docstring specifies — Amendment 43 §2:
-`header(k) ‖ le_bytes(x, k+1)`, the byte layout of a ring element in
-R_n. Two parties speaking UOR-ADDR-1 (this crate) agree with each other;
-a UOR-ADDR-1 party and a foundation-grounded party computing
-`Element::digest` over the same JSON value disagree even when both name
-`sha256` as the algorithm.
+UOR-ADDR provides the common TC-05 replay surface every realization
+inherits — each `forward(input)` invocation's trace is replayable
+through `prism_verify::certify_from_trace`, yielding a
+`Certified<AddressLabel>` byte-identical to the original.
 
-Closing that gap is an upstream wiki/foundation decision. This crate is
-byte-identical to the reference and to itself across every input in its
-domain; the reconciliation is orthogonal to the Prism grounding and is
-tracked as [CN-RC01](CONFORMANCE.md#cn-network-class--cross-validation-against-reference).
+## Architectural commitments specialized to UOR-ADDR
+
+Every UOR-ADDR realization upholds the framework commitments
+specialized to the content-addressing problem:
+
+- **ADR-001** typed-iso surface — the prism_model's input and output
+  types are `ConstrainedTypeShape` impls with content-addressed IRIs
+  per ADR-017.
+- **ADR-006** bilateral compile-time UORassembly.
+- **ADR-008** trace wire format.
+- **ADR-017** canonical UOR-address mapping.
+- **ADR-019** categorical structure (catamorphism / anamorphism /
+  hylomorphism).
+- **ADR-024** three-layer closure — UOR-ADDR sits at Layer 3
+  (standard library).
+- **ADR-031** standard-library Layer-3 sub-crate discipline.
+- **ADR-035** resolver-bound ψ-pipeline — every realization composes
+  ψ_1 + ψ_7 + ψ_8 + ψ_9 through `address_inference`; ψ_2..ψ_6 are
+  off-path.
+- **ADR-036** `ResolverCategory` enumeration — eight resolver-trait
+  impls per `AddressResolverTuple<H>`.
+- **ADR-046** resolver-body discipline scope — canonicalization lives
+  inside `AddressKInvariantResolver`'s body.
+- **ADR-047** σ-Projection Hardening Principle — every realization's
+  selected `H: Hasher` axis satisfies U1–U6.
+- **ADR-048** `C: TypedCommitment` cost-model surface.
+- **ADR-054** fold-fusion principle.
+- **ADR-057** bounded recursive structural typing — every realization
+  emits its application shape registry via `register_shape!`.
+
+## Architectural commitments that UOR-ADDR does not change
+
+UOR-ADDR's existence does not require any wiki architectural
+commitment to change. UOR-ADDR adds no new ADR. Its architecture is
+the framework's existing commitments specialized to the typed
+content-addressing problem.

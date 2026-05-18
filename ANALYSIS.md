@@ -1,4 +1,4 @@
-# Analysis — `uor-addr-1`
+# Analysis — `uor-addr`
 
 > Empirical analysis of the JCS+NFC canonical form and the κ-derivation
 > over arbitrary JSON inputs. The CP class in
@@ -10,7 +10,7 @@
 
 This document asks one operational question:
 
-> Does any structural choice in `uor-addr-1`'s κ-derivation — the JCS
+> Does any structural choice in `uor-addr`'s κ-derivation — the JCS
 > canonicalisation, the NFC normalisation, the algebraic-closure
 > encoding, or the choice of `Sha256Hasher` as the substitution-axis
 > hash — leak non-uniform-random structure into the κ-label?
@@ -122,7 +122,7 @@ release. It is not a statistical test — failure is exact.
 
 **Sample size.** N = 100 000 randomly-generated Unicode strings
 (stratified across BMP, supplementary planes, and combining-character
-sequences). The Lean theorem `UorAddr1.NfcIdempotence.nfc_is_idempotent`
+sequences). The Lean theorem `UorAddr.NfcIdempotence.nfc_is_idempotent`
 (CL-N01) axiomatises this property; the empirical test pins the
 *implementation* to the spec.
 
@@ -174,7 +174,7 @@ inputs yield distinct κ-labels follows from canonical-form
 distinctness (CT-E01..CT-E04 prove the converse:
 canonical-form-equivalent inputs yield identical κ-labels) plus the
 SHA-256 sensitivity bound from §4. The Lean theorem
-`UorAddr1.TypedInput.case_tags_are_pairwise_distinct` mechanises the
+`UorAddr.TypedInput.case_tags_are_pairwise_distinct` mechanises the
 tag-byte half.
 
 ## 7.6. Typed-input bound enforcement — CT-B
@@ -185,7 +185,7 @@ The typed-input bounds declared in `crate::shapes::bounds`
 `MAX_ARRAY_ELEMENTS = 256`, `JSON_VALUE_MAX_BYTES = 3968`) are
 enforced *exactly* at `JsonValue::parse`. There is no statistical
 claim; failure is total. The Lean theorem
-`UorAddr1.TypedInput.depth_bound_is_strict` mechanises the depth
+`UorAddr.TypedInput.depth_bound_is_strict` mechanises the depth
 half.
 
 - CT-B01 — any input of depth > `MAX_JSON_DEPTH` is rejected.

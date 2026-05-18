@@ -1,6 +1,6 @@
 [workspace]
 resolver = "2"
-members = ["crates/uor-addr-1"]
+members = ["crates/uor-addr"]
 
 [workspace.dependencies]
 # Façade — re-exports the foundation substrate plus the four Layer-3
@@ -8,15 +8,15 @@ members = ["crates/uor-addr-1"]
 # `prism::fhe`) and the TC-05 replay surface (`prism::replay`,
 # `prism::seal`). Per ADR-031, downstream Prism applications consume
 # this façade rather than the substrate directly.
-uor-prism          = { version = "0.1.1", default-features = false }
-uor-prism-verify   = { version = "0.1.1", default-features = false }
+uor-prism          = { version = "0.1.3", default-features = false }
+uor-prism-verify   = { version = "0.1.3", default-features = false }
 # Substrate kept as a direct dep because the SDK macros emit code
 # referencing absolute `::uor_foundation::*` paths. This is the same
 # dependency posture every Prism application that uses the SDK macros
 # follows; the façade re-exports cover the import surface, the
 # substrate covers the macro-emission target.
-uor-foundation     = { version = "0.4.12" }
-uor-foundation-sdk = { version = "0.4.12" }
+uor-foundation     = { version = "0.4.15" }
+uor-foundation-sdk = { version = "0.4.15" }
 
 [profile.release]
 opt-level     = 3

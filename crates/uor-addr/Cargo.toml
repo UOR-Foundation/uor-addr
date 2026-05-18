@@ -1,0 +1,39 @@
+[package]
+name          = "uor-addr"
+version       = "0.1.0"
+edition       = "2021"
+authors       = ["The UOR Foundation <https://uor.foundation>"]
+description   = "UOR-ADDR — the typed reference vocabulary for content-addressing across recursively-grammared formats. Standard-library Layer-3 Prism realization of the UOR Foundation; ships the common architectural surface plus the JSON realization under JCS-RFC8785 + NFC + SHA-256."
+license       = "Apache-2.0"
+repository    = "https://github.com/UOR-Foundation/uor-addr"
+homepage      = "https://github.com/UOR-Foundation/uor-addr"
+documentation = "https://docs.rs/uor-addr"
+readme        = "README.md"
+keywords      = ["uor", "prism", "content-addressing", "verifiable", "no-std"]
+categories    = ["cryptography", "data-structures", "no-std"]
+rust-version  = "1.83"
+
+[dependencies]
+uor-prism          = { workspace = true }
+uor-foundation     = { workspace = true }
+uor-foundation-sdk = { workspace = true }
+# Pure-Rust dependencies — required only for the host-boundary
+# JSON canonicalisation step (boundary helpers run before the typed
+# `JsonInput` is constructed; they are not part of the ψ-pipeline
+# transform per wiki ADR-035). The resolver bodies and the `Hasher`
+# impl are pure-Rust, `no_std`-clean.
+unicode-normalization = { version = "0.1", default-features = false }
+serde_json            = { version = "1",   default-features = false, features = ["alloc"] }
+
+[features]
+default = ["std"]
+std     = ["uor-prism/std"]
+
+[dev-dependencies]
+# TC-05 replay surface — exercises the `Grounded<AddressLabel>` round-trip
+# through `prism::replay::certify_from_trace` (CL-R01 — see CONFORMANCE.md).
+uor-prism-verify = { workspace = true, features = ["std"] }
+# Live HTTP cross-validation against `mcp.uor.foundation/tools/encode_address`
+# (CN class — see CONFORMANCE.md). Gated behind `#[ignore]`; runs only under
+# `just cn` with UOR_ADDR_LIVE=1.
+ureq = { version = "2", features = ["json"] }
