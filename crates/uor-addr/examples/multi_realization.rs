@@ -40,40 +40,35 @@ fn main() {
     let outcome = uor_addr::codemodule::address(m.tagged_bytes()).expect("κ-label");
     println!("  codemodule:    {}", outcome.address);
 
-    // Schema descendants — Photo, Document, SignedCodeModule
+    // Schema descendants — schema.org/Photograph, schema.org/Article,
+    // in-toto Statement v1.
     let photo = br#"{
-        "subject": "skyline at dawn",
-        "captured_at": 1700000000,
-        "location": {"latitude": 40.7128, "longitude": -74.0060},
-        "camera_make": "Acme",
-        "camera_model": "X-1000",
-        "content_hash": "0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef",
-        "provenance": "uor.foundation:test"
+        "@context": "https://schema.org",
+        "@type": "Photograph",
+        "contentUrl": "https://example.org/skyline.jpg",
+        "creator": {"@type": "Person", "name": "Ada Lovelace"}
     }"#;
     let outcome = uor_addr::schema::photo::address(photo).expect("κ-label");
-    println!("  photo schema:  {}", outcome.address);
+    println!("  photo (schema.org/Photograph):   {}", outcome.address);
 
     let doc = br#"{
-        "title": "Hello",
-        "authors": ["Ada"],
-        "version": "1.0",
-        "sections": [{"heading": "h", "body": "b"}],
-        "citations": [{"key": "k", "url": "https://x"}]
+        "@context": "https://schema.org",
+        "@type": "Article",
+        "headline": "Hello",
+        "author": {"@type": "Person", "name": "Ada Lovelace"},
+        "datePublished": "2025-01-15"
     }"#;
     let outcome = uor_addr::schema::document::address(doc).expect("κ-label");
-    println!("  document:      {}", outcome.address);
+    println!("  article (schema.org/Article):    {}", outcome.address);
 
-    let body = uor_addr::codemodule::CodeModuleValue::atom("body").expect("valid");
-    let signed =
-        uor_addr::schema::codemodule_signed::SignedCodeModuleValue::from_module_with_signature(
-            "demo",
-            &[body],
-            "0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef",
-        )
-        .expect("valid");
-    let outcome =
-        uor_addr::schema::codemodule_signed::address(signed.tagged_bytes()).expect("κ-label");
-    println!("  signed-module: {}", outcome.address);
+    let attestation = br#"{
+        "_type": "https://in-toto.io/Statement/v1",
+        "subject": [{"name": "uor-addr-v0.1.0", "digest": {"sha256": "0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef"}}],
+        "predicateType": "https://slsa.dev/provenance/v1",
+        "predicate": {"buildDefinition": {"buildType": "uor:test"}}
+    }"#;
+    let outcome = uor_addr::schema::codemodule_signed::address(attestation).expect("κ-label");
+    println!("  signed (in-toto Statement v1):   {}", outcome.address);
 
     println!("\nOK — every realization produced its 71-byte sha256:<64hex> κ-label.");
 }

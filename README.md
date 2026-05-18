@@ -48,11 +48,14 @@ across realizations.
 
 ### Schema-pinned descendants
 
-| Module | Specializes | Schema |
+Per UOR's schema-import discipline, well-known kinds and types map to
+**existing standards** rather than UOR-native inventions:
+
+| Module | Specializes | Imported standard |
 |---|---|---|
-| [`uor_addr::schema::photo`](crates/uor-addr/src/schema/photo.rs) | JSON | subject + captured_at + location + camera_make + camera_model + content_hash + provenance |
-| [`uor_addr::schema::document`](crates/uor-addr/src/schema/document.rs) | JSON | title + authors[] + version + sections[].(heading+body) + citations[].(key+url) |
-| [`uor_addr::schema::codemodule_signed`](crates/uor-addr/src/schema/codemodule_signed.rs) | CCMAS | adds a `(3:sig <64-hex>)` signature sub-form requirement |
+| [`uor_addr::schema::photo`](crates/uor-addr/src/schema/photo.rs) | JSON | [schema.org/Photograph](https://schema.org/Photograph) (JSON-LD) |
+| [`uor_addr::schema::document`](crates/uor-addr/src/schema/document.rs) | JSON | [schema.org/Article](https://schema.org/Article) + 14 subtypes (JSON-LD) |
+| [`uor_addr::schema::codemodule_signed`](crates/uor-addr/src/schema/codemodule_signed.rs) | JSON | [in-toto Statement v1](https://in-toto.io/Statement/v1) (sigstore / SLSA envelope) |
 
 ### Cost-model-bearing variants
 
