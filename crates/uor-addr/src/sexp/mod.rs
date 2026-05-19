@@ -72,5 +72,7 @@ pub use shapes::{
     SExprAddrBounds, MAX_SEXPR_ATOM_BYTES, MAX_SEXPR_DEPTH, MAX_SEXPR_ELEMENTS,
     SEXPR_VALUE_MAX_BYTES,
 };
-pub use value::{canonicalize, SExprValue, SExprValueRegistry};
+#[cfg(feature = "alloc")]
+pub use value::canonicalize;
+pub use value::{SExprValue, SExprValueRegistry};
 pub use verbs::{address_inference, VERB_TERMS_ADDRESS_INFERENCE};

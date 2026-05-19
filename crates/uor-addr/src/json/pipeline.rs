@@ -32,10 +32,6 @@
 //! substrate-level shape violations that ADR-039 classifies as
 //! impossibility certificates — unreachable in normal flow.
 
-extern crate alloc;
-
-use alloc::string::String;
-
 use prism::pipeline::{EmptyCommitment, PrismModel};
 use prism::vocabulary::DefaultHostTypes;
 
@@ -44,45 +40,13 @@ use crate::json::resolvers::AddressResolverTuple;
 use crate::json::shapes::bounds::AddrBounds;
 use crate::json::shapes::Sha256Hasher;
 use crate::json::value::JsonValue;
-use crate::label::{AddressLabel, ADDRESS_LABEL_BYTES};
+use crate::label::KappaLabel;
+pub use crate::outcome::{AddressOutcome, AddressWitness};
 
-/// The result of a successful [`address`] invocation.
-///
-/// Not `Clone` — the underlying foundation `Grounded<AddressLabel>` is
-/// not `Clone`, so cloning the outcome would require either re-running
-/// the pipeline (expensive) or losing the witness. Applications that
-/// need to share the address out cheaply should extract `.address`
-/// (a plain `String`, which is `Clone`) and drop the witness.
-#[derive(Debug)]
-pub struct AddressOutcome {
-    /// Foundation-sealed `Grounded<AddressLabel>`; its `output_bytes()`
-    /// are the 71-byte wire-format content address.
-    pub witness: AddressWitness,
-    /// The ASCII wire-format address, `sha256:<64-lowercase-hex>`.
-    pub address: String,
-}
-
-/// Newtype around a `Grounded<AddressLabel>` carrying the κ-label.
-/// Sealed by foundation; constructible only through the model's
-/// `forward()` (constraint TC-02). Inherits the `Grounded` non-`Clone`
-/// property — the κ-label is content-addressed, so reuse goes through
-/// the borrow `AddressOutcome::witness.grounded()` rather than a
-/// shallow copy.
-pub struct AddressWitness(prism::seal::Grounded<AddressLabel>);
-
-impl AddressWitness {
-    /// Borrow the underlying foundation-sealed `Grounded<AddressLabel>`.
-    #[must_use]
-    pub fn grounded(&self) -> &prism::seal::Grounded<AddressLabel> {
-        &self.0
-    }
-}
-
-impl core::fmt::Debug for AddressWitness {
-    fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
-        f.debug_struct("AddressWitness").finish_non_exhaustive()
-    }
-}
+// Architectural-surface output carrier — declared once in
+// [`crate::outcome`] and re-exported here so the historical
+// `uor_addr::json::AddressOutcome` import path resolves to the same
+// shared type.
 
 /// Failure modes from [`address`].
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -144,20 +108,11 @@ pub fn address(input_bytes: &[u8]) -> Result<AddressOutcome, AddressFailure> {
     >>::forward(json_value)
     .map_err(|_| AddressFailure::PipelineFailure)?;
 
-    // Read the 71-byte κ-label out of the Grounded value.
-    let output = grounded.output_bytes();
-    if output.len() != ADDRESS_LABEL_BYTES {
-        return Err(AddressFailure::PipelineFailure);
-    }
-    let mut buf = [0u8; ADDRESS_LABEL_BYTES];
-    buf.copy_from_slice(output);
-    // ASCII-only by construction.
-    let address = core::str::from_utf8(&buf)
-        .map_err(|_| AddressFailure::PipelineFailure)?
-        .into();
+    let address = KappaLabel::from_bytes(grounded.output_bytes())
+        .map_err(|_| AddressFailure::PipelineFailure)?;
 
     Ok(AddressOutcome {
-        witness: AddressWitness(grounded),
+        witness: AddressWitness::new(grounded),
         address,
     })
 }

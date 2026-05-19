@@ -1,0 +1,27 @@
+[package]
+name          = "uor-addr-wasm"
+version       = "0.1.0"
+edition       = "2021"
+authors       = ["The UOR Foundation <https://uor.foundation>"]
+description   = "WASM Component Model bindings for uor-addr via wit-bindgen — polyglot κ-label minting consumable from any language with a Wasm runtime."
+license       = "Apache-2.0"
+repository    = "https://github.com/UOR-Foundation/uor-addr"
+homepage      = "https://github.com/UOR-Foundation/uor-addr"
+documentation = "https://docs.rs/uor-addr-wasm"
+readme        = "README.md"
+keywords      = ["uor", "content-addressing", "wasm", "component-model", "wit"]
+categories    = ["wasm", "cryptography"]
+rust-version  = "1.83"
+
+[lib]
+crate-type = ["cdylib", "rlib"]
+name       = "uor_addr_wasm"
+
+[dependencies]
+# Re-uses uor-addr's `alloc` feature: the WASM Component Model lists
+# (`list<u8>`, `string`) are realised as `Vec<u8>` / `String` in
+# generated Rust glue, so an allocator is required at the binding
+# layer. The underlying uor-addr pipeline remains no_alloc — only the
+# input/output marshalling allocates.
+uor-addr     = { path = "../uor-addr", version = "0.1.0", default-features = false, features = ["alloc"] }
+wit-bindgen  = { version = "0.34", default-features = false, features = ["macros"] }

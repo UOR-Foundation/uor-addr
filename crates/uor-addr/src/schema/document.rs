@@ -6,38 +6,29 @@
 //! host-boundary parser admits only JSON-LD values conforming to
 //! schema.org's published Article taxon.
 //!
-//! Per UOR's schema-import discipline, this module does **not** define
-//! a custom document schema; it imports `https://schema.org/Article`
-//! and applies the schema-validation rules schema.org publishes.
+//! # `no_std` + `no_alloc`
 //!
-//! ## Authoritative sources
+//! Schema admission walks the parsed [`crate::json::JsonValue`]'s
+//! tagged bytes via [`crate::json::JsonValueRef`]. No `serde_json`,
+//! no allocator.
+//!
+//! # Authoritative sources
 //!
 //! - **schema.org Article type** — <https://schema.org/Article>.
-//!   Extends [`CreativeWork`](https://schema.org/CreativeWork) →
-//!   [`Thing`](https://schema.org/Thing).
 //! - **JSON-LD 1.1** — W3C REC — <https://www.w3.org/TR/json-ld11/>.
 //!
-//! ## Admission predicate (the schema.org/Article contract)
-//!
-//! The input must be a JSON-LD object satisfying:
+//! # Admission predicate
 //!
 //! 1. `@context` is `"https://schema.org"` or `"http://schema.org"`.
-//! 2. `@type` is `"Article"` (or one of its subtypes:
-//!    `NewsArticle`, `Report`, `ScholarlyArticle`, etc.).
-//! 3. `headline` — string (schema.org/Article required-for-content
-//!    property).
-//! 4. `author` — string (Person name) or object with
-//!    `@type` in {`Person`, `Organization`} and a `name` string.
-//! 5. `datePublished` — string (ISO 8601 / RFC 3339 date or
-//!    date-time per schema.org/Date).
-
-extern crate alloc;
-
-use alloc::vec::Vec;
+//! 2. `@type` is `"Article"` or one of its admissible subtypes.
+//! 3. `headline` — string.
+//! 4. `author` — string, Person/Organization object, or non-empty
+//!    array of either.
+//! 5. `datePublished` — non-empty string (ISO 8601 / RFC 3339).
 
 use prism::pipeline::{ShapeViolation, ViolationKind};
 
-use crate::json::JsonValue;
+use crate::json::{JsonValue, JsonValueRef};
 
 const DOC_SCHEMA_VIOLATION: ShapeViolation = ShapeViolation {
     shape_iri: "https://schema.org/Article",
@@ -49,86 +40,85 @@ const DOC_SCHEMA_VIOLATION: ShapeViolation = ShapeViolation {
     kind: ViolationKind::ValueCheck,
 };
 
-pub const SCHEMA_ORG_CONTEXTS: &[&str] = &["https://schema.org", "http://schema.org"];
+pub const SCHEMA_ORG_CONTEXTS: &[&[u8]] = &[b"https://schema.org", b"http://schema.org"];
 
 /// Admissible `@type` values — `Article` plus its standard subtypes
 /// per <https://schema.org/Article>.
-pub const ARTICLE_TYPES: &[&str] = &[
-    "Article",
-    "NewsArticle",
-    "Report",
-    "ScholarlyArticle",
-    "SocialMediaPosting",
-    "TechArticle",
-    "BlogPosting",
-    "AdvertiserContentArticle",
-    "AnalysisNewsArticle",
-    "AskPublicNewsArticle",
-    "BackgroundNewsArticle",
-    "OpinionNewsArticle",
-    "ReportageNewsArticle",
-    "ReviewNewsArticle",
-    "SatiricalArticle",
+pub const ARTICLE_TYPES: &[&[u8]] = &[
+    b"Article",
+    b"NewsArticle",
+    b"Report",
+    b"ScholarlyArticle",
+    b"SocialMediaPosting",
+    b"TechArticle",
+    b"BlogPosting",
+    b"AdvertiserContentArticle",
+    b"AnalysisNewsArticle",
+    b"AskPublicNewsArticle",
+    b"BackgroundNewsArticle",
+    b"OpinionNewsArticle",
+    b"ReportageNewsArticle",
+    b"ReviewNewsArticle",
+    b"SatiricalArticle",
 ];
 
-/// Required JSON-LD properties for a schema.org/Article instance:
-/// `@context`, `@type`, `headline`, `author`, `datePublished`.
-pub const REQUIRED_PROPERTIES: &[&str] =
-    &["@context", "@type", "headline", "author", "datePublished"];
+pub const REQUIRED_PROPERTIES: &[&[u8]] = &[
+    b"@context",
+    b"@type",
+    b"headline",
+    b"author",
+    b"datePublished",
+];
 
-/// Typed Document content-addressing input. Wraps a [`JsonValue`]
-/// whose runtime JSON structure conforms to schema.org/Article.
-#[derive(Debug, Clone, PartialEq, Eq)]
+#[derive(Clone)]
 pub struct DocumentValue {
     inner: JsonValue,
 }
 
+impl core::fmt::Debug for DocumentValue {
+    fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
+        f.debug_struct("DocumentValue").finish_non_exhaustive()
+    }
+}
+
 impl DocumentValue {
     pub fn parse(raw: &[u8]) -> Result<Self, ShapeViolation> {
-        let value: serde_json::Value =
-            serde_json::from_slice(raw).map_err(|_| DOC_SCHEMA_VIOLATION)?;
-        let obj = value.as_object().ok_or(DOC_SCHEMA_VIOLATION)?;
-
-        // @context must be schema.org.
-        let context = obj
-            .get("@context")
+        let inner = JsonValue::parse(raw).map_err(|_| DOC_SCHEMA_VIOLATION)?;
+        let root = JsonValueRef::root(&inner);
+        if !root.is_object() {
+            return Err(DOC_SCHEMA_VIOLATION);
+        }
+        // @context
+        let context = root
+            .get(b"@context")
             .and_then(|v| v.as_str())
             .ok_or(DOC_SCHEMA_VIOLATION)?;
         if !SCHEMA_ORG_CONTEXTS.contains(&context) {
             return Err(DOC_SCHEMA_VIOLATION);
         }
-
-        // @type must be Article or one of its subtypes.
-        let ty = obj
-            .get("@type")
+        // @type
+        let ty = root
+            .get(b"@type")
             .and_then(|v| v.as_str())
             .ok_or(DOC_SCHEMA_VIOLATION)?;
         if !ARTICLE_TYPES.contains(&ty) {
             return Err(DOC_SCHEMA_VIOLATION);
         }
-
-        // headline — string.
-        if obj.get("headline").and_then(|v| v.as_str()).is_none() {
-            return Err(DOC_SCHEMA_VIOLATION);
-        }
-
-        // author — string, Person/Organization object, or non-empty
-        // array of either (per schema.org's multi-value-property
-        // pattern in JSON-LD).
-        validate_author(obj.get("author"))?;
-
-        // datePublished — string (ISO 8601). We don't fully parse the
-        // date; we require a non-empty string per schema.org's Date
-        // value-space.
-        let date = obj
-            .get("datePublished")
+        // headline
+        let _ = root
+            .get(b"headline")
+            .and_then(|v| v.as_str())
+            .ok_or(DOC_SCHEMA_VIOLATION)?;
+        // author
+        validate_author(root.get(b"author"))?;
+        // datePublished
+        let date = root
+            .get(b"datePublished")
             .and_then(|v| v.as_str())
             .ok_or(DOC_SCHEMA_VIOLATION)?;
         if date.is_empty() {
             return Err(DOC_SCHEMA_VIOLATION);
         }
-
-        let inner = JsonValue::parse(raw).map_err(|_| DOC_SCHEMA_VIOLATION)?;
         Ok(Self { inner })
     }
 
@@ -138,7 +128,7 @@ impl DocumentValue {
     }
 }
 
-pub fn address(raw: &[u8]) -> Result<crate::json::AddressOutcome, AddressFailure> {
+pub fn address(raw: &[u8]) -> Result<crate::AddressOutcome, AddressFailure> {
     DocumentValue::parse(raw).map_err(|_| AddressFailure::SchemaViolation)?;
     crate::json::address(raw).map_err(|e| match e {
         crate::json::AddressFailure::InvalidJson => AddressFailure::SchemaViolation,
@@ -154,46 +144,58 @@ pub enum AddressFailure {
     PipelineFailure,
 }
 
-pub fn canonicalize(raw: &[u8]) -> Result<Vec<u8>, AddressFailure> {
+/// **Available only under the `alloc` feature.**
+#[cfg(feature = "alloc")]
+pub fn canonicalize(raw: &[u8]) -> Result<alloc::vec::Vec<u8>, AddressFailure> {
+    extern crate alloc;
     DocumentValue::parse(raw).map_err(|_| AddressFailure::SchemaViolation)?;
     crate::json::canonicalize(raw).map_err(|_| AddressFailure::PipelineFailure)
 }
 
-fn validate_author(value: Option<&serde_json::Value>) -> Result<(), ShapeViolation> {
+fn validate_author(value: Option<JsonValueRef<'_>>) -> Result<(), ShapeViolation> {
     let v = value.ok_or(DOC_SCHEMA_VIOLATION)?;
-    match v {
-        serde_json::Value::String(_) => Ok(()),
-        serde_json::Value::Object(_) => validate_author_object(v),
-        serde_json::Value::Array(arr) if !arr.is_empty() => {
-            for item in arr {
-                validate_author_item(item)?;
-            }
-            Ok(())
+    if v.as_str().is_some() {
+        return Ok(());
+    }
+    if v.is_object() {
+        return validate_author_object(v);
+    }
+    if let Some(iter) = v.iter_array() {
+        let mut count = 0;
+        for item in iter {
+            validate_author_item(item)?;
+            count += 1;
         }
-        _ => Err(DOC_SCHEMA_VIOLATION),
+        if count == 0 {
+            return Err(DOC_SCHEMA_VIOLATION);
+        }
+        return Ok(());
     }
+    Err(DOC_SCHEMA_VIOLATION)
 }
 
-fn validate_author_item(value: &serde_json::Value) -> Result<(), ShapeViolation> {
-    match value {
-        serde_json::Value::String(_) => Ok(()),
-        serde_json::Value::Object(_) => validate_author_object(value),
-        _ => Err(DOC_SCHEMA_VIOLATION),
+fn validate_author_item(value: JsonValueRef<'_>) -> Result<(), ShapeViolation> {
+    if value.as_str().is_some() {
+        return Ok(());
     }
+    if value.is_object() {
+        return validate_author_object(value);
+    }
+    Err(DOC_SCHEMA_VIOLATION)
 }
 
-fn validate_author_object(value: &serde_json::Value) -> Result<(), ShapeViolation> {
-    let author = value.as_object().ok_or(DOC_SCHEMA_VIOLATION)?;
-    let at = author
-        .get("@type")
+fn validate_author_object(value: JsonValueRef<'_>) -> Result<(), ShapeViolation> {
+    let at = value
+        .get(b"@type")
         .and_then(|v| v.as_str())
         .ok_or(DOC_SCHEMA_VIOLATION)?;
-    if at != "Person" && at != "Organization" {
+    if at != b"Person" && at != b"Organization" {
         return Err(DOC_SCHEMA_VIOLATION);
     }
-    if author.get("name").and_then(|v| v.as_str()).is_none() {
-        return Err(DOC_SCHEMA_VIOLATION);
-    }
+    let _ = value
+        .get(b"name")
+        .and_then(|v| v.as_str())
+        .ok_or(DOC_SCHEMA_VIOLATION)?;
     Ok(())
 }
 

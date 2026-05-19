@@ -24,7 +24,10 @@ fn main() {
     println!("1. Schema import");
     println!("   shape IRI:       https://schema.org/Photograph");
     println!("   @context values: {:?}", SCHEMA_ORG_CONTEXTS);
-    println!("   @type value:     \"{PHOTOGRAPH_TYPE}\"");
+    println!(
+        "   @type value:     \"{}\"",
+        std::str::from_utf8(PHOTOGRAPH_TYPE).expect("ASCII type")
+    );
     println!("   required props:  {:?}", REQUIRED_PROPERTIES);
     println!();
 

@@ -25,7 +25,10 @@ fn main() {
 
     // 1. Schema-import surface.
     println!("1. Schema import");
-    println!("   _type IRI:          {STATEMENT_TYPE_IRI}");
+    println!(
+        "   _type IRI:          {}",
+        std::str::from_utf8(STATEMENT_TYPE_IRI).expect("ASCII IRI")
+    );
     println!("   required props:     {:?}", REQUIRED_PROPERTIES);
     println!("   subject digest:     sha256 (lowercase hex, {SHA256_HEX_BYTES} chars)");
     println!();

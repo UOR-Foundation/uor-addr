@@ -72,8 +72,6 @@
 //! `JsonValue` — the ψ-pipeline maps typed `JsonValue` tagged bytes to
 //! the κ-label by structural transformation, never by search.
 
-extern crate alloc;
-
 use core::marker::PhantomData;
 
 use prism::pipeline::{
@@ -604,7 +602,7 @@ impl<H: Hasher> KInvariantResolver<H> for AddressKInvariantResolver<H> {
         // and dispatch through `V::canonicalize_into`; the
         // first-published realization fixes `V = JsonValue` to keep
         // the resolver-tuple shape concrete for the SDK macros.
-        let mut canonical = alloc::vec![0u8; JSON_VALUE_MAX_BYTES];
+        let mut canonical = [0u8; JSON_VALUE_MAX_BYTES];
         let canonical_len =
             <JsonValue as AddressInput>::canonicalize_into(carrier.canonical, &mut canonical)?;
 

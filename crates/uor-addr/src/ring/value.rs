@@ -1,8 +1,7 @@
 //! `RingElement` — typed ring-element carrier per UOR-Framework
 //! Amendment 43 §2's `Element::canonical_bytes` layout.
 //!
-//! The PrismModel's `Input` for the ring realization is
-//! [`RingElement`], a typed carrier whose runtime bytes are
+//! Runtime bytes are
 //!
 //! ```text
 //! tagged_bytes(e) := [witt_level: u8] || [coefficient: u8; witt_level + 1]
@@ -10,23 +9,13 @@
 //!
 //! identical to the canonical-bytes layout — the structurally-tagged
 //! byte form **is** the canonical form for this realization, so the
-//! canonicalizer is the identity function (Amendment 43 pins the
-//! canonical bytes at construction, no further canonicalization step
-//! is required at ψ_9).
+//! canonicalizer is the identity function.
 //!
-//! # Input parsing
+//! # `no_std` + `no_alloc`
 //!
-//! [`RingElement::parse`] consumes raw bytes shaped as the canonical
-//! Amendment 43 layout. The host-boundary parser validates:
-//!
-//! - The Witt-level byte is `≤ MAX_WITT_LEVEL` (currently 3 per the
-//!   amendment's tower).
-//! - The total byte width is exactly `1 + (witt_level + 1)` bytes —
-//!   2 bytes for `witt_level = 0`, 5 bytes for `witt_level = 3`.
-
-extern crate alloc;
-
-use alloc::vec::Vec;
+//! [`RingElement`] is a fixed-size stack carrier. Construction and
+//! parse paths write into / read from the inline buffer; no allocator
+//! is touched.
 
 use prism::pipeline::{
     register_shape, ConstrainedTypeShape, ConstraintRef, IntoBindingValue, ShapeViolation,
@@ -70,38 +59,48 @@ const TOTAL_WIDTH_VIOLATION: ShapeViolation = ShapeViolation {
 // ─── RingElement — the typed input carrier ──────────────────────────────
 
 /// Typed ring-element input shape. Runtime bytes follow Amendment 43
-/// §2's canonical-bytes layout.
-#[derive(Debug, Clone, PartialEq, Eq)]
+/// §2's canonical-bytes layout, stored in a fixed-size stack buffer.
+#[derive(Clone)]
 pub struct RingElement {
-    pub(crate) bytes: Vec<u8>,
+    pub(crate) bytes: [u8; RING_VALUE_MAX_BYTES],
+    pub(crate) len: u16,
 }
+
+impl core::fmt::Debug for RingElement {
+    fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
+        f.debug_struct("RingElement")
+            .field("len", &self.len)
+            .finish_non_exhaustive()
+    }
+}
+
+impl PartialEq for RingElement {
+    fn eq(&self, other: &Self) -> bool {
+        self.tagged_bytes() == other.tagged_bytes()
+    }
+}
+
+impl Eq for RingElement {}
 
 impl RingElement {
     /// Construct a `RingElement` from explicit Witt level + coefficient.
-    /// Returns `Err(WITT_LEVEL_VIOLATION)` if `witt_level >
-    /// MAX_WITT_LEVEL`.
     pub fn from_components(witt_level: u8, coefficient: u64) -> Result<Self, ShapeViolation> {
         if witt_level > MAX_WITT_LEVEL {
             return Err(WITT_LEVEL_VIOLATION);
         }
         let coefficient_bytes = (witt_level + 1) as usize;
-        let mut bytes = Vec::with_capacity(1 + coefficient_bytes);
-        bytes.push(witt_level);
+        let total = 1 + coefficient_bytes;
+        let mut me = Self {
+            bytes: [0u8; RING_VALUE_MAX_BYTES],
+            len: total as u16,
+        };
+        me.bytes[0] = witt_level;
         let le = coefficient.to_le_bytes();
-        bytes.extend_from_slice(&le[..coefficient_bytes]);
-        Ok(Self { bytes })
+        me.bytes[1..1 + coefficient_bytes].copy_from_slice(&le[..coefficient_bytes]);
+        Ok(me)
     }
 
     /// Parse raw canonical-bytes into a typed `RingElement`.
-    ///
-    /// # Errors
-    ///
-    /// - `validCanonicalBytes` — input is empty or its width does not
-    ///   match `1 + (witt_level + 1)`.
-    /// - `wittLevelBound` — the Witt-level byte exceeds
-    ///   [`MAX_WITT_LEVEL`].
-    /// - `serializedWidth` — the input exceeds
-    ///   [`RING_VALUE_MAX_BYTES`].
     pub fn parse(raw: &[u8]) -> Result<Self, ShapeViolation> {
         if raw.is_empty() {
             return Err(INVALID_RING_VIOLATION);
@@ -117,43 +116,39 @@ impl RingElement {
         if raw.len() != expected_len {
             return Err(INVALID_RING_VIOLATION);
         }
-        Ok(Self {
-            bytes: raw.to_vec(),
-        })
+        let mut me = Self {
+            bytes: [0u8; RING_VALUE_MAX_BYTES],
+            len: raw.len() as u16,
+        };
+        me.bytes[..raw.len()].copy_from_slice(raw);
+        Ok(me)
     }
 
-    /// Borrow the canonical-bytes byte sequence — the same bytes the
-    /// SHA-256 σ-projection hashes inside ψ_9.
+    /// Borrow the canonical-bytes byte sequence.
     #[must_use]
     pub fn tagged_bytes(&self) -> &[u8] {
-        &self.bytes
+        &self.bytes[..self.len as usize]
     }
 
-    /// The element's Witt level (the first byte of the canonical
-    /// layout).
+    /// The element's Witt level (first byte of the canonical layout).
     #[must_use]
     pub fn witt_level(&self) -> u8 {
         self.bytes[0]
     }
 }
 
-/// Canonical-bytes accessor. For the ring realization, the
-/// structurally-tagged bytes **are** the canonical bytes (Amendment
-/// 43 §2 pins them at construction), so the canonicalizer is the
-/// identity on well-formed input.
-pub fn canonicalize(raw: &[u8]) -> Result<Vec<u8>, ShapeViolation> {
+/// **Available only under the `alloc` feature.** Canonical-bytes
+/// accessor — identity transform on the canonical Amendment 43 §2
+/// bytes.
+#[cfg(feature = "alloc")]
+pub fn canonicalize(raw: &[u8]) -> Result<alloc::vec::Vec<u8>, ShapeViolation> {
+    extern crate alloc;
     let element = RingElement::parse(raw)?;
-    Ok(element.bytes)
+    Ok(element.tagged_bytes().to_vec())
 }
 
-/// Slice-output canonicalizer — the signature
-/// [`crate::common::AddressInput::canonicalize_into`] requires. For
-/// ring elements the canonical form is the identity transform on
-/// the tagged bytes per Amendment 43 §2.
-pub(crate) fn canonicalize_into_slice(
-    tagged: &[u8],
-    out: &mut [u8],
-) -> Result<usize, ShapeViolation> {
+/// Slice-output canonicalizer.
+pub fn canonicalize_into_slice(tagged: &[u8], out: &mut [u8]) -> Result<usize, ShapeViolation> {
     if tagged.len() > out.len() {
         return Err(TOTAL_WIDTH_VIOLATION);
     }
@@ -175,11 +170,12 @@ impl prism::uor_foundation::pipeline::__sdk_seal::Sealed for RingElement {}
 impl IntoBindingValue for RingElement {
     const MAX_BYTES: usize = RING_VALUE_MAX_BYTES;
     fn into_binding_bytes(&self, out: &mut [u8]) -> Result<usize, ShapeViolation> {
-        if self.bytes.len() > out.len() {
+        let n = self.len as usize;
+        if n > out.len() {
             return Err(TOTAL_WIDTH_VIOLATION);
         }
-        out[..self.bytes.len()].copy_from_slice(&self.bytes);
-        Ok(self.bytes.len())
+        out[..n].copy_from_slice(&self.bytes[..n]);
+        Ok(n)
     }
 }
 
@@ -206,10 +202,8 @@ mod tests {
     #[test]
     fn from_components_round_trip() {
         let e = RingElement::from_components(2, 0x0001_0203).expect("valid");
-        // witt_level = 2, coefficient = 4 LE bytes (but Amendment 43
-        // pins coefficient_bytes = witt_level + 1 = 3)
         assert_eq!(e.bytes[0], 2);
-        assert_eq!(&e.bytes[1..], &[0x03, 0x02, 0x01]);
+        assert_eq!(&e.bytes[1..4], &[0x03, 0x02, 0x01]);
     }
 
     #[test]
@@ -229,15 +223,13 @@ mod tests {
 
     #[test]
     fn rejects_truncated_bytes() {
-        // witt_level = 2 requires 1 + 3 = 4 bytes total
         let err = RingElement::parse(&[2, 0, 0]).expect_err("must reject");
         assert_eq!(err.constraint_iri, INVALID_RING_VIOLATION.constraint_iri);
     }
 
+    #[cfg(feature = "alloc")]
     #[test]
     fn canonicalize_is_identity_on_canonical_form() {
-        // Amendment 43 §2 pins canonical bytes at construction — the
-        // canonicalizer is the identity function.
         let bytes = &[0u8, 0x42];
         let canon = canonicalize(bytes).expect("valid");
         assert_eq!(canon, bytes);

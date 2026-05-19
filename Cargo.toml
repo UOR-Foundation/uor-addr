@@ -1,6 +1,6 @@
 [workspace]
 resolver = "2"
-members = ["crates/uor-addr"]
+members = ["crates/uor-addr", "crates/uor-addr-c", "crates/uor-addr-wasm"]
 
 [workspace.dependencies]
 # Façade — re-exports the foundation substrate plus the four Layer-3
@@ -27,6 +27,7 @@ panic         = "abort"
 [profile.dev]
 opt-level = 0
 debug     = true
+panic     = "abort"
 
 [profile.test]
 opt-level = 1

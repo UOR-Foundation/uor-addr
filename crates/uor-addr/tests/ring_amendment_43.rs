@@ -71,7 +71,7 @@ fn canonicalize_is_identity_amendment_43() {
 
 #[test]
 fn distinct_witt_levels_distinct_kappa_labels() {
-    let labels: alloc::vec::Vec<alloc::string::String> = (0..=MAX_WITT_LEVEL)
+    let labels: alloc::vec::Vec<uor_addr::KappaLabel> = (0..=MAX_WITT_LEVEL)
         .map(|k| {
             let e = RingElement::from_components(k, 0x42).expect("valid");
             address(e.tagged_bytes()).expect("κ-label").address

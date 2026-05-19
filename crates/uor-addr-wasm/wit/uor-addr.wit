@@ -1,0 +1,72 @@
+// uor-addr WIT — the Component Model interface published by the
+// `uor-addr-wasm` crate. Any host language with a WASM Component
+// Model runtime (jco for JS, wasmtime for Python/Go, etc.) consumes
+// this interface and is guaranteed byte-for-byte κ-label parity with
+// the Rust path.
+//
+// Authority: <https://component-model.bytecodealliance.org/>
+
+package uor:addr@0.1.0;
+
+/// Each realization name is the WIT-snake-case form of the canonical
+/// `uor_addr::<realization>` Rust module path. The κ-label width is
+/// fixed at 71 ASCII bytes (`sha256:` + 64 lowercase-hex).
+interface kappa {
+    /// Failure modes from any `*-address` function.
+    ///
+    /// - `invalid-input`: input bytes rejected by the host-boundary
+    ///   parser (not valid JSON / S-expression / XML / DER / …).
+    /// - `too-large`: input exceeded a typed-input ceiling (depth,
+    ///   string width, container arity, total byte count).
+    /// - `pipeline-failure`: defensive — substrate-level shape
+    ///   violation. Unreachable for well-formed inputs.
+    variant address-error {
+        invalid-input,
+        too-large,
+        pipeline-failure,
+    }
+
+    /// The 71-byte ASCII κ-label.
+    ///
+    /// Layout: `sha256:` (7 bytes) ‖ 64 lowercase-hex digits.
+    /// Encoded as a UTF-8 string for ergonomic host consumption.
+    type kappa-label = string;
+
+    /// JSON realization (RFC 8259 + RFC 8785 JCS + UAX #15 NFC).
+    json-address: func(input: list<u8>) -> result<kappa-label, address-error>;
+
+    /// S-expression realization (Rivest 1997 canonical form).
+    sexp-address: func(input: list<u8>) -> result<kappa-label, address-error>;
+
+    /// XML realization (W3C XML-C14N 1.1 subset).
+    xml-address: func(input: list<u8>) -> result<kappa-label, address-error>;
+
+    /// ASN.1 realization (ITU-T X.690 DER).
+    asn1-address: func(input: list<u8>) -> result<kappa-label, address-error>;
+
+    /// Ring realization (UOR-Framework Amendment 43 §2 canonical bytes).
+    ring-address: func(input: list<u8>) -> result<kappa-label, address-error>;
+
+    /// Code-module AST realization (CCMAS canonical AST).
+    codemodule-address: func(input: list<u8>) -> result<kappa-label, address-error>;
+
+    /// schema.org/Photograph descendant — admits only schema.org/Photograph
+    /// JSON-LD inputs.
+    schema-photo-address: func(input: list<u8>) -> result<kappa-label, address-error>;
+
+    /// schema.org/Article descendant — admits only schema.org/Article
+    /// JSON-LD inputs (plus subtypes).
+    schema-document-address: func(input: list<u8>) -> result<kappa-label, address-error>;
+
+    /// in-toto Statement v1 descendant — admits only in-toto v1
+    /// envelopes carrying sigstore / SLSA / SCAI / SPDX SBOM predicates.
+    schema-codemodule-signed-address: func(input: list<u8>) -> result<kappa-label, address-error>;
+}
+
+/// The `uor-addr` component world — exports the `kappa` interface.
+/// Consumers `import` this world via their language's component-model
+/// binding (jco for JS/TS, wasmtime-py for Python, wasmtime-go for Go,
+/// jaco for .NET, …).
+world uor-addr {
+    export kappa;
+}

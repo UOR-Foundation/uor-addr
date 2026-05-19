@@ -6,11 +6,14 @@
 //! grammar cases. The canonical-form byte output is a Rivest
 //! `(s_1 s_2 ... s_n)` flat-list per Sexp.txt §4.3 with
 //! `<length>:<bytes>` atoms per §4.2.
-
-extern crate alloc;
-
-use alloc::string::String;
-use alloc::vec::Vec;
+//!
+//! # `no_std` + `no_alloc`
+//!
+//! [`CodeModuleValue`] is a fixed-size stack carrier. Constructors
+//! write CCMAS bytes directly into the inline buffer; the parser
+//! delegates to [`crate::sexp::SExprValue::parse`] for Rivest
+//! canonical-form validation and then walks the canonical bytes
+//! through the AST grammar to enforce typed-input bounds.
 
 use prism::pipeline::{
     register_shape, ConstrainedTypeShape, ConstraintRef, IntoBindingValue, ShapeViolation,
@@ -76,46 +79,67 @@ const TOTAL_WIDTH_VIOLATION: ShapeViolation = ShapeViolation {
 
 // ─── CodeModuleValue — the typed input carrier ──────────────────────────
 
-/// Typed code-module AST input shape. Runtime bytes are the
-/// CCMAS canonical form (a Rivest canonical S-expression over the
-/// AST's grammar cases).
-#[derive(Debug, Clone, PartialEq, Eq)]
+/// Typed code-module AST input shape. Runtime bytes are the CCMAS
+/// canonical form (Rivest canonical S-expression over the AST's
+/// grammar cases), stored in a fixed-size stack buffer.
+#[derive(Clone)]
 pub struct CodeModuleValue {
-    pub(crate) bytes: Vec<u8>,
+    pub(crate) bytes: [u8; CODEMODULE_VALUE_MAX_BYTES],
+    pub(crate) len: u16,
 }
 
+impl core::fmt::Debug for CodeModuleValue {
+    fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
+        f.debug_struct("CodeModuleValue")
+            .field("len", &self.len)
+            .finish_non_exhaustive()
+    }
+}
+
+impl PartialEq for CodeModuleValue {
+    fn eq(&self, other: &Self) -> bool {
+        self.tagged_bytes() == other.tagged_bytes()
+    }
+}
+
+impl Eq for CodeModuleValue {}
+
 impl CodeModuleValue {
-    /// Parse raw CCMAS bytes (Rivest canonical S-expression with the
-    /// `mod`/`fun`/`type`/`const`/`call` tag heads) into a typed
-    /// `CodeModuleValue`. The parser validates the AST grammar plus
-    /// the typed-input bounds.
-    ///
-    /// # Errors
-    ///
-    /// - `validCcmas` — not a valid CCMAS byte sequence.
-    /// - `depthBound` — nesting exceeds [`MAX_CODEMODULE_DEPTH`].
-    /// - `nameWidth` — an identifier exceeds [`MAX_CODEMODULE_NAME_BYTES`].
-    /// - `itemsBound` — a list exceeds [`MAX_CODEMODULE_ITEMS`].
-    /// - `serializedWidth` — exceeds [`CODEMODULE_VALUE_MAX_BYTES`].
+    fn empty() -> Self {
+        Self {
+            bytes: [0u8; CODEMODULE_VALUE_MAX_BYTES],
+            len: 0,
+        }
+    }
+
+    /// Parse raw CCMAS bytes into a typed `CodeModuleValue`. The
+    /// parser delegates to [`crate::sexp::SExprValue::parse`] for
+    /// Rivest canonical-form validation, then re-canonicalizes
+    /// (idempotent on canonical input) and walks the AST grammar.
     pub fn parse(raw: &[u8]) -> Result<Self, ShapeViolation> {
-        // CCMAS is structurally a canonical S-expression. Parse via
-        // the sexp grammar to inherit Rivest §4.2/§4.3 conformance,
-        // then validate the AST grammar on top.
-        let canonical = crate::sexp::canonicalize(raw).map_err(|_| INVALID_AST_VIOLATION)?;
-        if canonical.len() > CODEMODULE_VALUE_MAX_BYTES {
+        // Validate as a canonical S-expression. SExprValue::parse
+        // handles both Rivest canonical form and the token-list
+        // shorthand; we re-canonicalize via its slice-out
+        // canonicalizer to obtain the canonical CCMAS bytes.
+        let sexpr = crate::sexp::SExprValue::parse(raw).map_err(|_| INVALID_AST_VIOLATION)?;
+        let mut me = Self::empty();
+        let n = crate::sexp::value::canonicalize_into_slice(sexpr.tagged_bytes(), &mut me.bytes)
+            .map_err(|_| INVALID_AST_VIOLATION)?;
+        me.len = n as u16;
+        if me.len as usize > CODEMODULE_VALUE_MAX_BYTES {
             return Err(TOTAL_WIDTH_VIOLATION);
         }
         // Walk the canonical bytes through the AST grammar to enforce
-        // the typed-input bounds.
+        // the typed-input bounds (depth, name width, item count).
         let mut walker = AstWalker {
-            src: &canonical,
+            src: &me.bytes[..me.len as usize],
             pos: 0,
         };
         walker.walk_node(0)?;
-        if walker.pos != canonical.len() {
+        if walker.pos != me.len as usize {
             return Err(INVALID_AST_VIOLATION);
         }
-        Ok(Self { bytes: canonical })
+        Ok(me)
     }
 
     /// Build a Module AST node.
@@ -129,8 +153,7 @@ impl CodeModuleValue {
         Self::ast_call("mod", name, items)
     }
 
-    /// Build a Function AST node. `parameters` and `body` are
-    /// pre-built AST nodes.
+    /// Build a Function AST node.
     pub fn function(
         name: &str,
         parameters: &[CodeModuleValue],
@@ -143,28 +166,24 @@ impl CodeModuleValue {
         if parameters.len() > MAX_CODEMODULE_ITEMS {
             return Err(ITEMS_BOUND_VIOLATION);
         }
-        // (3:fun <name> (params...) <return_type> <body>)
-        let mut bytes = Vec::new();
-        bytes.extend_from_slice(b"(3:fun ");
-        write_atom(name.as_bytes(), &mut bytes);
-        bytes.push(b' ');
-        bytes.push(b'(');
+        // `(3:fun <name> (params...) <return_type> <body>)`
+        let mut me = Self::empty();
+        me.push(b"(3:fun ")?;
+        me.write_atom(name.as_bytes())?;
+        me.push(b" (")?;
         for (i, p) in parameters.iter().enumerate() {
             if i > 0 {
-                bytes.push(b' ');
+                me.push_byte(b' ')?;
             }
-            bytes.extend_from_slice(&p.bytes);
+            me.push(p.tagged_bytes())?;
         }
-        bytes.push(b')');
-        bytes.push(b' ');
-        bytes.extend_from_slice(&return_type.bytes);
-        bytes.push(b' ');
-        bytes.extend_from_slice(&body.bytes);
-        bytes.push(b')');
-        if bytes.len() > CODEMODULE_VALUE_MAX_BYTES {
-            return Err(TOTAL_WIDTH_VIOLATION);
-        }
-        Ok(Self { bytes })
+        me.push_byte(b')')?;
+        me.push_byte(b' ')?;
+        me.push(return_type.tagged_bytes())?;
+        me.push_byte(b' ')?;
+        me.push(body.tagged_bytes())?;
+        me.push_byte(b')')?;
+        Ok(me)
     }
 
     /// Build an Atom AST node (Identifier, Literal, etc.).
@@ -172,41 +191,58 @@ impl CodeModuleValue {
         if text.len() > MAX_CODEMODULE_NAME_BYTES {
             return Err(NAME_WIDTH_VIOLATION);
         }
-        let mut bytes = Vec::new();
-        write_atom(text.as_bytes(), &mut bytes);
-        Ok(Self { bytes })
+        let mut me = Self::empty();
+        me.write_atom(text.as_bytes())?;
+        Ok(me)
     }
 
     fn ast_call(tag: &str, name: &str, items: &[CodeModuleValue]) -> Result<Self, ShapeViolation> {
-        let mut bytes = Vec::new();
-        bytes.push(b'(');
-        write_atom(tag.as_bytes(), &mut bytes);
-        bytes.push(b' ');
-        write_atom(name.as_bytes(), &mut bytes);
+        let mut me = Self::empty();
+        me.push_byte(b'(')?;
+        me.write_atom(tag.as_bytes())?;
+        me.push_byte(b' ')?;
+        me.write_atom(name.as_bytes())?;
         for item in items {
-            bytes.push(b' ');
-            bytes.extend_from_slice(&item.bytes);
+            me.push_byte(b' ')?;
+            me.push(item.tagged_bytes())?;
         }
-        bytes.push(b')');
-        if bytes.len() > CODEMODULE_VALUE_MAX_BYTES {
-            return Err(TOTAL_WIDTH_VIOLATION);
-        }
-        Ok(Self { bytes })
+        me.push_byte(b')')?;
+        Ok(me)
     }
 
     /// Borrow the CCMAS canonical bytes.
     #[must_use]
     pub fn tagged_bytes(&self) -> &[u8] {
-        &self.bytes
+        &self.bytes[..self.len as usize]
     }
-}
 
-fn write_atom(bytes: &[u8], out: &mut Vec<u8>) {
-    let mut len_buf = [0u8; 20];
-    let len_str = format_usize_into(&mut len_buf, bytes.len());
-    out.extend_from_slice(len_str);
-    out.push(b':');
-    out.extend_from_slice(bytes);
+    fn push_byte(&mut self, b: u8) -> Result<(), ShapeViolation> {
+        let pos = self.len as usize;
+        if pos >= CODEMODULE_VALUE_MAX_BYTES {
+            return Err(TOTAL_WIDTH_VIOLATION);
+        }
+        self.bytes[pos] = b;
+        self.len += 1;
+        Ok(())
+    }
+
+    fn push(&mut self, data: &[u8]) -> Result<(), ShapeViolation> {
+        let pos = self.len as usize;
+        if pos + data.len() > CODEMODULE_VALUE_MAX_BYTES {
+            return Err(TOTAL_WIDTH_VIOLATION);
+        }
+        self.bytes[pos..pos + data.len()].copy_from_slice(data);
+        self.len += data.len() as u16;
+        Ok(())
+    }
+
+    fn write_atom(&mut self, bytes: &[u8]) -> Result<(), ShapeViolation> {
+        let mut len_buf = [0u8; 20];
+        let len_str = format_usize_into(&mut len_buf, bytes.len());
+        self.push(len_str)?;
+        self.push_byte(b':')?;
+        self.push(bytes)
+    }
 }
 
 fn format_usize_into(buf: &mut [u8; 20], mut n: usize) -> &[u8] {
@@ -241,19 +277,10 @@ impl AstWalker<'_> {
         if self.src[self.pos] == b'(' {
             self.pos += 1;
             self.skip_ws();
-            // Empty list `()` — Nil case from the sexp grammar
-            // (admissible in CCMAS where a function's params list or
-            // a module's items list is empty).
             if self.pos < self.src.len() && self.src[self.pos] == b')' {
                 self.pos += 1;
                 return Ok(());
             }
-            // Walk children — each child is either an atom or a
-            // nested list. The first child is the AST node's tag
-            // head (e.g. `3:mod`, `3:fun`, `4:call`) when the list
-            // represents a tagged AST case; for an untagged
-            // sub-list (e.g. a parameter list) it's just the first
-            // element. Both shapes are admissible here.
             let mut child_count = 0;
             loop {
                 self.skip_ws();
@@ -289,7 +316,7 @@ impl AstWalker<'_> {
             .map_err(|_| INVALID_AST_VIOLATION)?
             .parse()
             .map_err(|_| INVALID_AST_VIOLATION)?;
-        self.pos += 1; // ':'
+        self.pos += 1;
         if self.pos + len > self.src.len() {
             return Err(INVALID_AST_VIOLATION);
         }
@@ -308,18 +335,18 @@ impl AstWalker<'_> {
     }
 }
 
-/// Canonical-bytes accessor. The CCMAS bytes ARE the canonical form
-/// (Rivest §4.2/§4.3 over the AST grammar).
-pub fn canonicalize(raw: &[u8]) -> Result<Vec<u8>, ShapeViolation> {
+/// **Available only under the `alloc` feature.** Canonical-bytes
+/// accessor — CCMAS bytes are the canonical form. The no_alloc
+/// equivalent is [`canonicalize_into_slice`].
+#[cfg(feature = "alloc")]
+pub fn canonicalize(raw: &[u8]) -> Result<alloc::vec::Vec<u8>, ShapeViolation> {
+    extern crate alloc;
     let value = CodeModuleValue::parse(raw)?;
-    Ok(value.bytes)
+    Ok(value.tagged_bytes().to_vec())
 }
 
 /// Slice-output canonicalizer.
-pub(crate) fn canonicalize_into_slice(
-    tagged: &[u8],
-    out: &mut [u8],
-) -> Result<usize, ShapeViolation> {
+pub fn canonicalize_into_slice(tagged: &[u8], out: &mut [u8]) -> Result<usize, ShapeViolation> {
     if tagged.len() > out.len() {
         return Err(TOTAL_WIDTH_VIOLATION);
     }
@@ -341,11 +368,12 @@ impl prism::uor_foundation::pipeline::__sdk_seal::Sealed for CodeModuleValue {}
 impl IntoBindingValue for CodeModuleValue {
     const MAX_BYTES: usize = CODEMODULE_VALUE_MAX_BYTES;
     fn into_binding_bytes(&self, out: &mut [u8]) -> Result<usize, ShapeViolation> {
-        if self.bytes.len() > out.len() {
+        let n = self.len as usize;
+        if n > out.len() {
             return Err(TOTAL_WIDTH_VIOLATION);
         }
-        out[..self.bytes.len()].copy_from_slice(&self.bytes);
-        Ok(self.bytes.len())
+        out[..n].copy_from_slice(&self.bytes[..n]);
+        Ok(n)
     }
 }
 
@@ -365,9 +393,6 @@ impl crate::common::AddressInput for CodeModuleValue {
     }
 }
 
-#[allow(unused_imports)]
-use String as _StringPlaceholder;
-
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -375,7 +400,7 @@ mod tests {
     #[test]
     fn empty_module_round_trips() {
         let m = CodeModuleValue::module("empty", &[]).expect("valid");
-        let parsed = CodeModuleValue::parse(&m.bytes).expect("re-parse");
+        let parsed = CodeModuleValue::parse(m.tagged_bytes()).expect("re-parse");
         assert_eq!(m, parsed);
     }
 
@@ -385,7 +410,7 @@ mod tests {
         let ret = CodeModuleValue::atom("u32").expect("valid");
         let f = CodeModuleValue::function("hello", &[], &ret, &body).expect("valid");
         let m = CodeModuleValue::module("greet", &[f]).expect("valid");
-        let parsed = CodeModuleValue::parse(&m.bytes).expect("re-parse");
+        let parsed = CodeModuleValue::parse(m.tagged_bytes()).expect("re-parse");
         assert_eq!(m, parsed);
     }
 
@@ -395,21 +420,21 @@ mod tests {
         assert_eq!(err.constraint_iri, INVALID_AST_VIOLATION.constraint_iri);
     }
 
+    #[cfg(feature = "alloc")]
     #[test]
     fn rejects_oversize_name() {
+        extern crate alloc;
+        use alloc::string::String;
         let big: String = "a".repeat(MAX_CODEMODULE_NAME_BYTES + 1);
         let err = CodeModuleValue::atom(&big).expect_err("must reject");
         assert_eq!(err.constraint_iri, NAME_WIDTH_VIOLATION.constraint_iri);
     }
 
+    #[cfg(feature = "alloc")]
     #[test]
     fn canonical_form_is_rivest_subset() {
-        // CCMAS extends Rivest canonical S-expressions; the byte
-        // output is a valid Rivest expression.
         let m = CodeModuleValue::module("ex", &[]).expect("valid");
-        // The Rivest canonical form for the same logical structure
-        // should re-canonicalize unchanged.
-        let twice = crate::sexp::canonicalize(&m.bytes).expect("canon");
-        assert_eq!(twice, m.bytes);
+        let twice = crate::sexp::canonicalize(m.tagged_bytes()).expect("canon");
+        assert_eq!(twice, m.tagged_bytes());
     }
 }

@@ -46,9 +46,10 @@ fn main() {
     let seq = Asn1Value::sequence(&[
         Asn1Value::boolean(true),
         Asn1Value::integer(42),
-        Asn1Value::octet_string(b"hello"),
+        Asn1Value::octet_string(b"hello").expect("octet string fits"),
         Asn1Value::null(),
-    ]);
+    ])
+    .expect("sequence fits");
     let outcome = address(seq.tagged_bytes()).expect("κ-label");
     println!("3. Sequence composition (§8.9)");
     println!("   SEQUENCE {{TRUE, 42, OCTET STRING 'hello', NULL}}");
@@ -65,7 +66,7 @@ fn main() {
     let int_42 = address(Asn1Value::integer(42).tagged_bytes())
         .expect("κ-label")
         .address;
-    let str_42 = address(Asn1Value::octet_string(b"42").tagged_bytes())
+    let str_42 = address(Asn1Value::octet_string(b"42").expect("fits").tagged_bytes())
         .expect("κ-label")
         .address;
     assert_ne!(int_42, str_42);

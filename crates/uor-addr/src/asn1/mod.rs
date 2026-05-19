@@ -55,5 +55,7 @@ pub use resolvers::{
     AddressNerveResolver, AddressPostnikovResolver, AddressResolverTuple,
 };
 pub use shapes::{Asn1AddrBounds, ASN1_VALUE_MAX_BYTES, MAX_ASN1_DEPTH, MAX_ASN1_ELEMENTS};
-pub use value::{canonicalize, Asn1Value, Asn1ValueRegistry};
+#[cfg(feature = "alloc")]
+pub use value::canonicalize;
+pub use value::{Asn1Value, Asn1ValueRegistry};
 pub use verbs::{address_inference, VERB_TERMS_ADDRESS_INFERENCE};
