@@ -21,11 +21,12 @@ name       = "uor_addr_c"
 uor-addr = { path = "../uor-addr", version = "0.1.0", default-features = false }
 
 [features]
-# Default mirrors the core crate's defaults — no `std`, no allocator.
-# Embedded callers build with `--no-default-features` (the default here).
-default = []
-# `std` re-exports for hosted callers that want stdlib panic handling
-# / I/O routes through the C bindings.
+# Hosted targets (linux / macos / windows) default to `std` so the
+# cdylib / staticlib outputs pick up `std`'s panic_handler. Bare-metal
+# targets (e.g. `thumbv7em-none-eabihf`) build with
+# `--no-default-features`: that strips `std`, leaving the in-crate
+# `target_os = "none"` panic_handler in scope.
+default = ["std"]
 std     = ["uor-addr/std"]
 alloc   = ["uor-addr/alloc"]
 
