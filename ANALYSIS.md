@@ -179,7 +179,7 @@ tag-byte half.
 
 ## 7.6. Typed-input bound enforcement — CT-B
 
-The typed-input bounds declared in `crate::shapes::bounds`
+The typed-input bounds declared in `crate::json::shapes::bounds`
 (`MAX_JSON_DEPTH = 32`, `MAX_STRING_BYTES = 1024`,
 `MAX_NUMBER_DIGITS = 64`, `MAX_OBJECT_KEYS = 256`,
 `MAX_ARRAY_ELEMENTS = 256`, `JSON_VALUE_MAX_BYTES = 3968`) are

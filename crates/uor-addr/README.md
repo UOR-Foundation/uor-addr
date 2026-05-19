@@ -1,78 +1,88 @@
 # uor-addr
 
-> Reference Rust implementation of **UOR-ADDR-1** — chain-agnostic
-> canonical content addressing for JSON-serializable data.
+> UOR-ADDR — the typed reference vocabulary for typed
+> content-addressing across recursively-grammared formats. A
+> [UOR Foundation](https://uor.foundation) standard-library Layer-3
+> realization grounded against the wiki specification at
+> <https://github.com/UOR-Foundation/UOR-Framework/wiki>.
 
-`uor-addr` is a Prism application of the [UOR Foundation](https://github.com/UOR-Foundation)
-that derives a 71-byte `sha256:<64hex>` content address from any
-JSON-serializable input. Output is byte-identical to the UOR Foundation's
-canonical reference at `mcp.uor.foundation/tools/encode_address`.
-
-The pipeline is **JCS-RFC8785 canonicalization + Unicode NFC normalization
-+ SHA-256**, exposed through a single function:
+A single Rust crate shipping UOR-ADDR's **common architectural surface**
+plus **multiple concrete realizations** of that surface, each a
+`PrismModel<HostTypes, HostBounds, Hasher, ResolverTuple,
+TypedCommitment>` that derives a 71-byte `sha256:<64hex>` content
+address from a typed format-specific value.
 
 ```rust
-use uor_addr::address;
+use uor_addr::json::address as json_address;
+let outcome = json_address(br#"{"foo": "bar"}"#).unwrap();
+// outcome.address == "sha256:7a38bf81…ee24b"
 
-let outcome = address(br#"{"foo": "bar"}"#).unwrap();
-assert_eq!(
-    outcome.address,
-    "sha256:7a38bf81f383f69433ad6e900d35b3e2385593f76a7b7ab5d4355b8ba41ee24b"
-);
+use uor_addr::sexp::address as sexp_address;
+let outcome = sexp_address(b"(a b c)").unwrap();
+// outcome.address == "sha256:cdd489dd…f50e"
 ```
 
-## What this crate guarantees
+## Realizations
 
-The implementation carries a numbered [conformance contract](https://github.com/UOR-Foundation/uor-addr/blob/main/CONFORMANCE.md)
-covering structural, deterministic, probabilistic, formal-Lean, and
-live-network invariants. Highlights:
+Every realization implements the common
+[`uor_addr::common::AddressInput`] trait and emits the canonical
+71-byte κ-label.
 
-- **Determinism (CD-D01).** `address(b)` is a pure function of the
-  canonical-form bytes; identical inputs always yield identical κ-labels.
-- **Invariance (CD-I01a–d).** Key ordering, whitespace, and Unicode
-  normalization form (NFC/NFD/NFKC/NFKD) do not affect the output.
-- **Wire format (CL-W01).** The κ-label is exactly 71 ASCII bytes —
-  `"sha256:"` followed by 64 lowercase hex digits — proved at the type
-  level by a [Lean theorem](https://github.com/UOR-Foundation/uor-addr/blob/main/uor-addr-lean/UorAddr/AddressShape.lean).
-- **Byte identity (CD-D02).** The 12 reference fixtures harvested from
-  the UOR Foundation canonical endpoint reproduce byte-for-byte.
-- **Cryptographic precision.** Collision probability bounded by
-  SHA-256's standard `2^{-128}` security margin.
+- **Format-specific**: [`json`] (RFC 8785 JCS + RFC 8259 + UAX #15 NFC),
+  [`sexp`] (Rivest 1997), [`xml`] (W3C XML-C14N 1.1 subset), [`asn1`]
+  (ITU-T X.690 DER), [`ring`] (UOR-Framework Amendment 43 §2),
+  [`codemodule`] (CCMAS canonical AST).
+- **Schema-pinned descendants** that import existing standards per
+  UOR's schema-import discipline: [`schema::photo`] →
+  [schema.org/Photograph](https://schema.org/Photograph),
+  [`schema::document`] →
+  [schema.org/Article](https://schema.org/Article),
+  [`schema::codemodule_signed`] →
+  [in-toto Statement v1](https://in-toto.io/Statement/v1).
+- **Cost-model-bearing variants** per ADR-048: [`variant::storage`]
+  binds `AndCommitment<EmptyCommitment, SingletonCommitment<LexicographicLessEqThreshold>>`;
+  [`variant::signed`] binds `SingletonCommitment<UltrametricCloseTo<2>>`.
 
-See [VERIFICATION.md](https://github.com/UOR-Foundation/uor-addr/blob/main/VERIFICATION.md)
-for the full V&V gate (`just vv`) and reproduction commands.
+Full per-realization authoritative-source index in
+[STANDARDS.md](https://github.com/UOR-Foundation/uor-addr/blob/main/STANDARDS.md).
 
-## Features
+## Architectural commitments
 
-- **`std`** (default) — uses the standard library. Disable for `no_std`
-  environments; `alloc` is always required.
+The complete architectural specification is in
+[ARCHITECTURE.md](https://github.com/UOR-Foundation/uor-addr/blob/main/ARCHITECTURE.md);
+the numbered conformance contract is in
+[CONFORMANCE.md](https://github.com/UOR-Foundation/uor-addr/blob/main/CONFORMANCE.md);
+the V&V acceptance gate (`just vv`) is documented in
+[VERIFICATION.md](https://github.com/UOR-Foundation/uor-addr/blob/main/VERIFICATION.md).
 
-## Architecture
+Key commitments every realization upholds:
 
-The crate is a single
-`PrismModel<HostTypes, HostBounds, Hasher, ResolverTuple, TypedCommitment>`
-declared over the `uor-prism` standard-library façade (wiki ADR-031),
-with `TypedCommitment = EmptyCommitment` per ADR-048. The PrismModel's
-`Input` is the typed [`JsonValue`] — a JSON value of bounded depth
-and width carried as a structurally-tagged byte serialization. The
-ψ-pipeline derives the κ-label through four typed stages
-(Nerve → PostnikovTower → HomotopyGroups → KInvariants); JCS-RFC8785
-+ Unicode NFC canonicalisation and the canonical hash axis are both
-consumed inside the terminal ψ_9 resolver per wiki ADR-046.
+- **ADR-035 canonical k-invariants branch** — the `address_inference`
+  verb body composes ψ_1 + ψ_7 + ψ_8 + ψ_9; ψ_2..ψ_6 are off-path
+  with identity-emitting resolver bodies.
+- **ADR-046 resolver-body discipline** — the format's canonicalization
+  lives inside `AddressKInvariantResolver`'s body, dispatched through
+  `V::canonicalize_into` per the [`AddressInput`] trait.
+- **ADR-047 σ-projection Hardening Principle** — every realization
+  binds `prism::crypto::Sha256Hasher` as the canonical hash axis.
+- **ADR-048 typed-commitment surface** — default `C = EmptyCommitment`;
+  cost-model variants bind non-default `C` selections.
+- **ADR-057 application shape registry** — every realization emits its
+  registry via `register_shape!`.
 
-For the full architectural specification (substitution axes,
-discipline-scope boundaries, algebraic-closure encoding, seal regime),
-see [ARCHITECTURE.md](https://github.com/UOR-Foundation/uor-addr/blob/main/ARCHITECTURE.md).
+## Build + V&V
 
-## MSRV
+```bash
+cargo build           # rustc >= 1.83
+cargo test --workspace
+cargo clippy --workspace --all-targets -- -D warnings
+just vv               # full V&V gate
+just examples         # 16 runnable comprehensive demos
+```
 
-Rust 1.83 or later.
+`no_std`-compatible (`default-features = false`); only `alloc`
+required. `#![forbid(unsafe_code)]` — zero unsafe blocks.
 
 ## License
 
-Licensed under the Apache License, Version 2.0. See [LICENSE](LICENSE).
-
-## Authorship
-
-Maintained by [The UOR Foundation](https://uor.foundation), grounded
-against the [UOR Foundation wiki specification](https://github.com/UOR-Foundation/UOR-Framework/wiki).
+Apache-2.0, matching `uor-foundation`.
