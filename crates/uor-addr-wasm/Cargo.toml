@@ -23,5 +23,10 @@ name       = "uor_addr_wasm"
 # generated Rust glue, so an allocator is required at the binding
 # layer. The underlying uor-addr pipeline remains no_alloc — only the
 # input/output marshalling allocates.
-uor-addr     = { path = "../uor-addr", version = "0.1.0", default-features = false, features = ["alloc"] }
-wit-bindgen  = { version = "0.34", default-features = false, features = ["macros"] }
+uor-addr         = { path = "../uor-addr", version = "0.1.0", default-features = false, features = ["alloc"] }
+# Required for the `grounded.verify()` Component Model export which
+# replays `Grounded<AddressLabel>::derivation()` through
+# `prism_verify::certify_from_trace` without re-invoking the canonical
+# hash axis (the TC-05 commitment, see CL-R* in CONFORMANCE.md).
+uor-prism-verify = { workspace = true, default-features = false }
+wit-bindgen      = { version = "0.34", default-features = false, features = ["macros"] }

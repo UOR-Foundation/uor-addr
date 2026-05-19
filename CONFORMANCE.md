@@ -233,17 +233,20 @@ changing the κ-derivation byte path.
 Verified by **building each FFI artifact and asserting κ-label byte
 identity against the pure-Rust path**. The contract is that every FFI
 binding produces the same 71-byte κ-label byte-for-byte as
-`uor_addr::<realization>::address`.
+`uor_addr::<realization>::address`, and that the witness-bearing
+variants additionally support TC-05 replay across the FFI boundary.
 
 | ID       | Invariant                                                                                       | Pinned by                                                              |
 |----------|-------------------------------------------------------------------------------------------------|------------------------------------------------------------------------|
-| CF-C01   | `uor-addr-c` exposes one `extern "C"` entry per realization (9 functions total)                | `crates/uor-addr-c/src/lib.rs` — one `ffi_address_fn!` invocation per realization |
+| CF-C01   | `uor-addr-c` exposes one `extern "C"` entry per realization (9 functions total)                | `crates/uor-addr-c/src/lib.rs` — one `extern "C"` definition per realization |
 | CF-C02   | `uor-addr-c` builds cleanly on `thumbv7em-none-eabihf` (Cortex-M4 bare-metal, no allocator)    | `just embedded`                                                        |
 | CF-C03   | `uor-addr-c` builds cleanly on hosted x86_64 (`libuor_addr_c.a` + `libuor_addr_c.so`)          | `just build-release`                                                   |
 | CF-C04   | A C header is auto-generated at `crates/uor-addr-c/include/uor_addr.h` via `cbindgen`           | `build.rs` regenerates on `src/lib.rs` change                          |
+| CF-C05   | `uor-addr-c` exposes a `UorAddrGrounded` opaque handle + `*_with_witness` constructors (9), `_kappa_label`, `_content_fingerprint`, `_verify`, `_free` | `crates/uor-addr-c/tests/grounded_round_trip.rs` |
 | CF-W01   | `uor-addr-wasm` exposes one `*-address` function per realization via WIT (9 functions total)   | `crates/uor-addr-wasm/wit/uor-addr.wit`                                |
 | CF-W02   | `uor-addr-wasm` builds cleanly on `wasm32-wasip2` (WASI Preview 2 + Component Model)            | `just wasm`                                                            |
 | CF-W03   | The generated `.wasm` artifact is consumable from JS / Python / Go / .NET / Ruby via wasmtime  | `cargo build --target wasm32-wasip2 --release` emits `uor_addr_wasm.wasm` |
+| CF-W04   | `uor-addr-wasm` exposes a `resource grounded` with `kappa-label` / `content-fingerprint` / `verify` methods + `*-address-with-witness` constructors (9) | `crates/uor-addr-wasm/wit/uor-addr.wit` + `bindings/npm/scripts/test.mjs` |
 
 ### CL-R — Replay class — TC-05 round-trip via `uor-prism-verify`
 
@@ -263,6 +266,11 @@ SD3 — Verification" section for the architectural framing.
 | CL-R00   | `prism_verify::certify_from_trace(Trace::empty())` returns `ReplayError::EmptyTrace`       | `tests::replay::cl_r00__verifier_facade_is_wired`               |
 | CL-R01   | Single-input round-trip: replayed `ContentFingerprint` equals source                       | `tests::replay::cl_r01__grounded_address_label_round_trips_through_verifier` |
 | CL-R02   | All 12 reference fixtures round-trip: replayed `ContentFingerprint` equals source per input | `tests::replay::cl_r02__every_reference_fixture_round_trips`    |
+| CL-R-FFI-01 | Every `uor_addr_<realization>_with_witness` C ABI call returns a `UorAddrGrounded` whose `_kappa_label` matches the parallel flat-call κ-label byte-for-byte | `uor_addr_c::tests::grounded_round_trip::cl_r_ffi_01__json_witness_label_matches_flat_call` |
+| CL-R-FFI-02 | `uor_addr_grounded_verify` returns the same κ-label byte-for-byte (QS-05 replay equivalence; SHA-256 not re-invoked) | `uor_addr_c::tests::grounded_round_trip::cl_r_ffi_02__verify_returns_same_label_as_mint` |
+| CL-R-FFI-03 | `uor_addr_grounded_content_fingerprint` returns a 32-byte digest deterministically across calls | `uor_addr_c::tests::grounded_round_trip::cl_r_ffi_03__fingerprint_is_deterministic` |
+| CL-R-FFI-04 | `uor_addr_grounded_free(NULL)` is a no-op; cross-realization witness round-trip holds for every shipped realization | `uor_addr_c::tests::grounded_round_trip::cl_r_ffi_04__free_on_null_is_noop` + `cross_realization__*` |
+| CL-R-W01 | `bindings/npm` smoke test: every `kappa.*AddressWithWitness(...)` returns a `Grounded` whose `verify()` equals `kappaLabel()` byte-for-byte | `bindings/npm/scripts/test.mjs` |
 
 ## Contract evolution
 

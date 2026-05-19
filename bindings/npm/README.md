@@ -56,6 +56,30 @@ const strLabel = kappa.jsonAddress(enc.encode('"42"'));
 console.assert(intLabel !== strLabel);
 ```
 
+## TC-05 replay across the wasm boundary
+
+Each `*AddressWithWitness` function returns a `Grounded` resource carrying the ψ-pipeline's emitted derivation. Calling `grounded.verify()` replays the derivation through `prism_verify::certify_from_trace` and returns the recovered κ-label **without re-invoking SHA-256**. The verifier reads the trace events the source pipeline emitted and re-packages the certified output (QS-05 replay equivalence; CL-R\* in [CONFORMANCE.md](https://github.com/UOR-Foundation/uor-addr/blob/main/CONFORMANCE.md)).
+
+```typescript
+import { kappa } from "@uor-foundation/uor-addr";
+
+const grounded = kappa.jsonAddressWithWitness(
+  new TextEncoder().encode('{"foo":"bar"}'),
+);
+
+console.log(grounded.kappaLabel());
+// sha256:7a38bf81f383f69433ad6e900d35b3e2385593f76a7b7ab5d4355b8ba41ee24b
+
+console.log(grounded.verify() === grounded.kappaLabel());
+// true — TC-05 round-trip; SHA-256 was not re-invoked.
+
+const fp: Uint8Array = grounded.contentFingerprint();
+// 32-byte content fingerprint (distinct from the κ-label hex suffix —
+// it is prism's content-address of the Grounded's full state).
+```
+
+The `Grounded` resource is managed by the Component Model runtime; let it go out of scope to release the underlying handle. Cross-process attestation is not supported (the underlying `Trace<256>` constructor is `pub(crate)` in `uor-foundation`); for that, persist the κ-label itself and re-mint at the verifier side.
+
 ## Byte identity with the Rust crate
 
 The κ-label this package produces is **byte-for-byte identical** to `uor_addr::<realization>::address(input).address` from the [Rust crate](https://crates.io/crates/uor-addr). Cross-validation is pinned by the **CF-W\*** invariant class in [CONFORMANCE.md](https://github.com/UOR-Foundation/uor-addr/blob/main/CONFORMANCE.md).

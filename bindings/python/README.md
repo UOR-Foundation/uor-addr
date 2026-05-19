@@ -54,6 +54,28 @@ str_label = kappa.json_address(b'"42"')
 assert int_label != str_label
 ```
 
+## TC-05 replay across the FFI boundary
+
+Each `*_address_with_witness` method returns a `Grounded` handle carrying the ψ-pipeline's emitted derivation. Calling `grounded.verify()` replays the derivation through `prism_verify::certify_from_trace` and returns the recovered κ-label **without re-invoking SHA-256**. The verifier reads the trace events the source pipeline emitted and re-packages the certified output (QS-05 replay equivalence; CL-R\* in [CONFORMANCE.md](https://github.com/UOR-Foundation/uor-addr/blob/main/CONFORMANCE.md)).
+
+```python
+from uor_addr import kappa
+
+with kappa.json_address_with_witness(b'{"foo":"bar"}') as grounded:
+    print(grounded.kappa_label())
+    # sha256:7a38bf81f383f69433ad6e900d35b3e2385593f76a7b7ab5d4355b8ba41ee24b
+
+    assert grounded.verify() == grounded.kappa_label()
+    # TC-05 round-trip; SHA-256 was not re-invoked.
+
+    fingerprint: bytes = grounded.content_fingerprint()
+    # 32-byte content fingerprint (distinct from the κ-label hex
+    # suffix — it is prism's content-address of the Grounded's full
+    # state, used for replay verification).
+```
+
+The `Grounded` handle is freed on `__exit__` of the `with` block; otherwise it is freed at garbage-collection time. Cross-process attestation is not supported (the underlying `Trace<256>` constructor is `pub(crate)` in `uor-foundation`); for that, persist the κ-label itself and re-mint at the verifier side.
+
 ## Why C ABI rather than WASM?
 
 The `@uor-foundation/uor-addr` npm package wraps the WASM Component Model artifact via [`jco`](https://github.com/bytecodealliance/jco). Python's [`wasmtime-py`](https://pypi.org/project/wasmtime/) does not yet expose the Component Model API (24.x ships core-module support only); pivoting to wasm would require either waiting for upstream or pulling in a less-mature runtime. The C ABI path is faster (native code), more compact (no wasm runtime in the wheel), and produces the same κ-label byte-for-byte. The `uor-addr-c` native library is bundled per-platform in the wheel.

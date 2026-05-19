@@ -32,6 +32,35 @@
 // Defensive — substrate-level pipeline failure.
 #define UOR_ADDR_ERR_PIPELINE -5
 
+// Verify-error codes — 1:1 with WIT `verify-error` variants. Returned
+// by [`uor_addr_grounded_verify`]. All five are *defensive* against
+// substrate corruption; unreachable for a handle the C ABI itself
+// minted.
+#define UOR_ADDR_ERR_VERIFY_EMPTY_TRACE -10
+
+#define UOR_ADDR_ERR_VERIFY_OUT_OF_ORDER_EVENT -11
+
+#define UOR_ADDR_ERR_VERIFY_ZERO_TARGET -12
+
+#define UOR_ADDR_ERR_VERIFY_NON_CONTIGUOUS_STEPS -13
+
+#define UOR_ADDR_ERR_VERIFY_CAPACITY_EXCEEDED -14
+
+// Opaque handle to a Rust-side `AddressOutcome` carrying a sealed
+// `Grounded<AddressLabel>` witness. Construct via any of the
+// `uor_addr_<realization>_with_witness` functions; release via
+// [`uor_addr_grounded_free`].
+//
+// **Lifetime**: the handle is valid until `uor_addr_grounded_free`
+// is called. Calling any `uor_addr_grounded_*` accessor on a freed
+// handle is undefined behaviour. The witness lives only in the
+// process that minted it — there is no cross-process serialization
+// (the underlying `Trace<256>` constructor is `pub(crate)` in
+// `uor-foundation`).
+typedef struct UorAddrGrounded {
+  AddressOutcome outcome;
+} UorAddrGrounded;
+
 #ifdef __cplusplus
 extern "C" {
 #endif // __cplusplus
@@ -143,6 +172,143 @@ int32_t uor_addr_schema_codemodule_signed(const uint8_t *input,
                                           uint8_t *out_label,
                                           uintptr_t out_label_len,
                                           uintptr_t *out_written);
+
+// Free a Grounded handle. Calling with a null pointer is a no-op.
+// After this call returns, `handle` is invalid; any further use is
+// undefined behaviour.
+//
+// # Safety
+//
+// `handle` must be either null or a pointer previously returned by
+// any `uor_addr_<realization>_with_witness` call. Each handle must
+// be freed exactly once.
+void uor_addr_grounded_free(struct UorAddrGrounded *handle);
+
+// Read the κ-label this Grounded carries into `out_label`. Returns
+// the number of bytes written (always 71 on success) via
+// `out_written` (may be NULL).
+//
+// # Safety
+//
+// - `handle` must be a valid live handle returned by a
+//   `*_with_witness` call.
+// - `out_label` must be writable for at least `out_label_len` bytes.
+// - `out_written` if non-null must point to a writable `size_t`.
+int32_t uor_addr_grounded_kappa_label(const struct UorAddrGrounded *handle,
+                                      uint8_t *out_label,
+                                      uintptr_t out_label_len,
+                                      uintptr_t *out_written);
+
+// Read the 32-byte SHA-256 content fingerprint into `out_digest`.
+//
+// # Safety
+//
+// Same as [`uor_addr_grounded_kappa_label`], with `out_digest`
+// writable for at least 32 bytes.
+int32_t uor_addr_grounded_content_fingerprint(const struct UorAddrGrounded *handle,
+                                              uint8_t *out_digest,
+                                              uintptr_t out_digest_len,
+                                              uintptr_t *out_written);
+
+// Verify the witness by replaying its derivation through
+// `prism_verify::certify_from_trace` and writing the recovered
+// κ-label into `out_label`. SHA-256 is **not** re-invoked.
+//
+// On `UOR_ADDR_OK` the bytes in `out_label[..71]` are byte-identical
+// to those `uor_addr_grounded_kappa_label` would write (QS-05 replay
+// equivalence; CL-R\* in CONFORMANCE.md).
+//
+// # Safety
+//
+// Same as [`uor_addr_grounded_kappa_label`].
+int32_t uor_addr_grounded_verify(const struct UorAddrGrounded *handle,
+                                 uint8_t *out_label,
+                                 uintptr_t out_label_len,
+                                 uintptr_t *out_written);
+
+// JSON realization, returning a verifiable witness handle.
+//
+// # Safety
+//
+// - `input` must be null (with `input_len == 0`) or readable for
+//   `input_len` bytes.
+// - `out_handle` must be a valid writable pointer to a
+//   `*mut UorAddrGrounded`.
+int32_t uor_addr_json_with_witness(const uint8_t *input,
+                                   uintptr_t input_len,
+                                   struct UorAddrGrounded **out_handle);
+
+// S-expression realization, returning a verifiable witness handle.
+//
+// # Safety
+//
+// Same as [`uor_addr_json_with_witness`].
+int32_t uor_addr_sexp_with_witness(const uint8_t *input,
+                                   uintptr_t input_len,
+                                   struct UorAddrGrounded **out_handle);
+
+// XML realization, returning a verifiable witness handle.
+//
+// # Safety
+//
+// Same as [`uor_addr_json_with_witness`].
+int32_t uor_addr_xml_with_witness(const uint8_t *input,
+                                  uintptr_t input_len,
+                                  struct UorAddrGrounded **out_handle);
+
+// ASN.1 realization, returning a verifiable witness handle.
+//
+// # Safety
+//
+// Same as [`uor_addr_json_with_witness`].
+int32_t uor_addr_asn1_with_witness(const uint8_t *input,
+                                   uintptr_t input_len,
+                                   struct UorAddrGrounded **out_handle);
+
+// Ring realization, returning a verifiable witness handle.
+//
+// # Safety
+//
+// Same as [`uor_addr_json_with_witness`].
+int32_t uor_addr_ring_with_witness(const uint8_t *input,
+                                   uintptr_t input_len,
+                                   struct UorAddrGrounded **out_handle);
+
+// Code-module realization, returning a verifiable witness handle.
+//
+// # Safety
+//
+// Same as [`uor_addr_json_with_witness`].
+int32_t uor_addr_codemodule_with_witness(const uint8_t *input,
+                                         uintptr_t input_len,
+                                         struct UorAddrGrounded **out_handle);
+
+// schema.org/Photograph realization, returning a verifiable witness handle.
+//
+// # Safety
+//
+// Same as [`uor_addr_json_with_witness`].
+int32_t uor_addr_schema_photo_with_witness(const uint8_t *input,
+                                           uintptr_t input_len,
+                                           struct UorAddrGrounded **out_handle);
+
+// schema.org/Article realization, returning a verifiable witness handle.
+//
+// # Safety
+//
+// Same as [`uor_addr_json_with_witness`].
+int32_t uor_addr_schema_document_with_witness(const uint8_t *input,
+                                              uintptr_t input_len,
+                                              struct UorAddrGrounded **out_handle);
+
+// in-toto Statement v1 realization, returning a verifiable witness handle.
+//
+// # Safety
+//
+// Same as [`uor_addr_json_with_witness`].
+int32_t uor_addr_schema_codemodule_signed_with_witness(const uint8_t *input,
+                                                       uintptr_t input_len,
+                                                       struct UorAddrGrounded **out_handle);
 
 #ifdef __cplusplus
 }  // extern "C"

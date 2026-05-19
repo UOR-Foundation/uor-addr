@@ -47,18 +47,38 @@ export type AddressError =
   | "too-large"
   | "pipeline-failure";
 
-export interface AddressResult {
-  /** The 71-byte κ-label on success. */
-  tag: "ok";
-  val: KappaLabel;
-}
+/** Failure modes from \`Grounded.verify()\` — 1:1 with the WIT
+ * \`verify-error\` variant. All five are defensive against substrate
+ * corruption; unreachable for a \`Grounded\` minted through this
+ * binding. */
+export type VerifyError =
+  | "empty-trace"
+  | "out-of-order-event"
+  | "zero-target"
+  | "non-contiguous-steps"
+  | "capacity-exceeded";
 
-export interface AddressFailure {
-  tag: "err";
-  val: AddressError;
+/** Opaque foreign-managed witness handle to a Rust-side
+ * \`Grounded<AddressLabel>\` value carrying the ψ-pipeline's emitted
+ * derivation.
+ *
+ * TC-05 conformance: every Grounded produced by a
+ * \`*AddressWithWitness\` call replays through \`verify()\` to a
+ * κ-label byte-identical to the one \`kappaLabel()\` reports
+ * (QS-05 replay equivalence — bit-identical round-trip).
+ *
+ * Lifetime: in-process state held by the Component Model runtime.
+ * Cross-process attestation is not supported — for that, persist the
+ * κ-label itself and re-mint at the verifier side. */
+export interface Grounded {
+  /** Return the 71-byte ASCII κ-label this Grounded carries. */
+  kappaLabel(): KappaLabel;
+  /** Return the 32-byte SHA-256 content fingerprint. */
+  contentFingerprint(): Uint8Array;
+  /** Replay the derivation through \`prism_verify::certify_from_trace\`
+   * and return the recovered κ-label. SHA-256 is **not** re-invoked. */
+  verify(): KappaLabel;
 }
-
-export type AddressOutcome = AddressResult | AddressFailure;
 
 export interface Kappa {
   /** RFC 8259 JSON under RFC 8785 JCS + Unicode NFC. */
@@ -79,6 +99,27 @@ export interface Kappa {
   schemaDocumentAddress(input: Uint8Array): KappaLabel;
   /** in-toto Statement v1 admission + JSON canonicalization. */
   schemaCodemoduleSignedAddress(input: Uint8Array): KappaLabel;
+
+  // ── Witness-bearing variants (TC-05 cross-language replay) ──
+
+  /** JSON realization; returns a verifiable [\`Grounded\`] witness. */
+  jsonAddressWithWitness(input: Uint8Array): Grounded;
+  /** S-expression realization; returns a verifiable witness. */
+  sexpAddressWithWitness(input: Uint8Array): Grounded;
+  /** XML realization; returns a verifiable witness. */
+  xmlAddressWithWitness(input: Uint8Array): Grounded;
+  /** ASN.1 realization; returns a verifiable witness. */
+  asn1AddressWithWitness(input: Uint8Array): Grounded;
+  /** Ring realization; returns a verifiable witness. */
+  ringAddressWithWitness(input: Uint8Array): Grounded;
+  /** Code-module realization; returns a verifiable witness. */
+  codemoduleAddressWithWitness(input: Uint8Array): Grounded;
+  /** schema.org/Photograph; returns a verifiable witness. */
+  schemaPhotoAddressWithWitness(input: Uint8Array): Grounded;
+  /** schema.org/Article; returns a verifiable witness. */
+  schemaDocumentAddressWithWitness(input: Uint8Array): Grounded;
+  /** in-toto Statement v1; returns a verifiable witness. */
+  schemaCodemoduleSignedAddressWithWitness(input: Uint8Array): Grounded;
 }
 
 export const kappa: Kappa;
