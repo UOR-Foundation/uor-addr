@@ -67,7 +67,7 @@ after JCS+NFC canonicalisation:
    κ-labels, even when the input texts look similar (`42` ≠ `"42"`,
    `null` ≠ `false`).
 9. **Typed-input bound enforcement (CT-B*).** Any input that violates a
-   typed-input bound declared in `crate::shapes::bounds`
+   typed-input bound declared in `crate::json::shapes::bounds`
    (`MAX_JSON_DEPTH`, `MAX_STRING_BYTES`, `MAX_NUMBER_DIGITS`,
    `MAX_OBJECT_KEYS`, `MAX_ARRAY_ELEMENTS`, `JSON_VALUE_MAX_BYTES`)
    is rejected at `JsonValue::parse` with a `ShapeViolation` keyed to
@@ -211,8 +211,8 @@ can be replayed by a downstream verifier through
 `Certified<GroundingCertificate>` **without** re-invoking the canonical
 hash axis on the original input. The replayed certificate's
 `ContentFingerprint` is bit-identical to the source (QS-05 replay
-equivalence). See [ARCHITECTURE.md §6](ARCHITECTURE.md#6-verifier-surface-tc-05-adr-019-anamorphism)
-for the architectural framing.
+equivalence). See [ARCHITECTURE.md](ARCHITECTURE.md)'s "Position at
+SD3 — Verification" section for the architectural framing.
 
 | ID       | Invariant                                                                                  | Pinned by                                                       |
 |----------|--------------------------------------------------------------------------------------------|-----------------------------------------------------------------|
