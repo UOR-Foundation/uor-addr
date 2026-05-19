@@ -41,6 +41,18 @@ cargo run -p uor-addr --example address_value
 just examples       # 16 runnable demos covering every realization
 ```
 
+## Install (per ecosystem)
+
+| Language | Install | Source |
+|---|---|---|
+| **Rust** | `cargo add uor-addr` | [crates.io/crates/uor-addr](https://crates.io/crates/uor-addr) |
+| **JS / TS** (npm) | `npm install @uor-foundation/uor-addr` | [npmjs.com/package/@uor-foundation/uor-addr](https://www.npmjs.com/package/@uor-foundation/uor-addr) |
+| **Python** | `pip install uor-addr` | [pypi.org/project/uor-addr](https://pypi.org/project/uor-addr/) |
+| **C / embedded** | link `uor-addr-c` (`extern "C"` + `uor_addr.h`) | [crates.io/crates/uor-addr-c](https://crates.io/crates/uor-addr-c) |
+| **Other (Go / .NET / Ruby / Java / Deno)** | consume the WASM Component Model via wasmtime | [crates.io/crates/uor-addr-wasm](https://crates.io/crates/uor-addr-wasm) |
+
+Every binding produces the same 71-byte ASCII `sha256:<64hex>` κ-label byte-for-byte. See [RELEASING.md](RELEASING.md) for the polyglot release surface.
+
 ## Which realization fits my data?
 
 | Format / standard | Module | Imported spec |

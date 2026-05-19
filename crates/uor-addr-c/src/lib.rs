@@ -35,7 +35,7 @@
 //! - `UOR_ADDR_ERR_TOO_LARGE` (`-4`) — input exceeded a bound.
 //! - `UOR_ADDR_ERR_PIPELINE` (`-5`) — substrate-level failure.
 
-#![no_std]
+#![cfg_attr(not(feature = "std"), no_std)]
 #![forbid(unsafe_op_in_unsafe_fn)]
 
 use core::slice;
@@ -370,7 +370,10 @@ pub unsafe extern "C" fn uor_addr_schema_codemodule_signed(
 // cargo's workspace feature-unification (which can enable `std` in
 // transitive deps for `--all-targets` test builds) doesn't cause a
 // duplicate `panic_impl` lang item.
-#[cfg(target_os = "none")]
+// Embedded bare-metal builds get our panic handler; hosted builds
+// (`target_os = linux/macos/windows/…`) pull `std`'s default via the
+// `std` feature.
+#[cfg(all(not(feature = "std"), target_os = "none"))]
 #[panic_handler]
 fn panic(_info: &core::panic::PanicInfo) -> ! {
     loop {}

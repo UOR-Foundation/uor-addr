@@ -1,10 +1,26 @@
 name: Release
 
-# Tag-triggered release. Validates the tag matches each crate's
-# `version` field, runs the full V&V acceptance gate equivalent
-# (`just vv` minus the live CN axis), publishes to crates.io in
-# dependency-graph order (uor-addr → uor-addr-c + uor-addr-wasm),
-# then creates the GitHub Release.
+# Tag-triggered (v*) release. Job DAG:
+#
+#   release
+#     → publishes uor-addr / uor-addr-c / uor-addr-wasm to crates.io
+#     → attaches the wasm component + cbindgen header to the GH Release
+#   prebuilt-c   (5-way matrix, depends on release)
+#     → builds libuor_addr_c.* for linux-x86_64, linux-aarch64,
+#       macos-x86_64, macos-aarch64, windows-x86_64
+#     → uploads each prebuilt to the GH Release
+#   publish-npm  (depends on release)
+#     → builds the WASM Component Model artifact
+#     → jco-transpiles into bindings/npm/dist
+#     → npm publish under @uor-foundation/uor-addr
+#   publish-pypi (5-way matrix, depends on prebuilt-c)
+#     → per-platform wheel build (uor_addr_c.<ext> bundled into the
+#       Python package)
+#     → twine upload per wheel
+#
+# All publishing steps are idempotent: each skips the upload when the
+# corresponding version is already on the registry. Re-running a
+# partially-failed release picks up where it left off.
 
 on:
   push:
@@ -20,7 +36,7 @@ env:
 
 jobs:
   release:
-    name: Build, Conform, and Publish Release
+    name: crates.io + GitHub Release
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
@@ -86,6 +102,28 @@ jobs:
           fi
           echo "Tag v$TAG matches uor-addr-wasm version $W_VERSION"
 
+      - name: Validate npm binding version matches tag
+        run: |
+          set -euo pipefail
+          TAG="${GITHUB_REF_NAME#v}"
+          NPM_VERSION="$(jq -r '.version' bindings/npm/package.json)"
+          if [ "$TAG" != "$NPM_VERSION" ]; then
+            echo "::error::Tag version ($TAG) does not match bindings/npm/package.json version ($NPM_VERSION)"
+            exit 1
+          fi
+          echo "Tag v$TAG matches npm binding version $NPM_VERSION"
+
+      - name: Validate PyPI binding version matches tag
+        run: |
+          set -euo pipefail
+          TAG="${GITHUB_REF_NAME#v}"
+          PY_VERSION="$(grep '^version' bindings/python/pyproject.toml | head -1 | sed 's/.*"\(.*\)".*/\1/')"
+          if [ "$TAG" != "$PY_VERSION" ]; then
+            echo "::error::Tag version ($TAG) does not match bindings/python/pyproject.toml version ($PY_VERSION)"
+            exit 1
+          fi
+          echo "Tag v$TAG matches Python binding version $PY_VERSION"
+
       - name: Check formatting
         run: cargo fmt --all --check
 
@@ -109,13 +147,6 @@ jobs:
           RUSTDOCFLAGS: "-D rustdoc::broken_intra_doc_links"
         run: cargo doc --workspace --no-deps
 
-      # Per Cargo's resolution model, uor-addr-c and uor-addr-wasm
-      # depend on uor-addr by `path` + `version`. Publish uor-addr
-      # first; verify packaging of the FFI crates with `--no-verify`
-      # because their workspace-path dep isn't yet on the registry
-      # at dry-run time (the publish step + wait-for-index is the
-      # authoritative verification path).
-
       - name: Verify packaging — uor-addr
         run: cargo publish --dry-run --allow-dirty -p uor-addr
 
@@ -132,16 +163,21 @@ jobs:
           body: |
             UOR-ADDR release ${{ github.ref_name }}.
 
-            **Crates** (published to crates.io in dependency order):
+            **Rust crates** (published to crates.io in dependency order):
             - [`uor-addr`](https://crates.io/crates/uor-addr) — the core Rust crate; `no_std` + `no_alloc` by default. Six format realizations, three schema-pinned descendants, two cost-model variants.
             - [`uor-addr-c`](https://crates.io/crates/uor-addr-c) — C ABI bindings (`extern "C"` + cbindgen header); builds on hosted + `thumbv7em-none-eabihf`.
-            - [`uor-addr-wasm`](https://crates.io/crates/uor-addr-wasm) — WASM Component Model bindings via `wit-bindgen`; consumable from JS / Python / Go / .NET / Ruby / Java via wasmtime.
+            - [`uor-addr-wasm`](https://crates.io/crates/uor-addr-wasm) — WASM Component Model bindings via `wit-bindgen`; consumable from any language with a wasm runtime.
 
-            All three distribution targets produce the same 71-byte ASCII `sha256:<64hex>` κ-label byte-for-byte. Architecture documented in [ARCHITECTURE.md](https://github.com/UOR-Foundation/uor-addr/blob/main/ARCHITECTURE.md); conformance contract in [CONFORMANCE.md](https://github.com/UOR-Foundation/uor-addr/blob/main/CONFORMANCE.md); V&V gate at [VERIFICATION.md](https://github.com/UOR-Foundation/uor-addr/blob/main/VERIFICATION.md).
+            **Language bindings**:
+            - [`@uor-foundation/uor-addr`](https://www.npmjs.com/package/@uor-foundation/uor-addr) (npm) — wraps the WASM Component Model artifact via `jco`.
+            - [`uor-addr`](https://pypi.org/project/uor-addr/) (PyPI) — wraps the C ABI via `ctypes`; per-platform wheels.
 
-      # Idempotent publish: each step skips `cargo publish` when the
-      # version is already on the registry. Re-runs of a partially-
-      # failed release workflow pick up where they left off.
+            **Release artifacts** (attached below):
+            - `uor_addr_wasm.wasm` — Component Model artifact.
+            - `uor_addr.h` — auto-generated C header.
+            - `libuor_addr_c-*.{so,dylib,dll}` — per-platform native libraries.
+
+            All distribution targets produce the same 71-byte ASCII `sha256:<64hex>` κ-label byte-for-byte. Architecture documented in [ARCHITECTURE.md](https://github.com/UOR-Foundation/uor-addr/blob/main/ARCHITECTURE.md); conformance contract in [CONFORMANCE.md](https://github.com/UOR-Foundation/uor-addr/blob/main/CONFORMANCE.md); V&V gate at [VERIFICATION.md](https://github.com/UOR-Foundation/uor-addr/blob/main/VERIFICATION.md).
 
       - name: Publish uor-addr to crates.io
         run: |
@@ -158,10 +194,6 @@ jobs:
           CARGO_REGISTRY_TOKEN: ${{ secrets.CARGO_REGISTRY_TOKEN }}
 
       - name: Wait for uor-addr on registry
-        # Direct HTTP query against crates.io API; bypasses cargo's
-        # cached registry index (the cache restored at the top of the
-        # job pre-dates the publish above). Mirrors the prism
-        # release-workflow wait pattern.
         run: |
           set -euo pipefail
           VERSION="${GITHUB_REF_NAME#v}"
@@ -208,10 +240,7 @@ jobs:
         env:
           CARGO_REGISTRY_TOKEN: ${{ secrets.CARGO_REGISTRY_TOKEN }}
 
-      - name: Attach uor-addr-wasm component to release
-        # The release-build wasm artifact is useful for downstream
-        # consumers transpiling via `jco` / `wasmtime`. Attach as a
-        # release asset for direct download.
+      - name: Attach uor_addr_wasm.wasm to release
         run: |
           gh release upload "$GITHUB_REF_NAME" \
             target/wasm32-wasip2/release/uor_addr_wasm.wasm \
@@ -219,10 +248,215 @@ jobs:
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
-      - name: Attach uor-addr-c header to release
+      - name: Attach uor_addr.h to release
         run: |
           gh release upload "$GITHUB_REF_NAME" \
             crates/uor-addr-c/include/uor_addr.h \
             --clobber
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+  prebuilt-c:
+    name: Prebuilt C ABI library — ${{ matrix.label }}
+    needs: release
+    runs-on: ${{ matrix.os }}
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - { os: ubuntu-latest,  rust_target: x86_64-unknown-linux-gnu,   artifact: libuor_addr_c.so,    label: linux-x86_64,  cross: false }
+          - { os: ubuntu-latest,  rust_target: aarch64-unknown-linux-gnu,  artifact: libuor_addr_c.so,    label: linux-aarch64, cross: true  }
+          - { os: macos-latest,   rust_target: x86_64-apple-darwin,        artifact: libuor_addr_c.dylib, label: macos-x86_64,  cross: false }
+          - { os: macos-latest,   rust_target: aarch64-apple-darwin,       artifact: libuor_addr_c.dylib, label: macos-aarch64, cross: false }
+          - { os: windows-latest, rust_target: x86_64-pc-windows-msvc,     artifact: uor_addr_c.dll,      label: windows-x86_64, cross: false }
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: dtolnay/rust-toolchain@stable
+        with:
+          targets: ${{ matrix.rust_target }}
+
+      - name: Install cross-compile linker (aarch64-linux-gnu)
+        if: matrix.cross && runner.os == 'Linux'
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y gcc-aarch64-linux-gnu
+
+      - name: Configure cross-compile linker
+        if: matrix.cross && runner.os == 'Linux'
+        run: |
+          mkdir -p .cargo
+          cat >> .cargo/config.toml <<'EOF'
+          [target.aarch64-unknown-linux-gnu]
+          linker = "aarch64-linux-gnu-gcc"
+          EOF
+
+      - uses: Swatinem/rust-cache@v2
+        with:
+          key: ${{ matrix.rust_target }}
+
+      - name: Build uor-addr-c (${{ matrix.rust_target }})
+        run: cargo build -p uor-addr-c --release --target ${{ matrix.rust_target }}
+
+      - name: Stage prebuilt library
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir -p prebuilts
+          cp "target/${{ matrix.rust_target }}/release/${{ matrix.artifact }}" \
+             "prebuilts/libuor_addr_c-${{ matrix.label }}-${{ github.ref_name }}.${{ matrix.artifact##*.}}"
+
+      - name: Upload to GitHub Release
+        shell: bash
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          gh release upload "$GITHUB_REF_NAME" \
+            prebuilts/* \
+            --clobber
+
+      - name: Upload to workflow artifacts (for publish-pypi consumption)
+        uses: actions/upload-artifact@v4
+        with:
+          name: prebuilt-c-${{ matrix.label }}
+          path: target/${{ matrix.rust_target }}/release/${{ matrix.artifact }}
+          if-no-files-found: error
+
+  publish-npm:
+    name: Publish @uor-foundation/uor-addr to npm
+    needs: release
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      id-token: write   # required for npm provenance
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: dtolnay/rust-toolchain@stable
+        with:
+          targets: wasm32-wasip2
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          registry-url: 'https://registry.npmjs.org/'
+
+      - uses: Swatinem/rust-cache@v2
+
+      - name: Build WASM Component Model artifact
+        run: cargo build -p uor-addr-wasm --target wasm32-wasip2 --release
+
+      - name: Install npm deps
+        working-directory: bindings/npm
+        run: npm ci || npm install
+
+      - name: jco-transpile + smoke test
+        working-directory: bindings/npm
+        run: |
+          npm run build
+          npm test
+
+      - name: Skip-if-already-published
+        id: check
+        working-directory: bindings/npm
+        run: |
+          set -euo pipefail
+          VERSION="$(jq -r '.version' package.json)"
+          if npm view "@uor-foundation/uor-addr@$VERSION" version 2>/dev/null \
+               | grep -q "^$VERSION$"; then
+            echo "@uor-foundation/uor-addr@$VERSION already published; skipping"
+            echo "skip=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "skip=false" >> "$GITHUB_OUTPUT"
+          fi
+
+      - name: npm publish (with provenance)
+        if: steps.check.outputs.skip != 'true'
+        working-directory: bindings/npm
+        run: npm publish --provenance --access public
+        env:
+          NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
+
+  publish-pypi:
+    name: Publish uor-addr to PyPI — ${{ matrix.label }}
+    needs: prebuilt-c
+    runs-on: ${{ matrix.os }}
+    permissions:
+      contents: read
+      id-token: write   # required for PyPI trusted publishing
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - { os: ubuntu-latest,  label: linux-x86_64,   wheel_plat: manylinux_2_28_x86_64,  artifact: libuor_addr_c.so    }
+          - { os: ubuntu-latest,  label: linux-aarch64,  wheel_plat: manylinux_2_28_aarch64, artifact: libuor_addr_c.so    }
+          - { os: macos-latest,   label: macos-x86_64,   wheel_plat: macosx_11_0_x86_64,     artifact: libuor_addr_c.dylib }
+          - { os: macos-latest,   label: macos-aarch64,  wheel_plat: macosx_11_0_arm64,      artifact: libuor_addr_c.dylib }
+          - { os: windows-latest, label: windows-x86_64, wheel_plat: win_amd64,              artifact: uor_addr_c.dll      }
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+
+      - name: Download prebuilt library
+        uses: actions/download-artifact@v4
+        with:
+          name: prebuilt-c-${{ matrix.label }}
+          path: bindings/python/uor_addr/
+
+      - name: Verify staged library
+        shell: bash
+        run: |
+          ls -la bindings/python/uor_addr/
+          test -f "bindings/python/uor_addr/${{ matrix.artifact }}"
+
+      - name: Install build + wheel tooling
+        run: python -m pip install --upgrade pip build wheel
+
+      - name: Build platform wheel
+        working-directory: bindings/python
+        shell: bash
+        run: |
+          set -euo pipefail
+          # The wheel is platform-tagged but Python-version-agnostic
+          # (we use only ctypes from stdlib + the bundled native
+          # library, so py3-none-<plat> is the correct tag).
+          python -m build --wheel --outdir dist
+          # `python -m build` produces a `py3-none-any` tag by
+          # default; retag for the matrix platform.
+          cd dist
+          orig="$(ls uor_addr-*-py3-none-any.whl)"
+          new="${orig/py3-none-any/py3-none-${{ matrix.wheel_plat }}}"
+          mv "$orig" "$new"
+          ls -la
+
+      - name: Smoke test wheel
+        shell: bash
+        run: |
+          set -euo pipefail
+          python -m venv /tmp/smoke
+          source /tmp/smoke/bin/activate || source /tmp/smoke/Scripts/activate
+          pip install --no-deps bindings/python/dist/*.whl
+          python - <<'PY'
+          from uor_addr import kappa
+          label = kappa.json_address(b'{"foo":"bar"}')
+          assert label == 'sha256:7a38bf81f383f69433ad6e900d35b3e2385593f76a7b7ab5d4355b8ba41ee24b', f'unexpected: {label}'
+          print(f'wheel smoke ok: {label}')
+          PY
+
+      - name: Upload wheel to GitHub Release
+        shell: bash
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          gh release upload "$GITHUB_REF_NAME" \
+            bindings/python/dist/*.whl \
+            --clobber
+
+      - name: Publish to PyPI (trusted publisher)
+        uses: pypa/gh-action-pypi-publish@release/v1
+        with:
+          packages-dir: bindings/python/dist
+          skip-existing: true
