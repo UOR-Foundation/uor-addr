@@ -848,6 +848,7 @@ version = "0.1.0"
 dependencies = [
  "cbindgen",
  "uor-addr",
+ "uor-prism-verify",
 ]
 
 [[package]]
@@ -855,6 +856,7 @@ name = "uor-addr-wasm"
 version = "0.1.0"
 dependencies = [
  "uor-addr",
+ "uor-prism-verify",
  "wit-bindgen 0.34.0",
 ]
 

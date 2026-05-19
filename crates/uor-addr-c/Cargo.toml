@@ -19,15 +19,24 @@ name       = "uor_addr_c"
 
 [dependencies]
 uor-addr = { path = "../uor-addr", version = "0.1.0", default-features = false }
+# Required for the `uor_addr_grounded_verify` C ABI export — replays a
+# `Grounded<AddressLabel>::derivation()` through
+# `prism_verify::certify_from_trace` without re-invoking SHA-256.
+# Mirrors the WASM `grounded.verify()` Component Model export and
+# enables Python (via ctypes) + any other C-FFI language to consume
+# the TC-05 round-trip surface (CL-R* in CONFORMANCE.md).
+uor-prism-verify = { workspace = true, default-features = false }
 
 [features]
 # Hosted targets (linux / macos / windows) default to `std` so the
 # cdylib / staticlib outputs pick up `std`'s panic_handler. Bare-metal
 # targets (e.g. `thumbv7em-none-eabihf`) build with
 # `--no-default-features`: that strips `std`, leaving the in-crate
-# `target_os = "none"` panic_handler in scope.
+# `target_os = "none"` panic_handler in scope and the κ-label-only
+# functions reachable. The `*_with_witness` / `grounded_*` API requires
+# an allocator (handle storage), so it is gated behind `alloc` / `std`.
 default = ["std"]
-std     = ["uor-addr/std"]
+std     = ["alloc", "uor-addr/std"]
 alloc   = ["uor-addr/alloc"]
 
 [build-dependencies]

@@ -29,6 +29,13 @@ const cases = [
   ["ringAddress",     new Uint8Array([0, 0x42])],
 ];
 
+const witnessCases = [
+  ["jsonAddressWithWitness",     new TextEncoder().encode('{"foo":"bar"}')],
+  ["sexpAddressWithWitness",     new TextEncoder().encode("(a b c)")],
+  ["xmlAddressWithWitness",      new TextEncoder().encode("<root/>")],
+  ["ringAddressWithWitness",     new Uint8Array([0, 0x42])],
+];
+
 const KAPPA_LABEL_RE = /^sha256:[0-9a-f]{64}$/;
 let failed = 0;
 
@@ -55,9 +62,56 @@ for (const [fnName, input] of cases) {
   console.log(`ok:   ${fnName} → ${result}`);
 }
 
+// TC-05 cross-language round-trip: each *AddressWithWitness call
+// returns a Grounded whose verify() returns the same κ-label
+// byte-for-byte (without re-invoking SHA-256).
+for (const [fnName, input] of witnessCases) {
+  const fn = kappa[fnName];
+  if (typeof fn !== "function") {
+    console.error(`fail: ${fnName} is not a function`);
+    failed += 1;
+    continue;
+  }
+  let grounded;
+  try {
+    grounded = fn(input);
+  } catch (e) {
+    console.error(`fail: ${fnName} threw: ${e.message}`);
+    failed += 1;
+    continue;
+  }
+  let mintLabel, verifyLabel, fingerprint;
+  try {
+    mintLabel = grounded.kappaLabel();
+    verifyLabel = grounded.verify();
+    fingerprint = grounded.contentFingerprint();
+  } catch (e) {
+    console.error(`fail: ${fnName} resource accessor threw: ${e.message}`);
+    failed += 1;
+    continue;
+  }
+  if (!KAPPA_LABEL_RE.test(mintLabel)) {
+    console.error(`fail: ${fnName} kappaLabel returned ${JSON.stringify(mintLabel)}`);
+    failed += 1;
+    continue;
+  }
+  if (mintLabel !== verifyLabel) {
+    console.error(`fail: ${fnName}: TC-05 round-trip mismatch — mint=${mintLabel}, verify=${verifyLabel}`);
+    failed += 1;
+    continue;
+  }
+  if (!(fingerprint instanceof Uint8Array) || fingerprint.length !== 32) {
+    console.error(`fail: ${fnName}: contentFingerprint expected 32-byte Uint8Array, got ${fingerprint?.length}`);
+    failed += 1;
+    continue;
+  }
+  console.log(`ok:   ${fnName} → mint==verify (TC-05) → ${mintLabel}`);
+}
+
 if (failed > 0) {
   console.error(`\n${failed} failure(s)`);
   process.exit(1);
 }
 
-console.log(`\nall ${cases.length} smoke tests passed`);
+const total = cases.length + witnessCases.length;
+console.log(`\nall ${total} smoke tests passed`);
