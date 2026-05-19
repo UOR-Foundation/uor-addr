@@ -1,0 +1,228 @@
+name: Release
+
+# Tag-triggered release. Validates the tag matches each crate's
+# `version` field, runs the full V&V acceptance gate equivalent
+# (`just vv` minus the live CN axis), publishes to crates.io in
+# dependency-graph order (uor-addr → uor-addr-c + uor-addr-wasm),
+# then creates the GitHub Release.
+
+on:
+  push:
+    tags:
+      - 'v*'
+
+permissions:
+  contents: write
+
+env:
+  CARGO_TERM_COLOR: always
+  RUST_BACKTRACE: 1
+
+jobs:
+  release:
+    name: Build, Conform, and Publish Release
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: dtolnay/rust-toolchain@stable
+        with:
+          components: rustfmt, clippy
+          targets: thumbv7em-none-eabihf, wasm32-wasip2
+
+      - name: Ensure no_std + wasm targets are installed
+        # Belt-and-suspenders: explicit `rustup target add` in case
+        # dtolnay/rust-toolchain's `targets:` field doesn't surface
+        # them. Idempotent.
+        run: |
+          rustup target add thumbv7em-none-eabihf
+          rustup target add wasm32-wasip2
+
+      - name: Cache cargo registry
+        uses: actions/cache@v4
+        with:
+          path: |
+            ~/.cargo/registry
+            ~/.cargo/git
+            target
+          key: ${{ runner.os }}-cargo-${{ hashFiles('**/Cargo.lock') }}
+          restore-keys: ${{ runner.os }}-cargo-
+
+      - name: Validate tag matches uor-addr version
+        # The tag `vX.Y.Z` must match each crate's `version = "X.Y.Z"`.
+        # uor-addr is the leaf; its version drives the release.
+        run: |
+          set -euo pipefail
+          TAG="${GITHUB_REF_NAME#v}"
+          CORE_VERSION="$(cargo metadata --format-version 1 --no-deps \
+            | jq -r '.packages[] | select(.name == "uor-addr") | .version')"
+          if [ "$TAG" != "$CORE_VERSION" ]; then
+            echo "::error::Tag version ($TAG) does not match uor-addr Cargo.toml version ($CORE_VERSION)"
+            exit 1
+          fi
+          echo "Tag v$TAG matches uor-addr version $CORE_VERSION"
+
+      - name: Validate uor-addr-c version matches tag
+        run: |
+          set -euo pipefail
+          TAG="${GITHUB_REF_NAME#v}"
+          C_VERSION="$(cargo metadata --format-version 1 --no-deps \
+            | jq -r '.packages[] | select(.name == "uor-addr-c") | .version')"
+          if [ "$TAG" != "$C_VERSION" ]; then
+            echo "::error::Tag version ($TAG) does not match uor-addr-c Cargo.toml version ($C_VERSION)"
+            exit 1
+          fi
+          echo "Tag v$TAG matches uor-addr-c version $C_VERSION"
+
+      - name: Validate uor-addr-wasm version matches tag
+        run: |
+          set -euo pipefail
+          TAG="${GITHUB_REF_NAME#v}"
+          W_VERSION="$(cargo metadata --format-version 1 --no-deps \
+            | jq -r '.packages[] | select(.name == "uor-addr-wasm") | .version')"
+          if [ "$TAG" != "$W_VERSION" ]; then
+            echo "::error::Tag version ($TAG) does not match uor-addr-wasm Cargo.toml version ($W_VERSION)"
+            exit 1
+          fi
+          echo "Tag v$TAG matches uor-addr-wasm version $W_VERSION"
+
+      - name: Check formatting
+        run: cargo fmt --all --check
+
+      - name: Run Clippy
+        run: cargo clippy --workspace --all-targets -- -D warnings
+
+      - name: Run workspace tests
+        run: cargo test --workspace --exclude uor-addr-wasm
+
+      - name: Embedded build (uor-addr, no_std + no_alloc)
+        run: cargo build -p uor-addr --no-default-features --target thumbv7em-none-eabihf
+
+      - name: Embedded build (uor-addr-c, no_std + no_alloc)
+        run: cargo build -p uor-addr-c --no-default-features --target thumbv7em-none-eabihf
+
+      - name: WASM Component Model build (uor-addr-wasm)
+        run: cargo build -p uor-addr-wasm --target wasm32-wasip2 --release
+
+      - name: Build documentation
+        env:
+          RUSTDOCFLAGS: "-D rustdoc::broken_intra_doc_links"
+        run: cargo doc --workspace --no-deps
+
+      # Per Cargo's resolution model, uor-addr-c and uor-addr-wasm
+      # depend on uor-addr by `path` + `version`. Publish uor-addr
+      # first; verify packaging of the FFI crates with `--no-verify`
+      # because their workspace-path dep isn't yet on the registry
+      # at dry-run time (the publish step + wait-for-index is the
+      # authoritative verification path).
+
+      - name: Verify packaging — uor-addr
+        run: cargo publish --dry-run --allow-dirty -p uor-addr
+
+      - name: Verify packaging — uor-addr-c (no-verify; depends on uor-addr)
+        run: cargo publish --dry-run --allow-dirty --no-verify -p uor-addr-c
+
+      - name: Verify packaging — uor-addr-wasm (no-verify; depends on uor-addr)
+        run: cargo publish --dry-run --allow-dirty --no-verify -p uor-addr-wasm
+
+      - name: Create GitHub Release
+        uses: softprops/action-gh-release@v2
+        with:
+          generate_release_notes: true
+          body: |
+            UOR-ADDR release ${{ github.ref_name }}.
+
+            **Crates** (published to crates.io in dependency order):
+            - [`uor-addr`](https://crates.io/crates/uor-addr) — the core Rust crate; `no_std` + `no_alloc` by default. Six format realizations, three schema-pinned descendants, two cost-model variants.
+            - [`uor-addr-c`](https://crates.io/crates/uor-addr-c) — C ABI bindings (`extern "C"` + cbindgen header); builds on hosted + `thumbv7em-none-eabihf`.
+            - [`uor-addr-wasm`](https://crates.io/crates/uor-addr-wasm) — WASM Component Model bindings via `wit-bindgen`; consumable from JS / Python / Go / .NET / Ruby / Java via wasmtime.
+
+            All three distribution targets produce the same 71-byte ASCII `sha256:<64hex>` κ-label byte-for-byte. Architecture documented in [ARCHITECTURE.md](https://github.com/UOR-Foundation/uor-addr/blob/main/ARCHITECTURE.md); conformance contract in [CONFORMANCE.md](https://github.com/UOR-Foundation/uor-addr/blob/main/CONFORMANCE.md); V&V gate at [VERIFICATION.md](https://github.com/UOR-Foundation/uor-addr/blob/main/VERIFICATION.md).
+
+      # Idempotent publish: each step skips `cargo publish` when the
+      # version is already on the registry. Re-runs of a partially-
+      # failed release workflow pick up where they left off.
+
+      - name: Publish uor-addr to crates.io
+        run: |
+          set -euo pipefail
+          VERSION="${GITHUB_REF_NAME#v}"
+          if curl -sSf -H "User-Agent: UOR-Addr-release-workflow" \
+               "https://crates.io/api/v1/crates/uor-addr/$VERSION" 2>/dev/null \
+               | grep -q "\"num\":\"$VERSION\""; then
+            echo "uor-addr $VERSION already published; skipping"
+          else
+            cargo publish -p uor-addr
+          fi
+        env:
+          CARGO_REGISTRY_TOKEN: ${{ secrets.CARGO_REGISTRY_TOKEN }}
+
+      - name: Wait for uor-addr on registry
+        # Direct HTTP query against crates.io API; bypasses cargo's
+        # cached registry index (the cache restored at the top of the
+        # job pre-dates the publish above). Mirrors the prism
+        # release-workflow wait pattern.
+        run: |
+          set -euo pipefail
+          VERSION="${GITHUB_REF_NAME#v}"
+          echo "Waiting for uor-addr $VERSION on registry..."
+          for i in {1..60}; do
+            if curl -sSf \
+                 -H "User-Agent: UOR-Addr-release-workflow" \
+                 "https://crates.io/api/v1/crates/uor-addr/$VERSION" \
+                 | grep -q "\"num\":\"$VERSION\""; then
+              echo "uor-addr $VERSION visible on registry"
+              exit 0
+            fi
+            echo "Waiting for uor-addr $VERSION ($i/60)..."
+            sleep 5
+          done
+          echo "::error::Timed out waiting for uor-addr"
+          exit 1
+
+      - name: Publish uor-addr-c to crates.io
+        run: |
+          set -euo pipefail
+          VERSION="${GITHUB_REF_NAME#v}"
+          if curl -sSf -H "User-Agent: UOR-Addr-release-workflow" \
+               "https://crates.io/api/v1/crates/uor-addr-c/$VERSION" 2>/dev/null \
+               | grep -q "\"num\":\"$VERSION\""; then
+            echo "uor-addr-c $VERSION already published; skipping"
+          else
+            cargo publish -p uor-addr-c
+          fi
+        env:
+          CARGO_REGISTRY_TOKEN: ${{ secrets.CARGO_REGISTRY_TOKEN }}
+
+      - name: Publish uor-addr-wasm to crates.io
+        run: |
+          set -euo pipefail
+          VERSION="${GITHUB_REF_NAME#v}"
+          if curl -sSf -H "User-Agent: UOR-Addr-release-workflow" \
+               "https://crates.io/api/v1/crates/uor-addr-wasm/$VERSION" 2>/dev/null \
+               | grep -q "\"num\":\"$VERSION\""; then
+            echo "uor-addr-wasm $VERSION already published; skipping"
+          else
+            cargo publish -p uor-addr-wasm
+          fi
+        env:
+          CARGO_REGISTRY_TOKEN: ${{ secrets.CARGO_REGISTRY_TOKEN }}
+
+      - name: Attach uor-addr-wasm component to release
+        # The release-build wasm artifact is useful for downstream
+        # consumers transpiling via `jco` / `wasmtime`. Attach as a
+        # release asset for direct download.
+        run: |
+          gh release upload "$GITHUB_REF_NAME" \
+            target/wasm32-wasip2/release/uor_addr_wasm.wasm \
+            --clobber
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Attach uor-addr-c header to release
+        run: |
+          gh release upload "$GITHUB_REF_NAME" \
+            crates/uor-addr-c/include/uor_addr.h \
+            --clobber
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}

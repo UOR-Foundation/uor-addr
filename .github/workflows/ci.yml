@@ -1,0 +1,185 @@
+name: CI
+
+# Mirrors `just vv` (see VERIFICATION.md). Every axis runs as its own
+# job; CI fails if any axis fails. The job set parallels the recipe set
+# in `justfile`.
+
+on:
+  pull_request:
+  push:
+    branches: [main]
+
+env:
+  CARGO_TERM_COLOR: always
+  RUST_BACKTRACE: 1
+
+# Cancel in-progress runs on the same ref when a new push lands.
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  fmt:
+    name: cargo fmt
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - run: rustup show active-toolchain || rustup toolchain install
+      - run: cargo fmt --all --check
+
+  clippy:
+    name: cargo clippy (-D warnings)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - run: rustup show active-toolchain || rustup toolchain install
+      - uses: Swatinem/rust-cache@v2
+      - run: cargo clippy --workspace --all-targets -- -D warnings
+
+  test:
+    name: cargo test (workspace)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - run: rustup show active-toolchain || rustup toolchain install
+      - uses: Swatinem/rust-cache@v2
+      # uor-addr-wasm is excluded: its `wit-bindgen`-generated Component
+      # Model symbols only link cleanly on `wasm32-*` targets. The wasm
+      # build axis below verifies that crate.
+      - run: cargo test --workspace --exclude uor-addr-wasm
+
+  embedded:
+    name: embedded build (thumbv7em-none-eabihf, no_std + no_alloc)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - run: rustup show active-toolchain || rustup toolchain install
+      - run: rustup target add thumbv7em-none-eabihf
+      - uses: Swatinem/rust-cache@v2
+      # Proves the no_std + no_alloc contract holds on Cortex-M4
+      # bare-metal. See CB-N01 / CB-N02 in CONFORMANCE.md.
+      - run: cargo build -p uor-addr --no-default-features --target thumbv7em-none-eabihf
+      - run: cargo build -p uor-addr-c --no-default-features --target thumbv7em-none-eabihf
+
+  wasm:
+    name: wasm component model (wasm32-wasip2)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - run: rustup show active-toolchain || rustup toolchain install
+      - run: rustup target add wasm32-wasip2
+      - uses: Swatinem/rust-cache@v2
+      - run: cargo build -p uor-addr-wasm --target wasm32-wasip2 --release
+      - name: Upload .wasm artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: uor-addr-wasm-component
+          path: target/wasm32-wasip2/release/uor_addr_wasm.wasm
+          if-no-files-found: error
+
+  conformance:
+    name: conformance suite (release)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - run: rustup show active-toolchain || rustup toolchain install
+      - uses: Swatinem/rust-cache@v2
+      # Mirrors `just conformance` — every published-spec test suite
+      # at release-mode speed (parametric extensions tractable).
+      - run: cargo test -p uor-addr --release --test common_surface
+      - run: cargo test -p uor-addr --release --test conformance
+      - run: cargo test -p uor-addr --release --test jcs_rfc8785
+      - run: cargo test -p uor-addr --release --test sexp_conformance
+      - run: cargo test -p uor-addr --release --test sexp_rivest_examples
+      - run: cargo test -p uor-addr --release --test xml_c14n_1_1
+      - run: cargo test -p uor-addr --release --test asn1_x690_der
+      - run: cargo test -p uor-addr --release --test ring_amendment_43
+      - run: cargo test -p uor-addr --release --test codemodule_ccmas
+      - run: cargo test -p uor-addr --release --test schema_org_conformance
+      - run: cargo test -p uor-addr --release --test in_toto_statement_v1
+      - run: cargo test -p uor-addr --release --test variant_storage
+      - run: cargo test -p uor-addr --release --test all_realizations
+      - run: cargo test -p uor-addr --release --test nfc_uax15_normalization_test
+
+  analysis:
+    name: analysis suite (release, CP class)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - run: rustup show active-toolchain || rustup toolchain install
+      - uses: Swatinem/rust-cache@v2
+      - run: cargo test -p uor-addr --release --test analysis
+
+  replay:
+    name: TC-05 replay round-trip
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - run: rustup show active-toolchain || rustup toolchain install
+      - uses: Swatinem/rust-cache@v2
+      - run: cargo test -p uor-addr --release --test replay
+
+  examples:
+    name: runnable use-case examples
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - run: rustup show active-toolchain || rustup toolchain install
+      - uses: Swatinem/rust-cache@v2
+      # Mirrors `just examples` — every example panics on a failed
+      # invariant, so passing the axis is a structural requirement.
+      - run: cargo run -p uor-addr --example common_surface
+      - run: cargo run -p uor-addr --example address_value
+      - run: cargo run -p uor-addr --example dedupe_cache
+      - run: cargo run -p uor-addr --example typed_distinction
+      - run: cargo run -p uor-addr --example replay_verification
+      - run: cargo run -p uor-addr --example sexp_address
+      - run: cargo run -p uor-addr --example xml_realization
+      - run: cargo run -p uor-addr --example asn1_realization
+      - run: cargo run -p uor-addr --example ring_realization
+      - run: cargo run -p uor-addr --example codemodule_realization
+      - run: cargo run -p uor-addr --example photo_schema
+      - run: cargo run -p uor-addr --example document_schema
+      - run: cargo run -p uor-addr --example codemodule_signed_schema
+      - run: cargo run -p uor-addr --example storage_variant
+      - run: cargo run -p uor-addr --example signed_variant
+      - run: cargo run -p uor-addr --example multi_realization
+
+  doc:
+    name: cargo doc (broken-intra-doc-links)
+    runs-on: ubuntu-latest
+    env:
+      RUSTDOCFLAGS: "-D rustdoc::broken_intra_doc_links"
+    steps:
+      - uses: actions/checkout@v4
+      - run: rustup show active-toolchain || rustup toolchain install
+      - uses: Swatinem/rust-cache@v2
+      - run: cargo doc --workspace --no-deps
+
+  lean:
+    name: Lean proofs (lake build)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Install elan + Lean toolchain
+        run: |
+          set -euo pipefail
+          curl -sSfL https://raw.githubusercontent.com/leanprover/elan/master/elan-init.sh \
+            | sh -s -- -y --default-toolchain none
+          echo "$HOME/.elan/bin" >> "$GITHUB_PATH"
+      - name: Cache lake build
+        uses: actions/cache@v4
+        with:
+          path: uor-addr-lean/.lake
+          key: ${{ runner.os }}-lake-${{ hashFiles('uor-addr-lean/lakefile.lean', 'uor-addr-lean/lean-toolchain', 'uor-addr-lean/lake-manifest.json') }}
+          restore-keys: ${{ runner.os }}-lake-
+      - run: cd uor-addr-lean && lake build
+
+  deny:
+    name: cargo deny (licenses + advisories)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: EmbarkStudios/cargo-deny-action@v2
+        with:
+          command: check
