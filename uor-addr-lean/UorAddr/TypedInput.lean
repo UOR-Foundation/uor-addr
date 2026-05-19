@@ -89,9 +89,11 @@ theorem over_bound_depth_inadmissible :
   decide
 
 /-- The cost-model commitment selected by `AddressModel` — wiki
-ADR-048. UOR-ADDR-1 carries no auxiliary cost surface beyond the
-κ-derivation; the model's 5th parameter `C` is bound to the closed
-canonical no-op `EmptyCommitment`. We tag the selection with a
+ADR-048. The JSON realization carries no auxiliary cost surface
+beyond the κ-derivation; the model's 5th parameter `C` is bound to
+the closed canonical no-op `EmptyCommitment`. Cost-model-bearing
+variants (`uor_addr::variant::storage`, `uor_addr::variant::signed`)
+bind non-default `C` selections. We tag the selection with a
 type-level marker so the Lean statement is decidable. -/
 inductive CostCommitment
   | empty

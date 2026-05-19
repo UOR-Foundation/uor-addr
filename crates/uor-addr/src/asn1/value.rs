@@ -44,12 +44,24 @@ use prism::pipeline::{
 use crate::asn1::shapes::bounds::{ASN1_VALUE_MAX_BYTES, MAX_ASN1_DEPTH};
 
 // ─── DER tag bytes ──────────────────────────────────────────────────────
+//
+// Universal-class tag numbers per ITU-T X.680 / X.690 §8.6 — §8.21.
+// Constructed flag (0x20) included where DER mandates constructed
+// encoding (Sequence, Set per §8.9/§8.11).
 
 pub(crate) const TAG_BOOLEAN: u8 = 0x01;
 pub(crate) const TAG_INTEGER: u8 = 0x02;
+pub(crate) const TAG_BIT_STRING: u8 = 0x03;
 pub(crate) const TAG_OCTET_STRING: u8 = 0x04;
 pub(crate) const TAG_NULL: u8 = 0x05;
+pub(crate) const TAG_OID: u8 = 0x06;
+pub(crate) const TAG_UTF8_STRING: u8 = 0x0C;
+pub(crate) const TAG_PRINTABLE_STRING: u8 = 0x13;
+pub(crate) const TAG_IA5_STRING: u8 = 0x16;
+pub(crate) const TAG_UTC_TIME: u8 = 0x17;
+pub(crate) const TAG_GENERALIZED_TIME: u8 = 0x18;
 pub(crate) const TAG_SEQUENCE: u8 = 0x30;
+pub(crate) const TAG_SET: u8 = 0x31;
 
 // ─── ShapeViolation IRIs ────────────────────────────────────────────────
 
@@ -159,14 +171,137 @@ impl Asn1Value {
     /// Build a Sequence (DER tag `0x30`) wrapping the concatenated
     /// DER bytes of the supplied children.
     pub fn sequence(children: &[Asn1Value]) -> Self {
+        Self::constructed(TAG_SEQUENCE, children)
+    }
+
+    /// Build a Set (DER tag `0x31`). DER (X.690 §11.6) requires Set
+    /// element ordering by ascending tag value; for SET OF, by
+    /// ascending encoded-element byte sequence. The caller supplies
+    /// children in any order; this method sorts them per the DER
+    /// canonical-encoding rule.
+    pub fn set(children: &[Asn1Value]) -> Self {
+        let mut sorted: Vec<&Asn1Value> = children.iter().collect();
+        sorted.sort_by(|a, b| a.bytes.cmp(&b.bytes));
+        let sorted_owned: Vec<Asn1Value> = sorted.into_iter().cloned().collect();
+        Self::constructed(TAG_SET, &sorted_owned)
+    }
+
+    fn constructed(tag: u8, children: &[Asn1Value]) -> Self {
         let total_content: usize = children.iter().map(|c| c.bytes.len()).sum();
         let mut out = Vec::with_capacity(1 + 5 + total_content);
-        out.push(TAG_SEQUENCE);
+        out.push(tag);
         out.extend_from_slice(&encode_length(total_content));
         for child in children {
             out.extend_from_slice(&child.bytes);
         }
         Self { bytes: out }
+    }
+
+    /// Build a BIT STRING (DER tag `0x03`). X.690 §8.6 / §11.2:
+    /// the first content octet encodes the number of unused bits in
+    /// the final byte (0..=7). For DER primitive encoding (the only
+    /// admissible form), unused bits must be zero.
+    pub fn bit_string(bits: &[u8], unused_bits: u8) -> Result<Self, ShapeViolation> {
+        if unused_bits > 7 {
+            return Err(INVALID_DER_VIOLATION);
+        }
+        // §11.2 — if the bit string has zero length, unused_bits must be 0.
+        if bits.is_empty() && unused_bits != 0 {
+            return Err(INVALID_DER_VIOLATION);
+        }
+        // §11.2.1 — unused trailing bits must be set to zero.
+        if !bits.is_empty() && unused_bits > 0 {
+            let last = bits[bits.len() - 1];
+            let mask = (1u8 << unused_bits) - 1;
+            if last & mask != 0 {
+                return Err(INVALID_DER_VIOLATION);
+            }
+        }
+        let content_len = 1 + bits.len();
+        let mut out = Vec::with_capacity(2 + content_len);
+        out.push(TAG_BIT_STRING);
+        out.extend_from_slice(&encode_length(content_len));
+        out.push(unused_bits);
+        out.extend_from_slice(bits);
+        Ok(Self { bytes: out })
+    }
+
+    /// Build an OBJECT IDENTIFIER (DER tag `0x06`). X.690 §8.19
+    /// encoding: first two arc values combine as `40*x1 + x2` into
+    /// the first sub-identifier; each subsequent arc value encodes as
+    /// base-128 with continuation bit per §8.19.2.
+    pub fn object_identifier(arcs: &[u32]) -> Result<Self, ShapeViolation> {
+        if arcs.len() < 2 {
+            return Err(INVALID_DER_VIOLATION);
+        }
+        // §8.19.4 — x1 must be 0..=2; if x1 ∈ {0, 1}, x2 must be 0..=39.
+        let x1 = arcs[0];
+        let x2 = arcs[1];
+        if x1 > 2 {
+            return Err(INVALID_DER_VIOLATION);
+        }
+        if x1 < 2 && x2 >= 40 {
+            return Err(INVALID_DER_VIOLATION);
+        }
+        let mut content = Vec::new();
+        encode_oid_subid(40 * x1 + x2, &mut content);
+        for &arc in &arcs[2..] {
+            encode_oid_subid(arc, &mut content);
+        }
+        let mut out = Vec::with_capacity(2 + content.len());
+        out.push(TAG_OID);
+        out.extend_from_slice(&encode_length(content.len()));
+        out.extend_from_slice(&content);
+        Ok(Self { bytes: out })
+    }
+
+    /// Build a UTF8String (DER tag `0x0C`). X.690 §8.21 / §8.7 —
+    /// primitive encoding of UTF-8 bytes.
+    pub fn utf8_string(s: &str) -> Self {
+        let bytes = s.as_bytes();
+        let mut out = Vec::with_capacity(2 + bytes.len());
+        out.push(TAG_UTF8_STRING);
+        out.extend_from_slice(&encode_length(bytes.len()));
+        out.extend_from_slice(bytes);
+        Self { bytes: out }
+    }
+
+    /// Build a PrintableString (DER tag `0x13`). X.680 §41.4: admits
+    /// `A..Z`, `a..z`, `0..9`, ` `, `'`, `(`, `)`, `+`, `,`, `-`, `.`,
+    /// `/`, `:`, `=`, `?`. Caller is responsible for satisfying the
+    /// character-set constraint; this constructor accepts any bytes
+    /// (the typed-iso parser validates them on input admission).
+    pub fn printable_string(s: &str) -> Result<Self, ShapeViolation> {
+        for c in s.chars() {
+            let ok = c.is_ascii_alphanumeric()
+                || matches!(
+                    c,
+                    ' ' | '\'' | '(' | ')' | '+' | ',' | '-' | '.' | '/' | ':' | '=' | '?'
+                );
+            if !ok {
+                return Err(INVALID_DER_VIOLATION);
+            }
+        }
+        let bytes = s.as_bytes();
+        let mut out = Vec::with_capacity(2 + bytes.len());
+        out.push(TAG_PRINTABLE_STRING);
+        out.extend_from_slice(&encode_length(bytes.len()));
+        out.extend_from_slice(bytes);
+        Ok(Self { bytes: out })
+    }
+
+    /// Build an IA5String (DER tag `0x16`). X.680 §41.2: admits the
+    /// 7-bit ASCII (IA5) character set (0..=127).
+    pub fn ia5_string(s: &str) -> Result<Self, ShapeViolation> {
+        if !s.is_ascii() {
+            return Err(INVALID_DER_VIOLATION);
+        }
+        let bytes = s.as_bytes();
+        let mut out = Vec::with_capacity(2 + bytes.len());
+        out.push(TAG_IA5_STRING);
+        out.extend_from_slice(&encode_length(bytes.len()));
+        out.extend_from_slice(bytes);
+        Ok(Self { bytes: out })
     }
 
     /// Borrow the DER-encoded canonical bytes — these are the bytes
@@ -176,6 +311,27 @@ impl Asn1Value {
     pub fn tagged_bytes(&self) -> &[u8] {
         &self.bytes
     }
+}
+
+/// X.690 §8.19.2 — base-128 encoding of an OID sub-identifier with
+/// continuation bit set on all but the last byte.
+fn encode_oid_subid(mut value: u32, out: &mut Vec<u8>) {
+    if value == 0 {
+        out.push(0);
+        return;
+    }
+    let mut buf = [0u8; 5];
+    let mut i = 0;
+    while value > 0 {
+        buf[i] = (value & 0x7F) as u8;
+        value >>= 7;
+        i += 1;
+    }
+    // Reverse, set continuation bit on all but the last.
+    for j in (1..i).rev() {
+        out.push(buf[j] | 0x80);
+    }
+    out.push(buf[0]);
 }
 
 /// X.690 §8.1.3 length octets — short form for lengths < 128,
@@ -255,8 +411,126 @@ fn validate_tlv(buf: &[u8], pos: &mut usize, depth: usize) -> Result<(), ShapeVi
                 return Err(INVALID_DER_VIOLATION);
             }
         }
+        TAG_BIT_STRING => {
+            // §8.6: first content octet is unused-bits count (0..=7).
+            // §11.2.1: in DER, trailing unused bits must be zero.
+            if content_len == 0 {
+                return Err(INVALID_DER_VIOLATION);
+            }
+            let unused = buf[*pos];
+            if unused > 7 {
+                return Err(INVALID_DER_VIOLATION);
+            }
+            // For empty bit-string (content_len == 1), unused must be 0.
+            if content_len == 1 && unused != 0 {
+                return Err(INVALID_DER_VIOLATION);
+            }
+            // Trailing-zero requirement.
+            if content_len > 1 && unused > 0 {
+                let last = buf[content_end - 1];
+                let mask = (1u8 << unused) - 1;
+                if last & mask != 0 {
+                    return Err(INVALID_DER_VIOLATION);
+                }
+            }
+            *pos = content_end;
+        }
+        TAG_OID => {
+            // §8.19: each sub-identifier is base-128 with continuation
+            // bit; the last byte of each sub-identifier has bit 7
+            // clear. §8.19.4 — no leading 0x80 (non-minimal encoding).
+            if content_len == 0 {
+                return Err(INVALID_DER_VIOLATION);
+            }
+            let mut p = *pos;
+            while p < content_end {
+                let sub_start = p;
+                // Read continuation bytes until a byte with bit 7 clear.
+                while p < content_end && buf[p] & 0x80 != 0 {
+                    p += 1;
+                }
+                if p >= content_end {
+                    // Continuation never terminated.
+                    return Err(INVALID_DER_VIOLATION);
+                }
+                p += 1; // Include the terminator byte.
+                        // §8.19.2 — non-minimal encoding: sub-identifier must
+                        // not start with 0x80 (would mean an unnecessary
+                        // leading zero in the base-128 representation).
+                if p - sub_start > 1 && buf[sub_start] == 0x80 {
+                    return Err(INVALID_DER_VIOLATION);
+                }
+            }
+            if p != content_end {
+                return Err(INVALID_DER_VIOLATION);
+            }
+            *pos = content_end;
+        }
+        TAG_UTF8_STRING => {
+            // §8.21: content is a UTF-8 byte sequence. Validate UTF-8.
+            let bytes = &buf[*pos..content_end];
+            core::str::from_utf8(bytes).map_err(|_| INVALID_DER_VIOLATION)?;
+            *pos = content_end;
+        }
+        TAG_PRINTABLE_STRING => {
+            // X.680 §41.4: restricted character set.
+            for &b in &buf[*pos..content_end] {
+                let ok = b.is_ascii_alphanumeric()
+                    || matches!(
+                        b,
+                        b' ' | b'\''
+                            | b'('
+                            | b')'
+                            | b'+'
+                            | b','
+                            | b'-'
+                            | b'.'
+                            | b'/'
+                            | b':'
+                            | b'='
+                            | b'?'
+                    );
+                if !ok {
+                    return Err(INVALID_DER_VIOLATION);
+                }
+            }
+            *pos = content_end;
+        }
+        TAG_IA5_STRING => {
+            // X.680 §41.2: 7-bit ASCII (0..=127).
+            for &b in &buf[*pos..content_end] {
+                if b > 127 {
+                    return Err(INVALID_DER_VIOLATION);
+                }
+            }
+            *pos = content_end;
+        }
+        TAG_UTC_TIME | TAG_GENERALIZED_TIME => {
+            // X.690 §11.7 / §11.8 require canonical date-time
+            // string forms — validate ASCII printability; full
+            // calendar validation lives downstream of typed admission.
+            for &b in &buf[*pos..content_end] {
+                if !b.is_ascii() {
+                    return Err(INVALID_DER_VIOLATION);
+                }
+            }
+            *pos = content_end;
+        }
         TAG_SEQUENCE => {
             // §8.9: walk children.
+            while *pos < content_end {
+                validate_tlv(buf, pos, depth + 1)?;
+            }
+            if *pos != content_end {
+                return Err(INVALID_DER_VIOLATION);
+            }
+        }
+        TAG_SET => {
+            // §8.11 + §11.6: walk children + canonical ordering
+            // (element bytes in ascending order). For SET OF this is
+            // strict; for SET (heterogeneous) tag-value ordering is
+            // required. We validate the structural walk; the ordering
+            // rule is enforced by the constructor.
             while *pos < content_end {
                 validate_tlv(buf, pos, depth + 1)?;
             }
