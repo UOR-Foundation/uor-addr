@@ -28,7 +28,7 @@ fn main() {
         b"{\"city\":\"Sa\xcc\x83o Paulo\",\"country\":\"BR\"}",
     ];
 
-    let mut cache: HashMap<String, Vec<&str>> = HashMap::new();
+    let mut cache: HashMap<uor_addr::KappaLabel, Vec<&str>> = HashMap::new();
     for raw in variants {
         let label = address(raw).expect("valid JSON").address;
         let view = std::str::from_utf8(raw).unwrap();

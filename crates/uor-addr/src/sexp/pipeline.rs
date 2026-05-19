@@ -21,41 +21,15 @@
 //! 4. [`address`] returns the κ-label — every well-formed
 //!    [`SExprValue`] always yields exactly one κ-label.
 
-extern crate alloc;
-
-use alloc::string::String;
-
 use prism::pipeline::{EmptyCommitment, PrismModel};
 use prism::vocabulary::DefaultHostTypes;
 
-use crate::label::{AddressLabel, ADDRESS_LABEL_BYTES};
+use crate::label::KappaLabel;
+pub use crate::outcome::{AddressOutcome, AddressWitness};
 use crate::sexp::model::AddressModel;
 use crate::sexp::resolvers::AddressResolverTuple;
 use crate::sexp::shapes::bounds::SExprAddrBounds;
 use crate::sexp::value::SExprValue;
-
-/// The result of a successful [`address`] invocation.
-#[derive(Debug)]
-pub struct AddressOutcome {
-    pub witness: AddressWitness,
-    pub address: String,
-}
-
-/// Newtype around a `Grounded<AddressLabel>` carrying the κ-label.
-pub struct AddressWitness(prism::seal::Grounded<AddressLabel>);
-
-impl AddressWitness {
-    #[must_use]
-    pub fn grounded(&self) -> &prism::seal::Grounded<AddressLabel> {
-        &self.0
-    }
-}
-
-impl core::fmt::Debug for AddressWitness {
-    fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
-        f.debug_struct("AddressWitness").finish_non_exhaustive()
-    }
-}
 
 /// Failure modes from [`address`].
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -99,18 +73,11 @@ pub fn address(input_bytes: &[u8]) -> Result<AddressOutcome, AddressFailure> {
     >>::forward(sexpr)
     .map_err(|_| AddressFailure::PipelineFailure)?;
 
-    let output = grounded.output_bytes();
-    if output.len() != ADDRESS_LABEL_BYTES {
-        return Err(AddressFailure::PipelineFailure);
-    }
-    let mut buf = [0u8; ADDRESS_LABEL_BYTES];
-    buf.copy_from_slice(output);
-    let address = core::str::from_utf8(&buf)
-        .map_err(|_| AddressFailure::PipelineFailure)?
-        .into();
+    let address = KappaLabel::from_bytes(grounded.output_bytes())
+        .map_err(|_| AddressFailure::PipelineFailure)?;
 
     Ok(AddressOutcome {
-        witness: AddressWitness(grounded),
+        witness: AddressWitness::new(grounded),
         address,
     })
 }

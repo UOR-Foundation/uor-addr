@@ -50,5 +50,7 @@ pub use resolvers::{
     AddressNerveResolver, AddressPostnikovResolver, AddressResolverTuple,
 };
 pub use shapes::{RingAddrBounds, MAX_WITT_LEVEL, RING_VALUE_MAX_BYTES};
-pub use value::{canonicalize, RingElement, RingElementRegistry};
+#[cfg(feature = "alloc")]
+pub use value::canonicalize;
+pub use value::{RingElement, RingElementRegistry};
 pub use verbs::{address_inference, VERB_TERMS_ADDRESS_INFERENCE};

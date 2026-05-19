@@ -69,5 +69,7 @@ pub use shapes::{
     CodeModuleAddrBounds, CODEMODULE_VALUE_MAX_BYTES, MAX_CODEMODULE_DEPTH, MAX_CODEMODULE_ITEMS,
     MAX_CODEMODULE_NAME_BYTES,
 };
-pub use value::{canonicalize, CodeModuleValue, CodeModuleValueRegistry};
+#[cfg(feature = "alloc")]
+pub use value::canonicalize;
+pub use value::{CodeModuleValue, CodeModuleValueRegistry};
 pub use verbs::{address_inference, VERB_TERMS_ADDRESS_INFERENCE};

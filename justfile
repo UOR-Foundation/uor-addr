@@ -10,10 +10,10 @@ default: vv
 # ──────────────────────────────────────────────────────────────────────────
 
 # Full V&V — every axis required for merge. Halts on the first failure.
-vv: fmt-check lint test conformance analysis replay examples doc-check verify
+vv: fmt-check lint test embedded wasm conformance analysis replay examples doc-check verify
 
 # Fast CI subset — no Lean, no live network. Use when iterating locally.
-ci: fmt-check lint test
+ci: fmt-check lint test embedded wasm
 
 # ──────────────────────────────────────────────────────────────────────────
 # Individual axes
@@ -28,8 +28,22 @@ lint:
 	cargo clippy --workspace --all-targets -- -D warnings
 
 # Axis 3 — workspace unit + integration tests.
+# Excludes `uor-addr-wasm`: its `wit-bindgen`-generated Component Model
+# symbols are valid for `wasm32-wasip2` (verified by `just wasm`) but
+# the same crate-type=cdylib does not link cleanly on hosted ELF
+# targets. Hosted Rust tests run for `uor-addr` + `uor-addr-c`.
 test:
-	cargo test --workspace
+	cargo test --workspace --exclude uor-addr-wasm
+
+# Axis 3b — `uor-addr-c` no_std embedded build proof
+# (Cortex-M4 / thumbv7em-none-eabihf).
+embedded:
+	cargo build -p uor-addr-c --no-default-features --target thumbv7em-none-eabihf
+
+# Axis 3c — `uor-addr-wasm` WASM Component Model build proof
+# (wasm32-wasip2, polyglot consumption via jco / wasmtime / etc.).
+wasm:
+	cargo build -p uor-addr-wasm --target wasm32-wasip2 --release
 
 # Axis 4 — conformance suite (release). Each shipped realization
 # has a dedicated published-spec test vector suite plus the

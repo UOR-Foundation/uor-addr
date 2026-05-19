@@ -8,50 +8,33 @@
 //! published Statement contract per
 //! <https://in-toto.io/Statement/v1>.
 //!
-//! Per UOR's schema-import discipline, this module does **not**
-//! invent a custom signed-code-module schema; it imports the
-//! industry-standard in-toto Statement v1 envelope used by sigstore,
-//! SLSA, and the broader software-supply-chain attestation
-//! ecosystem.
+//! # `no_std` + `no_alloc`
 //!
-//! ## Authoritative sources
+//! Schema admission walks the parsed [`crate::json::JsonValue`]'s
+//! tagged bytes via [`crate::json::JsonValueRef`]. No `serde_json`,
+//! no allocator.
+//!
+//! # Authoritative sources
 //!
 //! - **in-toto Statement v1** —
 //!   <https://github.com/in-toto/attestation/blob/main/spec/v1/statement.md>.
-//!   Defines the
-//!   `https://in-toto.io/Statement/v1` envelope shape.
-//! - **in-toto Attestation Framework v1.0** —
-//!   <https://github.com/in-toto/attestation/blob/main/spec/v1/README.md>.
-//! - **SLSA Provenance v1** —
-//!   <https://slsa.dev/spec/v1.0/provenance> (one common
-//!   `predicateType` carried in the in-toto Statement).
+//! - **SLSA Provenance v1** — <https://slsa.dev/spec/v1.0/provenance>.
 //! - **sigstore signature spec** —
 //!   <https://docs.sigstore.dev/cosign/signature_specification/>.
 //!
-//! ## Admission predicate (the in-toto Statement v1 contract)
-//!
-//! The input must be a JSON object satisfying in-toto Statement v1's
-//! shape:
+//! # Admission predicate
 //!
 //! 1. `_type` is `"https://in-toto.io/Statement/v1"`.
 //! 2. `subject` is a non-empty array; each element is an object with:
-//!    - `name` — string identifier for the subject.
-//!    - `digest` — object whose entries are hex-encoded digest
-//!      strings keyed by algorithm IRI (e.g. `"sha256"`). At least
-//!      one digest must be a 64-character lowercase-hex SHA-256
-//!      digest.
-//! 3. `predicateType` — string IRI naming the predicate format
-//!    carried in `predicate`.
-//! 4. `predicate` — JSON object whose contents are defined by
-//!    `predicateType`.
-
-extern crate alloc;
-
-use alloc::vec::Vec;
+//!    - `name` — non-empty string.
+//!    - `digest` — object with at least one `sha256` entry whose value
+//!      is a 64-character lowercase-hex SHA-256 digest.
+//! 3. `predicateType` — non-empty string IRI.
+//! 4. `predicate` — JSON object.
 
 use prism::pipeline::{ShapeViolation, ViolationKind};
 
-use crate::json::JsonValue;
+use crate::json::{JsonValue, JsonValueRef};
 
 const SCHEMA_VIOLATION: ShapeViolation = ShapeViolation {
     shape_iri: "https://in-toto.io/Statement/v1",
@@ -64,93 +47,98 @@ const SCHEMA_VIOLATION: ShapeViolation = ShapeViolation {
 };
 
 /// in-toto Statement v1 `_type` IRI.
-pub const STATEMENT_TYPE_IRI: &str = "https://in-toto.io/Statement/v1";
+pub const STATEMENT_TYPE_IRI: &[u8] = b"https://in-toto.io/Statement/v1";
 
-/// SHA-256 digest hex byte width (64 lowercase-hex chars for a 32-byte
-/// digest).
+/// SHA-256 digest hex byte width.
 pub const SHA256_HEX_BYTES: usize = 64;
 
-/// Required top-level properties for an in-toto v1 Statement.
-pub const REQUIRED_PROPERTIES: &[&str] = &["_type", "subject", "predicateType", "predicate"];
+pub const REQUIRED_PROPERTIES: &[&[u8]] = &[b"_type", b"subject", b"predicateType", b"predicate"];
 
-/// Typed signed-code-module input shape.
-#[derive(Debug, Clone, PartialEq, Eq)]
+#[derive(Clone)]
 pub struct SignedCodeModuleValue {
     inner: JsonValue,
 }
 
-impl SignedCodeModuleValue {
-    /// Parse + admit. Accepts raw JSON bytes; admits only inputs
-    /// satisfying the in-toto Statement v1 envelope.
-    pub fn parse(raw: &[u8]) -> Result<Self, ShapeViolation> {
-        let value: serde_json::Value = serde_json::from_slice(raw).map_err(|_| SCHEMA_VIOLATION)?;
-        let obj = value.as_object().ok_or(SCHEMA_VIOLATION)?;
+impl core::fmt::Debug for SignedCodeModuleValue {
+    fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
+        f.debug_struct("SignedCodeModuleValue")
+            .finish_non_exhaustive()
+    }
+}
 
+impl SignedCodeModuleValue {
+    pub fn parse(raw: &[u8]) -> Result<Self, ShapeViolation> {
+        let inner = JsonValue::parse(raw).map_err(|_| SCHEMA_VIOLATION)?;
+        let root = JsonValueRef::root(&inner);
+        if !root.is_object() {
+            return Err(SCHEMA_VIOLATION);
+        }
         // _type must be the in-toto Statement v1 IRI.
-        let ty = obj
-            .get("_type")
+        let ty = root
+            .get(b"_type")
             .and_then(|v| v.as_str())
             .ok_or(SCHEMA_VIOLATION)?;
         if ty != STATEMENT_TYPE_IRI {
             return Err(SCHEMA_VIOLATION);
         }
-
-        // subject must be a non-empty array of {name, digest} objects.
-        let subjects = obj
-            .get("subject")
-            .and_then(|v| v.as_array())
-            .ok_or(SCHEMA_VIOLATION)?;
-        if subjects.is_empty() {
-            return Err(SCHEMA_VIOLATION);
-        }
+        // subject — non-empty array of {name, digest} objects.
+        let subject = root.get(b"subject").ok_or(SCHEMA_VIOLATION)?;
+        let subjects = subject.iter_array().ok_or(SCHEMA_VIOLATION)?;
+        let mut subject_count = 0;
         for s in subjects {
-            let so = s.as_object().ok_or(SCHEMA_VIOLATION)?;
-            // name — non-empty string.
-            let name = so
-                .get("name")
+            if !s.is_object() {
+                return Err(SCHEMA_VIOLATION);
+            }
+            let name = s
+                .get(b"name")
                 .and_then(|v| v.as_str())
                 .ok_or(SCHEMA_VIOLATION)?;
             if name.is_empty() {
                 return Err(SCHEMA_VIOLATION);
             }
-            // digest — object with at least one algorithm entry whose
-            // value is a hex string. Require sha256 for UOR-ADDR's
-            // typed environment.
-            let digest = so
-                .get("digest")
-                .and_then(|v| v.as_object())
-                .ok_or(SCHEMA_VIOLATION)?;
-            if digest.is_empty() {
+            let digest = s.get(b"digest").ok_or(SCHEMA_VIOLATION)?;
+            if !digest.is_object() {
+                return Err(SCHEMA_VIOLATION);
+            }
+            // Require at least one entry, and a sha256 entry whose
+            // value is 64 lowercase hex bytes.
+            let digest_iter = digest.iter_object().ok_or(SCHEMA_VIOLATION)?;
+            let mut digest_count = 0;
+            for (_k, _v) in digest_iter {
+                digest_count += 1;
+            }
+            if digest_count == 0 {
                 return Err(SCHEMA_VIOLATION);
             }
             let sha256 = digest
-                .get("sha256")
+                .get(b"sha256")
                 .and_then(|v| v.as_str())
                 .ok_or(SCHEMA_VIOLATION)?;
             if sha256.len() != SHA256_HEX_BYTES
                 || !sha256
-                    .bytes()
-                    .all(|b| b.is_ascii_digit() || (b'a'..=b'f').contains(&b))
+                    .iter()
+                    .all(|&b| b.is_ascii_digit() || (b'a'..=b'f').contains(&b))
             {
                 return Err(SCHEMA_VIOLATION);
             }
+            subject_count += 1;
         }
-
-        // predicateType — string (typically an IRI).
-        let pt = obj
-            .get("predicateType")
+        if subject_count == 0 {
+            return Err(SCHEMA_VIOLATION);
+        }
+        // predicateType — non-empty string.
+        let pt = root
+            .get(b"predicateType")
             .and_then(|v| v.as_str())
             .ok_or(SCHEMA_VIOLATION)?;
         if pt.is_empty() {
             return Err(SCHEMA_VIOLATION);
         }
-
         // predicate — object.
-        if !obj.get("predicate").is_some_and(|v| v.is_object()) {
+        let predicate = root.get(b"predicate").ok_or(SCHEMA_VIOLATION)?;
+        if !predicate.is_object() {
             return Err(SCHEMA_VIOLATION);
         }
-
-        let inner = JsonValue::parse(raw).map_err(|_| SCHEMA_VIOLATION)?;
         Ok(Self { inner })
     }
 
@@ -161,9 +149,7 @@ impl SignedCodeModuleValue {
 }
 
 /// Mint a κ-label over an in-toto-v1-Statement-admitted JSON value.
-/// The κ-label is byte-identical to [`crate::json::address`] for the
-/// same input — schema admission applies at parse time.
-pub fn address(raw: &[u8]) -> Result<crate::json::AddressOutcome, AddressFailure> {
+pub fn address(raw: &[u8]) -> Result<crate::AddressOutcome, AddressFailure> {
     SignedCodeModuleValue::parse(raw).map_err(|_| AddressFailure::SchemaViolation)?;
     crate::json::address(raw).map_err(|e| match e {
         crate::json::AddressFailure::InvalidJson => AddressFailure::SchemaViolation,
@@ -179,7 +165,10 @@ pub enum AddressFailure {
     PipelineFailure,
 }
 
-pub fn canonicalize(raw: &[u8]) -> Result<Vec<u8>, AddressFailure> {
+/// **Available only under the `alloc` feature.**
+#[cfg(feature = "alloc")]
+pub fn canonicalize(raw: &[u8]) -> Result<alloc::vec::Vec<u8>, AddressFailure> {
+    extern crate alloc;
     SignedCodeModuleValue::parse(raw).map_err(|_| AddressFailure::SchemaViolation)?;
     crate::json::canonicalize(raw).map_err(|_| AddressFailure::PipelineFailure)
 }
@@ -188,7 +177,6 @@ pub fn canonicalize(raw: &[u8]) -> Result<Vec<u8>, AddressFailure> {
 mod tests {
     use super::*;
 
-    /// A valid in-toto Statement v1 attestation.
     const VALID_STATEMENT: &[u8] = br#"{
         "_type": "https://in-toto.io/Statement/v1",
         "subject": [

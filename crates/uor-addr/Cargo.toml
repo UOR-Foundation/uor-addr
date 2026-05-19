@@ -17,17 +17,26 @@ rust-version  = "1.83"
 uor-prism          = { workspace = true }
 uor-foundation     = { workspace = true }
 uor-foundation-sdk = { workspace = true }
-# Pure-Rust dependencies — required only for the host-boundary
-# JSON canonicalisation step (boundary helpers run before the typed
-# `JsonInput` is constructed; they are not part of the ψ-pipeline
-# transform per wiki ADR-035). The resolver bodies and the `Hasher`
-# impl are pure-Rust, `no_std`-clean.
-unicode-normalization = { version = "0.1", default-features = false }
-serde_json            = { version = "1",   default-features = false, features = ["alloc"] }
+# `ryu` — RFC 8785 §3.2.2.3 (ECMA-262 7.1.12.1) shortest-round-trip
+# decimal serialization of `f64`. `no_std` + `no_alloc` by default;
+# the only pure-Rust dependency the crate needs for canonical-form
+# number emission in the JSON realization. Unicode NFC is provided
+# by the in-crate [`crate::canonical::nfc`] module (UCD 15.1.0).
+ryu = { version = "1", default-features = false }
+
 
 [features]
+# By default, ship the alloc-bearing convenience surface
+# (`canonicalize() -> Vec<u8>`, alloc-backed conveniences) on top of
+# `std`. The crate's source-of-truth no_alloc surface is reachable
+# under `--no-default-features`.
 default = ["std"]
-std     = ["uor-prism/std"]
+std     = ["alloc", "uor-prism/std"]
+# Enable alloc-bearing convenience wrappers on top of the
+# no_alloc core. The κ-derivation pipeline is allocator-free
+# whether or not this feature is enabled — `alloc` only gates
+# convenience surfaces.
+alloc   = []
 
 [dev-dependencies]
 # TC-05 replay surface — exercises the `Grounded<AddressLabel>` round-trip
@@ -37,3 +46,7 @@ uor-prism-verify = { workspace = true, features = ["std"] }
 # (CN class — see CONFORMANCE.md). Gated behind `#[ignore]`; runs only under
 # `just cn` with UOR_ADDR_LIVE=1.
 ureq = { version = "2", features = ["json"] }
+# Used only in the gated CN cross-validation test to assemble the HTTP
+# request body / parse the response. Not a runtime dependency of the
+# crate.
+serde_json = "1"

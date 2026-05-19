@@ -84,7 +84,9 @@ else imports.
 | Module | Layer |
 |---|---|
 | [`uor_addr::common`](crates/uor-addr/src/common.rs) | Common architectural surface — `AddressInput` trait |
-| [`uor_addr::label`](crates/uor-addr/src/label.rs) | Common output shape — `AddressLabel` (71-Site SHA-256 specialization, IRI `…/sha256`) |
+| [`uor_addr::label`](crates/uor-addr/src/label.rs) | Common output shape — `AddressLabel` (71-Site SHA-256 specialization, IRI `…/sha256`) + `KappaLabel` byte carrier |
+| [`uor_addr::outcome`](crates/uor-addr/src/outcome.rs) | Shared `AddressOutcome` / `AddressWitness` carriers — one architectural-surface output type re-exported by every realization |
+| [`uor_addr::canonical`](crates/uor-addr/src/canonical/) | Prism-native canonical primitives — `nfc` (UAX #15 streaming normalizer, full UCD 15.1.0) + `hex` (lowercase-hex emit). `no_std` + `no_alloc`. |
 | [`uor_addr::json`](crates/uor-addr/src/json/) | Format: JSON under JCS-RFC8785 + Unicode NFC |
 | [`uor_addr::sexp`](crates/uor-addr/src/sexp/) | Format: S-expressions under Rivest 1997 canonical form |
 | [`uor_addr::xml`](crates/uor-addr/src/xml/) | Format: XML under W3C Canonical XML 1.1 (subset) |
@@ -96,6 +98,23 @@ else imports.
 | [`uor_addr::schema::codemodule_signed`](crates/uor-addr/src/schema/codemodule_signed.rs) | Schema-pinned descendant of `json` — imports [in-toto Statement v1](https://in-toto.io/Statement/v1) |
 | [`uor_addr::variant::storage`](crates/uor-addr/src/variant/storage.rs) | Cost-model variant — `AndCommitment<EmptyCommitment, SingletonCommitment<LexicographicLessEqThreshold>>` |
 | [`uor_addr::variant::signed`](crates/uor-addr/src/variant/signed.rs) | Cost-model variant — `SingletonCommitment<UltrametricCloseTo<2>>` |
+
+In addition to the Rust crate, two FFI distribution targets ship the
+same κ-derivation byte-for-byte to polyglot consumers:
+
+| Crate | Layer |
+|---|---|
+| [`uor-addr-c`](crates/uor-addr-c/) | **Layer 1 — C ABI.** `extern "C"` exports per realization + `cbindgen`-generated header at [include/uor_addr.h](crates/uor-addr-c/include/uor_addr.h). Builds as `staticlib` / `cdylib` on hosted targets and as a static library on `thumbv7em-none-eabihf` for bare-metal embedded consumption. |
+| [`uor-addr-wasm`](crates/uor-addr-wasm/) | **Layer 2b — WASM Component Model.** [wit-bindgen]-driven component declared by [wit/uor-addr.wit](crates/uor-addr-wasm/wit/uor-addr.wit). Builds to `wasm32-wasip2`; the emitted `.wasm` is consumable from JS (`jco transpile`), Python (`wasmtime-py`), Go (`wasmtime-go`), .NET (`Wasmtime.NET`), and any language with a wasm runtime. |
+
+[wit-bindgen]: https://github.com/bytecodealliance/wit-bindgen
+
+The `uor-addr` core is **`no_std` + `no_alloc`** by default (UOR
+Foundation tooling contract). All canonicalization paths stream into
+caller-provided slices; no allocator is touched. The `alloc` and
+`std` features layer ergonomic convenience APIs on top of the
+no_alloc core without affecting κ-label byte identity (CB-A03 +
+CB-A04 in [CONFORMANCE.md](CONFORMANCE.md)).
 
 See [STANDARDS.md](STANDARDS.md) for the complete index of
 authoritative source references for every shipped realization.

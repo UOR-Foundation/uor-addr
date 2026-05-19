@@ -116,9 +116,12 @@ pseudorandom-oracle assumption.
 specification — UAX #15 §1.1).
 
 **Empirical role.** This test is a *crate-level cross-check* on the
-`unicode-normalization` dependency: if the dependency ever regresses
-to a non-idempotent NFC, the test catches it before the test reaches
-release. It is not a statistical test — failure is exact.
+in-crate [`crate::canonical::nfc`] normalizer (UCD 15.1.0): if the
+implementation ever regresses to a non-idempotent NFC, the test
+catches it before release. It is not a statistical test — failure is
+exact. Companion harness `tests/nfc_uax15_normalization_test.rs`
+walks all 19,074 vectors × 5 NFC identities from UCD
+`NormalizationTest.txt`.
 
 **Sample size.** N = 100 000 randomly-generated Unicode strings
 (stratified across BMP, supplementary planes, and combining-character

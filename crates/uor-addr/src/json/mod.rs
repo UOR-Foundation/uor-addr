@@ -71,5 +71,7 @@ pub use shapes::{
     AddrBounds, Sha256Hasher, JSON_VALUE_MAX_BYTES, MAX_ARRAY_ELEMENTS, MAX_JSON_DEPTH,
     MAX_NUMBER_DIGITS, MAX_OBJECT_KEYS, MAX_STRING_BYTES,
 };
-pub use value::{canonicalize, JsonValue, JsonValueRegistry};
+#[cfg(feature = "alloc")]
+pub use value::canonicalize;
+pub use value::{ArrayIter, JsonValue, JsonValueRef, JsonValueRegistry, ObjectIter};
 pub use verbs::{address_inference, VERB_TERMS_ADDRESS_INFERENCE};

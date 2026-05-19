@@ -8,44 +8,35 @@
 //! the JSON realization without modification.
 //!
 //! Per UOR's schema-import discipline (per the
-//! [UOR-Framework wiki](https://github.com/UOR-Foundation/UOR-Framework/wiki)
-//! and consistent with the architectural principle that well-known
-//! kinds/types map to existing standards rather than UOR-native
-//! inventions), this module does **not** define a custom photo
-//! schema; it imports `https://schema.org/Photograph` and applies
-//! the schema-validation rules schema.org publishes.
+//! [UOR-Framework wiki](https://github.com/UOR-Foundation/UOR-Framework/wiki)),
+//! this module does **not** define a custom photo schema; it imports
+//! `https://schema.org/Photograph` and applies the schema-validation
+//! rules schema.org publishes.
 //!
-//! ## Authoritative sources
+//! # `no_std` + `no_alloc`
+//!
+//! Schema admission walks the parsed [`crate::json::JsonValue`]'s
+//! tagged bytes via [`crate::json::JsonValueRef`]. There is no
+//! intermediate `serde_json::Value`; no allocator is touched.
+//!
+//! # Authoritative sources
 //!
 //! - **schema.org Photograph type** — <https://schema.org/Photograph>.
-//!   Extends [`ImageObject`](https://schema.org/ImageObject) →
-//!   [`MediaObject`](https://schema.org/MediaObject) →
-//!   [`CreativeWork`](https://schema.org/CreativeWork) →
-//!   [`Thing`](https://schema.org/Thing).
 //! - **JSON-LD 1.1** — W3C REC — <https://www.w3.org/TR/json-ld11/>.
-//! - **RFC 8259** JSON syntax + **RFC 8785** JCS canonical form +
-//!   **UAX #15** NFC canonicalization (inherited from
-//!   [`crate::json`]).
 //!
-//! ## Admission predicate (the schema.org/Photograph contract)
+//! # Admission predicate (the schema.org/Photograph contract)
 //!
 //! The input must be a JSON-LD object satisfying:
 //!
-//! 1. `@context` is `"https://schema.org"` or `"http://schema.org"`
-//!    (schema.org's canonical context IRIs).
-//! 2. `@type` is `"Photograph"` (the schema.org type IRI).
-//! 3. `contentUrl` — string URL, the photograph's content reference
-//!    (schema.org/MediaObject required-for-content property).
-//! 4. `creator` — string (Person name) or object with
-//!    `@type` in {`Person`, `Organization`} and a `name` string.
-
-extern crate alloc;
-
-use alloc::vec::Vec;
+//! 1. `@context` is `"https://schema.org"` or `"http://schema.org"`.
+//! 2. `@type` is `"Photograph"`.
+//! 3. `contentUrl` — string URL.
+//! 4. `creator` — string OR object with `@type` in
+//!    `{Person, Organization}` and a `name` string.
 
 use prism::pipeline::{ShapeViolation, ViolationKind};
 
-use crate::json::JsonValue;
+use crate::json::{JsonValue, JsonValueRef};
 
 // ─── ShapeViolation IRIs ────────────────────────────────────────────────
 
@@ -60,77 +51,80 @@ const PHOTO_SCHEMA_VIOLATION: ShapeViolation = ShapeViolation {
 };
 
 /// schema.org canonical context IRIs (HTTP + HTTPS variants).
-pub const SCHEMA_ORG_CONTEXTS: &[&str] = &["https://schema.org", "http://schema.org"];
+pub const SCHEMA_ORG_CONTEXTS: &[&[u8]] = &[b"https://schema.org", b"http://schema.org"];
 
 /// schema.org Photograph type IRI fragment (used in the `@type` field).
-pub const PHOTOGRAPH_TYPE: &str = "Photograph";
+pub const PHOTOGRAPH_TYPE: &[u8] = b"Photograph";
 
-/// Required properties for a schema.org/Photograph instance:
-/// `@context`, `@type`, `contentUrl`, `creator`. The latter two are
-/// MediaObject + CreativeWork "expected" properties; UOR-ADDR's
-/// schema-pin promotes them to required-for-admission per the
-/// schema-import discipline.
-pub const REQUIRED_PROPERTIES: &[&str] = &["@context", "@type", "contentUrl", "creator"];
+/// Required properties for a schema.org/Photograph instance.
+pub const REQUIRED_PROPERTIES: &[&[u8]] = &[b"@context", b"@type", b"contentUrl", b"creator"];
 
 /// Typed Photo content-addressing input. Wraps a [`JsonValue`] whose
 /// runtime JSON structure conforms to schema.org/Photograph.
-#[derive(Debug, Clone, PartialEq, Eq)]
+#[derive(Clone)]
 pub struct PhotoValue {
     inner: JsonValue,
+}
+
+impl core::fmt::Debug for PhotoValue {
+    fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
+        f.debug_struct("PhotoValue").finish_non_exhaustive()
+    }
 }
 
 impl PhotoValue {
     /// Parse + admit. Accepts raw JSON bytes; admits only inputs
     /// that conform to schema.org/Photograph.
     pub fn parse(raw: &[u8]) -> Result<Self, ShapeViolation> {
-        let value: serde_json::Value =
-            serde_json::from_slice(raw).map_err(|_| PHOTO_SCHEMA_VIOLATION)?;
-        let obj = value.as_object().ok_or(PHOTO_SCHEMA_VIOLATION)?;
+        let inner = JsonValue::parse(raw).map_err(|_| PHOTO_SCHEMA_VIOLATION)?;
+        let root = JsonValueRef::root(&inner);
+        if !root.is_object() {
+            return Err(PHOTO_SCHEMA_VIOLATION);
+        }
 
-        // @context must be schema.org.
-        let context = obj
-            .get("@context")
+        // @context — string in SCHEMA_ORG_CONTEXTS.
+        let context = root
+            .get(b"@context")
             .and_then(|v| v.as_str())
             .ok_or(PHOTO_SCHEMA_VIOLATION)?;
         if !SCHEMA_ORG_CONTEXTS.contains(&context) {
             return Err(PHOTO_SCHEMA_VIOLATION);
         }
 
-        // @type must be Photograph.
-        let ty = obj
-            .get("@type")
+        // @type — "Photograph".
+        let ty = root
+            .get(b"@type")
             .and_then(|v| v.as_str())
             .ok_or(PHOTO_SCHEMA_VIOLATION)?;
         if ty != PHOTOGRAPH_TYPE {
             return Err(PHOTO_SCHEMA_VIOLATION);
         }
 
-        // contentUrl — string (schema.org/MediaObject property).
-        if obj.get("contentUrl").and_then(|v| v.as_str()).is_none() {
+        // contentUrl — string.
+        let _ = root
+            .get(b"contentUrl")
+            .and_then(|v| v.as_str())
+            .ok_or(PHOTO_SCHEMA_VIOLATION)?;
+
+        // creator — string OR object with @type ∈ {Person, Organization} + name.
+        let creator = root.get(b"creator").ok_or(PHOTO_SCHEMA_VIOLATION)?;
+        if creator.as_str().is_some() {
+            // string form — ok.
+        } else if creator.is_object() {
+            let ct = creator
+                .get(b"@type")
+                .and_then(|v| v.as_str())
+                .ok_or(PHOTO_SCHEMA_VIOLATION)?;
+            if ct != b"Person" && ct != b"Organization" {
+                return Err(PHOTO_SCHEMA_VIOLATION);
+            }
+            if creator.get(b"name").and_then(|v| v.as_str()).is_none() {
+                return Err(PHOTO_SCHEMA_VIOLATION);
+            }
+        } else {
             return Err(PHOTO_SCHEMA_VIOLATION);
         }
 
-        // creator — string OR object with @type in {Person, Organization} and name.
-        match obj.get("creator") {
-            Some(serde_json::Value::String(_)) => {}
-            Some(serde_json::Value::Object(creator)) => {
-                let ct = creator
-                    .get("@type")
-                    .and_then(|v| v.as_str())
-                    .ok_or(PHOTO_SCHEMA_VIOLATION)?;
-                if ct != "Person" && ct != "Organization" {
-                    return Err(PHOTO_SCHEMA_VIOLATION);
-                }
-                if creator.get("name").and_then(|v| v.as_str()).is_none() {
-                    return Err(PHOTO_SCHEMA_VIOLATION);
-                }
-            }
-            _ => return Err(PHOTO_SCHEMA_VIOLATION),
-        }
-
-        // All admission predicates satisfied — parse through the JSON
-        // realization to obtain the typed JsonValue.
-        let inner = JsonValue::parse(raw).map_err(|_| PHOTO_SCHEMA_VIOLATION)?;
         Ok(Self { inner })
     }
 
@@ -145,7 +139,7 @@ impl PhotoValue {
 /// The κ-label is byte-identical to [`crate::json::address`]'s
 /// κ-label for the same JSON input — schema admission applies at
 /// parse time per SD2 Grounding, not in the ψ-pipeline.
-pub fn address(raw: &[u8]) -> Result<crate::json::AddressOutcome, AddressFailure> {
+pub fn address(raw: &[u8]) -> Result<crate::AddressOutcome, AddressFailure> {
     PhotoValue::parse(raw).map_err(|_| AddressFailure::SchemaViolation)?;
     crate::json::address(raw).map_err(|e| match e {
         crate::json::AddressFailure::InvalidJson => AddressFailure::SchemaViolation,
@@ -165,10 +159,12 @@ pub enum AddressFailure {
     PipelineFailure,
 }
 
-/// Canonical-bytes accessor. The schema admission applies at
-/// admission; the canonical bytes are JCS-RFC8785 + NFC per the
-/// JSON realization.
-pub fn canonicalize(raw: &[u8]) -> Result<Vec<u8>, AddressFailure> {
+/// **Available only under the `alloc` feature.** Canonical-bytes
+/// accessor — the schema admission applies at ingress; the canonical
+/// bytes are JCS-RFC8785 + NFC per the JSON realization.
+#[cfg(feature = "alloc")]
+pub fn canonicalize(raw: &[u8]) -> Result<alloc::vec::Vec<u8>, AddressFailure> {
+    extern crate alloc;
     PhotoValue::parse(raw).map_err(|_| AddressFailure::SchemaViolation)?;
     crate::json::canonicalize(raw).map_err(|_| AddressFailure::PipelineFailure)
 }
@@ -177,7 +173,6 @@ pub fn canonicalize(raw: &[u8]) -> Result<Vec<u8>, AddressFailure> {
 mod tests {
     use super::*;
 
-    /// A minimal schema.org/Photograph JSON-LD instance.
     const VALID_PHOTO: &[u8] = br#"{
         "@context": "https://schema.org",
         "@type": "Photograph",
@@ -205,7 +200,6 @@ mod tests {
 
     #[test]
     fn admits_http_context() {
-        // schema.org canonical context is also valid in HTTP form.
         let raw = br#"{
             "@context": "http://schema.org",
             "@type": "Photograph",

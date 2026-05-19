@@ -14,8 +14,6 @@
 //! (71 disjoint Sites), every ψ-stage carrier carries 71 isolated
 //! vertices — the same geometry as the JSON realization.
 
-extern crate alloc;
-
 use core::marker::PhantomData;
 
 use prism::pipeline::{
@@ -363,7 +361,7 @@ impl<H: Hasher> KInvariantResolver<H> for AddressKInvariantResolver<H> {
 
         // Dispatch canonicalization through the AddressInput trait —
         // the architectural commitment per ADR-046 and ARCHITECTURE.md.
-        let mut canonical = alloc::vec![0u8; ASN1_VALUE_MAX_BYTES];
+        let mut canonical = [0u8; ASN1_VALUE_MAX_BYTES];
         let canonical_len =
             <Asn1Value as AddressInput>::canonicalize_into(carrier.canonical, &mut canonical)?;
 

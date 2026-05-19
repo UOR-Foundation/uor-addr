@@ -30,7 +30,7 @@ fn minimal_statement(predicate_type: &str, predicate: &str) -> alloc::vec::Vec<u
 #[test]
 fn in_toto_statement_v1_type_iri_is_normative() {
     // The Statement v1 spec pins `_type` to exactly this IRI.
-    assert_eq!(STATEMENT_TYPE_IRI, "https://in-toto.io/Statement/v1");
+    assert_eq!(STATEMENT_TYPE_IRI, b"https://in-toto.io/Statement/v1");
 }
 
 #[test]

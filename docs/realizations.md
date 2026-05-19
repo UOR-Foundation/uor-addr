@@ -38,6 +38,32 @@ typed predicate over the κ-label's digest. The κ-label is unchanged;
 the commitment names a property the κ-label must satisfy (e.g. an
 admission bound on a storage tier).
 
+## Consuming UOR-ADDR from other languages
+
+Two non-Rust distribution targets ship the same κ-label byte-for-byte:
+
+- **C ABI** — [`uor-addr-c`](../crates/uor-addr-c/) emits a
+  `staticlib` + `cdylib` plus a `cbindgen`-generated header at
+  [`include/uor_addr.h`](../crates/uor-addr-c/include/uor_addr.h).
+  Each realization is exposed as one `extern "C"` function
+  (`uor_addr_json`, `uor_addr_sexp`, …). Builds clean on hosted
+  targets and on `thumbv7em-none-eabihf` (Cortex-M4 bare-metal, no
+  allocator) — the base substrate for Python (cffi), Go (cgo),
+  Ruby (FFI), .NET (P/Invoke), and any embedded toolchain.
+
+- **WASM Component Model** — [`uor-addr-wasm`](../crates/uor-addr-wasm/)
+  is a `wit-bindgen`-driven component declared by
+  [`wit/uor-addr.wit`](../crates/uor-addr-wasm/wit/uor-addr.wit).
+  Build with `cargo build -p uor-addr-wasm --target wasm32-wasip2
+  --release`; the emitted `.wasm` is consumable from JS
+  (`jco transpile`), Python (`wasmtime-py`), Go (`wasmtime-go`),
+  .NET (`Wasmtime.NET`), and any language with a wasm runtime.
+
+Every binding produces the same 71-byte ASCII `sha256:<64hex>` κ-label
+the Rust crate produces. The byte-identity guarantee is pinned by
+the CF-C\* / CF-W\* invariant classes in
+[../CONFORMANCE.md](../CONFORMANCE.md).
+
 ## What if my data doesn't fit any of these?
 
 - If your data has a published canonical form not yet realized here
@@ -48,8 +74,9 @@ admission bound on a storage tier).
 - If your data is application-specific without a published canonical
   form, you must either define one (UOR-native, like
   [`codemodule`](../crates/uor-addr/src/codemodule/) does) or
-  serialize through an existing format first
-  (e.g. `serde_json::to_vec(&value).map(uor_addr::json::address)`).
+  serialize through an existing format first (e.g. emit JSON bytes
+  via your serializer of choice and pass them to
+  `uor_addr::json::address`).
 
 ## What guarantees does picking the right realization give me?
 

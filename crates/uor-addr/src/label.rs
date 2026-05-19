@@ -55,6 +55,141 @@ use prism::pipeline::{output_shape, ConstraintRef};
 /// `len("sha256") + 1 + 2 × 32 = 71`.
 pub const ADDRESS_LABEL_BYTES: usize = 71;
 
+/// **The runtime κ-label carrier** — the 71-byte ASCII
+/// `sha256:<64-lowercase-hex>` wire-format byte sequence.
+///
+/// `KappaLabel` carries the κ-derivation output of the ψ-pipeline:
+/// 7 ASCII bytes for `b"sha256:"` plus 64 ASCII bytes for the
+/// lowercase-hex serialization of the SHA-256 σ-projection's
+/// 32-byte digest. The constructor [`KappaLabel::from_bytes`]
+/// validates length (= [`ADDRESS_LABEL_BYTES`]) and ASCII purity;
+/// downstream methods can therefore project to `&str` infallibly.
+///
+/// `Copy + Eq + Hash` — callers may freely thread the κ-label
+/// through hash maps, identity comparisons, and pass-by-value
+/// contexts without any allocator. `Deref<Target = str>` provides
+/// the usual `&str` methods (`starts_with`, indexing, `len`, etc.)
+/// without going through an intermediate carrier.
+#[derive(Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
+pub struct KappaLabel([u8; ADDRESS_LABEL_BYTES]);
+
+impl KappaLabel {
+    /// Build a `KappaLabel` from a 71-byte ASCII slice. Returns
+    /// `LabelDecodeError` if `bytes.len() != ADDRESS_LABEL_BYTES` or
+    /// `bytes` contains a non-ASCII byte.
+    ///
+    /// The ψ-pipeline emits ASCII-only bytes by construction (the
+    /// algorithm prefix `b"sha256:"` plus lowercase-hex from
+    /// `crate::canonical::hex::encode_lower_into`). Defense-in-depth:
+    /// the constructor still validates so a substrate-corrupted byte
+    /// sequence cannot smuggle a non-ASCII `KappaLabel` into the
+    /// typed surface.
+    ///
+    /// # Errors
+    ///
+    /// - [`LabelDecodeError::WrongLength`] — `bytes.len() != 71`.
+    /// - [`LabelDecodeError::NonAscii`] — `bytes` contains a byte ≥ 0x80.
+    pub fn from_bytes(bytes: &[u8]) -> Result<Self, LabelDecodeError> {
+        if bytes.len() != ADDRESS_LABEL_BYTES {
+            return Err(LabelDecodeError::WrongLength);
+        }
+        let mut buf = [0u8; ADDRESS_LABEL_BYTES];
+        for (dst, &src) in buf.iter_mut().zip(bytes.iter()) {
+            if !src.is_ascii() {
+                return Err(LabelDecodeError::NonAscii);
+            }
+            *dst = src;
+        }
+        Ok(Self(buf))
+    }
+
+    /// Borrow the κ-label as a 71-byte array.
+    #[must_use]
+    pub fn as_array(&self) -> &[u8; ADDRESS_LABEL_BYTES] {
+        &self.0
+    }
+
+    /// Borrow the κ-label as a `&str`. Infallible — the carrier is
+    /// ASCII by construction (validated at [`KappaLabel::from_bytes`]).
+    #[must_use]
+    pub fn as_str(&self) -> &str {
+        // The constructor validates ASCII purity; `from_utf8` is
+        // therefore total over `self.0` and the `expect` is
+        // unreachable.
+        core::str::from_utf8(&self.0).expect("KappaLabel is ASCII by construction")
+    }
+
+    /// Borrow the κ-label as a byte slice.
+    #[must_use]
+    pub fn as_bytes(&self) -> &[u8] {
+        &self.0
+    }
+}
+
+impl core::ops::Deref for KappaLabel {
+    type Target = str;
+    fn deref(&self) -> &str {
+        self.as_str()
+    }
+}
+
+impl AsRef<str> for KappaLabel {
+    fn as_ref(&self) -> &str {
+        self.as_str()
+    }
+}
+
+impl AsRef<[u8]> for KappaLabel {
+    fn as_ref(&self) -> &[u8] {
+        &self.0
+    }
+}
+
+impl core::fmt::Display for KappaLabel {
+    fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
+        f.write_str(self.as_str())
+    }
+}
+
+impl core::fmt::Debug for KappaLabel {
+    fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
+        f.debug_tuple("KappaLabel").field(&self.as_str()).finish()
+    }
+}
+
+impl PartialEq<str> for KappaLabel {
+    fn eq(&self, other: &str) -> bool {
+        self.as_str() == other
+    }
+}
+
+impl PartialEq<&str> for KappaLabel {
+    fn eq(&self, other: &&str) -> bool {
+        self.as_str() == *other
+    }
+}
+
+impl PartialEq<KappaLabel> for str {
+    fn eq(&self, other: &KappaLabel) -> bool {
+        self == other.as_str()
+    }
+}
+
+impl PartialEq<KappaLabel> for &str {
+    fn eq(&self, other: &KappaLabel) -> bool {
+        *self == other.as_str()
+    }
+}
+
+/// Decoding failures from [`KappaLabel::from_bytes`].
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum LabelDecodeError {
+    /// `bytes.len() != ADDRESS_LABEL_BYTES`.
+    WrongLength,
+    /// `bytes` contains a non-ASCII byte (≥ 0x80).
+    NonAscii,
+}
+
 output_shape! {
     pub struct AddressLabel;
     impl ConstrainedTypeShape for AddressLabel {
@@ -110,9 +245,7 @@ output_shape! {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use alloc::vec::Vec;
     use prism::pipeline::ConstrainedTypeShape;
-    extern crate alloc;
 
     #[test]
     fn site_count_matches_wire_format_byte_width_for_sha256() {
@@ -134,16 +267,47 @@ mod tests {
     fn carries_seventy_one_disjoint_site_constraints() {
         let cs = <AddressLabel as ConstrainedTypeShape>::CONSTRAINTS;
         assert_eq!(cs.len(), 71);
-        let positions: Vec<u32> = cs
-            .iter()
-            .filter_map(|c| match c {
-                ConstraintRef::Site { position } => Some(*position),
-                _ => None,
-            })
-            .collect();
-        assert_eq!(positions.len(), 71);
-        for (i, &p) in positions.iter().enumerate() {
-            assert_eq!(p, i as u32);
+        for (i, c) in cs.iter().enumerate() {
+            match c {
+                ConstraintRef::Site { position } => assert_eq!(*position, i as u32),
+                _ => panic!("expected Site constraint at index {i}"),
+            }
         }
+    }
+
+    #[test]
+    fn kappa_label_from_bytes_round_trips_valid_input() {
+        let bytes = b"sha256:e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855";
+        let label = KappaLabel::from_bytes(bytes).expect("valid");
+        assert_eq!(label.as_str(), core::str::from_utf8(bytes).unwrap());
+        assert_eq!(label.as_bytes(), bytes);
+        assert_eq!(label.as_array(), bytes);
+        // Deref<Target=str> brings str methods into scope.
+        assert!(label.starts_with("sha256:"));
+        assert_eq!(label.len(), ADDRESS_LABEL_BYTES);
+    }
+
+    #[test]
+    fn kappa_label_rejects_wrong_length() {
+        let err = KappaLabel::from_bytes(b"too short").expect_err("rejects");
+        assert_eq!(err, LabelDecodeError::WrongLength);
+    }
+
+    #[test]
+    fn kappa_label_rejects_non_ascii_byte() {
+        let mut bytes = [b'a'; ADDRESS_LABEL_BYTES];
+        bytes[3] = 0x80;
+        let err = KappaLabel::from_bytes(&bytes).expect_err("rejects");
+        assert_eq!(err, LabelDecodeError::NonAscii);
+    }
+
+    #[test]
+    fn kappa_label_equality_against_str() {
+        let bytes = b"sha256:e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855";
+        let label = KappaLabel::from_bytes(bytes).expect("valid");
+        let s: &str = core::str::from_utf8(bytes).unwrap();
+        assert_eq!(label, *s);
+        assert_eq!(label, s);
+        assert_eq!(s, label);
     }
 }

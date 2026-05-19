@@ -44,7 +44,7 @@ common doc-rot.
 
 ### 2.2 Typed-surface invariants (axis 3)
 
-`cargo test --workspace` runs **324 tests across all realizations**.
+`cargo test --workspace` runs **361 tests across all realizations**, plus the 19,074-vector × 5-identity UCD 15.1.0 `NormalizationTest.txt` suite exercising the in-crate NFC normalizer.
 Each shipped realization carries a dedicated published-spec test
 vector suite:
 

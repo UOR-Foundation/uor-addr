@@ -210,6 +210,41 @@ on its own. The Lean library depends only on the
 | CL-CT02  | `UorAddr.TypedInput.depth_bound_is_strict`                                        | `UorAddr/TypedInput.lean`                    | Admissibility iff `depth ≤ MAX_JSON_DEPTH` (at-bound accepted; over-bound rejected) |
 | CL-CT03  | `UorAddr.TypedInput.empty_commitment_is_the_cost_surface`                         | `UorAddr/TypedInput.lean`                    | The PrismModel's `C` is bound to `EmptyCommitment` (ADR-048)    |
 
+### CB — Build class — `no_std` + `no_alloc` substrate
+
+Verified by **out-of-tree `cargo build` invocations** under specific
+target / feature combinations. The contract is that every published
+crate (`uor-addr`, `uor-addr-c`, `uor-addr-wasm`) is `no_std` and
+allocator-free by default; the `alloc` and `std` features layer
+ergonomic convenience wrappers on top of the no_alloc core without
+changing the κ-derivation byte path.
+
+| ID       | Invariant                                                                                       | Pinned by                                                              |
+|----------|-------------------------------------------------------------------------------------------------|------------------------------------------------------------------------|
+| CB-N01   | `cargo build -p uor-addr --no-default-features --target thumbv7em-none-eabihf` builds clean    | `just embedded` (Cortex-M4 bare-metal no_std + no_alloc proof)         |
+| CB-N02   | `cargo build -p uor-addr-c --no-default-features --target thumbv7em-none-eabihf` builds clean   | `just embedded` (C ABI staticlib on bare-metal)                        |
+| CB-A01   | Runtime `[dependencies]` of `uor-addr` does not include `serde_json` or `unicode-normalization`| Cargo.toml inspection at the merge gate                                |
+| CB-A02   | NFC normalization is provided by the in-crate `uor_addr::canonical::nfc` module                | UCD `NormalizationTest.txt` 19,074-vector × 5-identity suite passes    |
+| CB-A03   | The `alloc` feature is purely additive (Vec-returning convenience APIs); no κ-label depends on it | `tests::byte_identity` passes with both `--no-default-features` and `--features alloc` |
+| CB-A04   | The `std` feature is purely additive (re-exports + std-host conveniences); no κ-label depends on it | Cross-feature κ-label byte identity in `tests::all_realizations`     |
+
+### CF — FFI class — language-binding byte identity
+
+Verified by **building each FFI artifact and asserting κ-label byte
+identity against the pure-Rust path**. The contract is that every FFI
+binding produces the same 71-byte κ-label byte-for-byte as
+`uor_addr::<realization>::address`.
+
+| ID       | Invariant                                                                                       | Pinned by                                                              |
+|----------|-------------------------------------------------------------------------------------------------|------------------------------------------------------------------------|
+| CF-C01   | `uor-addr-c` exposes one `extern "C"` entry per realization (9 functions total)                | `crates/uor-addr-c/src/lib.rs` — one `ffi_address_fn!` invocation per realization |
+| CF-C02   | `uor-addr-c` builds cleanly on `thumbv7em-none-eabihf` (Cortex-M4 bare-metal, no allocator)    | `just embedded`                                                        |
+| CF-C03   | `uor-addr-c` builds cleanly on hosted x86_64 (`libuor_addr_c.a` + `libuor_addr_c.so`)          | `just build-release`                                                   |
+| CF-C04   | A C header is auto-generated at `crates/uor-addr-c/include/uor_addr.h` via `cbindgen`           | `build.rs` regenerates on `src/lib.rs` change                          |
+| CF-W01   | `uor-addr-wasm` exposes one `*-address` function per realization via WIT (9 functions total)   | `crates/uor-addr-wasm/wit/uor-addr.wit`                                |
+| CF-W02   | `uor-addr-wasm` builds cleanly on `wasm32-wasip2` (WASI Preview 2 + Component Model)            | `just wasm`                                                            |
+| CF-W03   | The generated `.wasm` artifact is consumable from JS / Python / Go / .NET / Ruby via wasmtime  | `cargo build --target wasm32-wasip2 --release` emits `uor_addr_wasm.wasm` |
+
 ### CL-R — Replay class — TC-05 round-trip via `uor-prism-verify`
 
 Verified by **runtime round-trip tests** at

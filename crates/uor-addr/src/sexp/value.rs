@@ -2,25 +2,20 @@
 //! ADR-027 + ARCHITECTURE.md "Format-specific realizations" §
 //! `uor-addr-sexp`).
 //!
-//! The PrismModel's `Input` for the S-expression realization is
-//! [`SExprValue`], a typed carrier whose runtime bytes are a
-//! structurally-tagged serialization of a canonical S-expression of
-//! bounded depth and width. The three structural cases — Atom, Cons,
-//! Nil — each map to a known tag in the byte layout; recursive
-//! children live inside the same flat buffer.
+//! Runtime form is a structurally-tagged byte serialization of a
+//! canonical S-expression, stored in a fixed-size stack buffer of
+//! [`SEXPR_VALUE_MAX_BYTES`] bytes. The three structural cases —
+//! Atom, Cons, Nil — each map to a known tag in the byte layout;
+//! recursive children live inside the same flat buffer.
 //!
-//! The host-boundary parser ([`SExprValue::parse`]) is the **only**
-//! σ-projection that runs before construction. It validates that the
-//! parsed value satisfies the typed-input bounds declared in
-//! [`crate::sexp::shapes::bounds`]; failure surfaces as a
-//! [`prism::pipeline::ShapeViolation`] with a constraint IRI keyed to
-//! the violated bound.
+//! # `no_std` + `no_alloc`
 //!
-//! Canonicalization happens **inside the typed-iso surface** — the
-//! ψ_9 resolver invokes the canonicalizer over the tagged bytes,
-//! producing Rivest's canonical S-expression form
-//! (`<n>:<bytes>` for atoms, `(car cdr)` for cons, `()` for nil)
-//! that feeds the canonical hash axis.
+//! [`SExprValue::parse`] is a single-pass tokenizer over `&[u8]` that
+//! writes tagged bytes directly into the fixed buffer; there is no
+//! intermediate AST. [`canonicalize_into_slice`] walks the tagged
+//! bytes and emits Rivest canonical bytes (`<n>:<bytes>` for atoms,
+//! `(s_1 s_2 ... s_n)` for proper lists, `()` for nil) directly into
+//! the caller's `out` slice. No allocator.
 //!
 //! # Tagged byte layout
 //!
@@ -31,24 +26,17 @@
 //!   Tag = 0x02 Cons      — SExprValue (car) || SExprValue (cdr)
 //! ```
 //!
-//! All multi-byte length fields are big-endian. Total serialization
-//! size is bounded by [`SEXPR_VALUE_MAX_BYTES`].
+//! All multi-byte length fields are big-endian.
 //!
 //! # Input syntax
 //!
 //! [`SExprValue::parse`] admits two equivalent surface syntaxes:
 //!
-//! - **Canonical (Rivest)** — `<n>:<bytes>` for atoms,
-//!   `(<canonical> <canonical>)` for cons, `()` for nil. Round-trip
-//!   property: [`canonicalize`] is idempotent on canonical input.
+//! - **Canonical (Rivest 1997 §4.3)** — `<n>:<bytes>` for atoms,
+//!   `(<canonical> <canonical>)` for cons, `()` for nil.
 //! - **Token list** — whitespace-separated tokens between
-//!   parentheses, with each token interpreted as an atom whose bytes
-//!   are the token's UTF-8 representation. The list `(a b c)`
-//!   becomes `Cons(Atom("a"), Cons(Atom("b"), Cons(Atom("c"), Nil)))`.
-
-extern crate alloc;
-
-use alloc::vec::Vec;
+//!   parentheses, each token interpreted as an atom whose bytes are
+//!   the token's UTF-8 representation.
 
 use prism::pipeline::{
     register_shape, ConstrainedTypeShape, ConstraintRef, IntoBindingValue, ShapeViolation,
@@ -127,27 +115,38 @@ const CORRUPT_TAGGED_BYTES: ShapeViolation = ShapeViolation {
     kind: ViolationKind::ValueCheck,
 };
 
-// ─── Surface AST — only used by parser internals ───────────────────────
-
-enum Surface {
-    Atom(Vec<u8>),
-    Cons(alloc::boxed::Box<Surface>, alloc::boxed::Box<Surface>),
-    Nil,
-}
-
 // ─── SExprValue — the typed input carrier ────────────────────────────────
 
-/// Typed S-expression input shape.
-#[derive(Debug, Clone, PartialEq, Eq)]
+/// Typed S-expression input shape. Runtime bytes are the
+/// structurally-tagged serialization documented in the module
+/// header, stored in a fixed-size stack buffer.
+#[derive(Clone)]
 pub struct SExprValue {
-    pub(crate) bytes: Vec<u8>,
+    pub(crate) bytes: [u8; SEXPR_VALUE_MAX_BYTES],
+    pub(crate) len: u16,
 }
+
+impl core::fmt::Debug for SExprValue {
+    fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
+        f.debug_struct("SExprValue")
+            .field("len", &self.len)
+            .finish_non_exhaustive()
+    }
+}
+
+impl PartialEq for SExprValue {
+    fn eq(&self, other: &Self) -> bool {
+        self.tagged_bytes() == other.tagged_bytes()
+    }
+}
+
+impl Eq for SExprValue {}
 
 impl SExprValue {
     /// Parse raw S-expression bytes into a typed `SExprValue`.
     ///
-    /// Accepts both canonical Rivest form and the token-list sugar
-    /// (see module-level docs).
+    /// Accepts both Rivest canonical form (`<n>:<bytes>`) and the
+    /// token-list sugar (whitespace-separated tokens between parens).
     ///
     /// # Errors
     ///
@@ -158,43 +157,87 @@ impl SExprValue {
     /// - `serializedWidth` — the tagged byte serialization exceeds
     ///   [`SEXPR_VALUE_MAX_BYTES`].
     pub fn parse(raw: &[u8]) -> Result<Self, ShapeViolation> {
-        let text = core::str::from_utf8(raw).map_err(|_| INVALID_SEXPR_VIOLATION)?;
-        let mut parser = Parser::new(text);
-        let surface = parser.parse_expr(0)?;
-        parser.skip_whitespace();
-        if !parser.is_eof() {
+        // UTF-8 validation up front (we then iterate by byte; the
+        // ASCII whitespace + paren handling does not need code-point
+        // iteration).
+        core::str::from_utf8(raw).map_err(|_| INVALID_SEXPR_VIOLATION)?;
+        let mut value = Self {
+            bytes: [0u8; SEXPR_VALUE_MAX_BYTES],
+            len: 0,
+        };
+        let mut p = Parser::new(raw);
+        p.skip_ws();
+        parse_expr(&mut p, &mut value, 0)?;
+        p.skip_ws();
+        if !p.is_eof() {
             return Err(INVALID_SEXPR_VIOLATION);
         }
-        let mut bytes = Vec::new();
-        write_tagged(&surface, 0, &mut bytes)?;
-        if bytes.len() > SEXPR_VALUE_MAX_BYTES {
-            return Err(TOTAL_WIDTH_VIOLATION);
-        }
-        Ok(Self { bytes })
+        Ok(value)
     }
 
     /// Borrow the structurally-tagged byte serialization.
     #[must_use]
     pub fn tagged_bytes(&self) -> &[u8] {
-        &self.bytes
+        &self.bytes[..self.len as usize]
+    }
+
+    fn push_byte(&mut self, b: u8) -> Result<(), ShapeViolation> {
+        let pos = self.len as usize;
+        if pos >= SEXPR_VALUE_MAX_BYTES {
+            return Err(TOTAL_WIDTH_VIOLATION);
+        }
+        self.bytes[pos] = b;
+        self.len += 1;
+        Ok(())
+    }
+
+    fn push_u16_be(&mut self, v: u16) -> Result<(), ShapeViolation> {
+        let pos = self.len as usize;
+        if pos + 2 > SEXPR_VALUE_MAX_BYTES {
+            return Err(TOTAL_WIDTH_VIOLATION);
+        }
+        let bytes = v.to_be_bytes();
+        self.bytes[pos] = bytes[0];
+        self.bytes[pos + 1] = bytes[1];
+        self.len += 2;
+        Ok(())
+    }
+
+    fn extend(&mut self, data: &[u8]) -> Result<(), ShapeViolation> {
+        let pos = self.len as usize;
+        if pos + data.len() > SEXPR_VALUE_MAX_BYTES {
+            return Err(TOTAL_WIDTH_VIOLATION);
+        }
+        self.bytes[pos..pos + data.len()].copy_from_slice(data);
+        self.len += data.len() as u16;
+        Ok(())
     }
 }
 
-/// Parse raw S-expression bytes and emit the canonical S-expression
-/// bytes — the same bytes ψ_9 hashes inside the typed-iso surface.
+// ─── Convenience alloc surface (feature = "alloc") ──────────────────────
+
+/// Parse raw S-expression bytes and emit Rivest canonical
+/// S-expression bytes — the same bytes ψ_9 hashes inside the
+/// typed-iso surface.
+///
+/// **Available only under the `alloc` feature.** The no_alloc
+/// equivalent is [`canonicalize_into_slice`] which writes into a
+/// caller-supplied `&mut [u8]`.
 ///
 /// # Errors
 ///
-/// Surfaces any [`ShapeViolation`] [`SExprValue::parse`] would emit
-/// for the same input.
-pub fn canonicalize(raw: &[u8]) -> Result<Vec<u8>, ShapeViolation> {
+/// Surfaces any [`ShapeViolation`] [`SExprValue::parse`] would emit.
+#[cfg(feature = "alloc")]
+pub fn canonicalize(raw: &[u8]) -> Result<alloc::vec::Vec<u8>, ShapeViolation> {
+    extern crate alloc;
     let value = SExprValue::parse(raw)?;
-    let mut canonical = Vec::with_capacity(value.bytes.len());
-    canonicalize_into(&value.bytes, &mut canonical)?;
-    Ok(canonical)
+    let mut out = alloc::vec![0u8; SEXPR_VALUE_MAX_BYTES * 2];
+    let n = canonicalize_into_slice(value.tagged_bytes(), &mut out)?;
+    out.truncate(n);
+    Ok(out)
 }
 
-// ─── Surface-syntax parser (raw bytes → Surface tree) ────────────────────
+// ─── Streaming surface-syntax tokenizer ─────────────────────────────────
 
 struct Parser<'a> {
     src: &'a [u8],
@@ -202,242 +245,287 @@ struct Parser<'a> {
 }
 
 impl<'a> Parser<'a> {
-    fn new(text: &'a str) -> Self {
-        Self {
-            src: text.as_bytes(),
-            pos: 0,
-        }
-    }
-
-    fn parse_expr(&mut self, depth: usize) -> Result<Surface, ShapeViolation> {
-        if depth > MAX_SEXPR_DEPTH {
-            return Err(DEPTH_BOUND_VIOLATION);
-        }
-        self.skip_whitespace();
-        if self.is_eof() {
-            return Err(INVALID_SEXPR_VIOLATION);
-        }
-        let b = self.src[self.pos];
-        if b == b'(' {
-            self.pos += 1;
-            self.parse_list_body(depth + 1)
-        } else if b.is_ascii_digit() && self.peek_canonical_atom() {
-            self.parse_canonical_atom()
-        } else {
-            self.parse_token_atom()
-        }
-    }
-
-    fn peek_canonical_atom(&self) -> bool {
-        // Look ahead: digits followed by ':'
-        let mut i = self.pos;
-        while i < self.src.len() && self.src[i].is_ascii_digit() {
-            i += 1;
-        }
-        i < self.src.len() && self.src[i] == b':' && i > self.pos
-    }
-
-    fn parse_canonical_atom(&mut self) -> Result<Surface, ShapeViolation> {
-        let start = self.pos;
-        while self.pos < self.src.len() && self.src[self.pos].is_ascii_digit() {
-            self.pos += 1;
-        }
-        let len_str = core::str::from_utf8(&self.src[start..self.pos])
-            .map_err(|_| INVALID_SEXPR_VIOLATION)?;
-        let len: usize = len_str.parse().map_err(|_| INVALID_SEXPR_VIOLATION)?;
-        if self.pos >= self.src.len() || self.src[self.pos] != b':' {
-            return Err(INVALID_SEXPR_VIOLATION);
-        }
-        self.pos += 1; // consume ':'
-        if len > MAX_SEXPR_ATOM_BYTES {
-            return Err(ATOM_WIDTH_VIOLATION);
-        }
-        if self.pos + len > self.src.len() {
-            return Err(INVALID_SEXPR_VIOLATION);
-        }
-        let bytes = self.src[self.pos..self.pos + len].to_vec();
-        self.pos += len;
-        Ok(Surface::Atom(bytes))
-    }
-
-    fn parse_token_atom(&mut self) -> Result<Surface, ShapeViolation> {
-        let start = self.pos;
-        while self.pos < self.src.len() {
-            let b = self.src[self.pos];
-            if b.is_ascii_whitespace() || b == b'(' || b == b')' {
-                break;
-            }
-            self.pos += 1;
-        }
-        let bytes = self.src[start..self.pos].to_vec();
-        if bytes.is_empty() {
-            return Err(INVALID_SEXPR_VIOLATION);
-        }
-        if bytes.len() > MAX_SEXPR_ATOM_BYTES {
-            return Err(ATOM_WIDTH_VIOLATION);
-        }
-        Ok(Surface::Atom(bytes))
-    }
-
-    fn parse_list_body(&mut self, depth: usize) -> Result<Surface, ShapeViolation> {
-        // Collect children until ')'.
-        let mut children: Vec<Surface> = Vec::new();
-        loop {
-            self.skip_whitespace();
-            if self.is_eof() {
-                return Err(INVALID_SEXPR_VIOLATION);
-            }
-            if self.src[self.pos] == b')' {
-                self.pos += 1;
-                break;
-            }
-            if children.len() >= MAX_SEXPR_ELEMENTS {
-                return Err(ELEMENTS_BOUND_VIOLATION);
-            }
-            children.push(self.parse_expr(depth)?);
-        }
-        // Build nested cons cells right-to-left.
-        let mut acc = Surface::Nil;
-        for child in children.into_iter().rev() {
-            acc = Surface::Cons(alloc::boxed::Box::new(child), alloc::boxed::Box::new(acc));
-        }
-        Ok(acc)
-    }
-
-    fn skip_whitespace(&mut self) {
-        while self.pos < self.src.len() && self.src[self.pos].is_ascii_whitespace() {
-            self.pos += 1;
-        }
+    fn new(src: &'a [u8]) -> Self {
+        Self { src, pos: 0 }
     }
 
     fn is_eof(&self) -> bool {
         self.pos >= self.src.len()
     }
-}
 
-// ─── Tagged-format writer (Surface tree → tagged bytes) ─────────────────
-
-fn write_tagged(value: &Surface, depth: usize, out: &mut Vec<u8>) -> Result<(), ShapeViolation> {
-    if depth > MAX_SEXPR_DEPTH {
-        return Err(DEPTH_BOUND_VIOLATION);
+    fn peek(&self) -> Result<u8, ShapeViolation> {
+        if self.is_eof() {
+            return Err(INVALID_SEXPR_VIOLATION);
+        }
+        Ok(self.src[self.pos])
     }
-    match value {
-        Surface::Nil => {
-            out.push(TAG_NIL);
-        }
-        Surface::Atom(bytes) => {
-            if bytes.len() > MAX_SEXPR_ATOM_BYTES {
-                return Err(ATOM_WIDTH_VIOLATION);
-            }
-            out.push(TAG_ATOM);
-            out.extend_from_slice(&(bytes.len() as u16).to_be_bytes());
-            out.extend_from_slice(bytes);
-        }
-        Surface::Cons(car, cdr) => {
-            out.push(TAG_CONS);
-            write_tagged(car, depth + 1, out)?;
-            write_tagged(cdr, depth + 1, out)?;
+
+    fn skip_ws(&mut self) {
+        while self.pos < self.src.len() && self.src[self.pos].is_ascii_whitespace() {
+            self.pos += 1;
         }
     }
-    Ok(())
 }
 
-// ─── Tagged-format reader (tagged bytes → canonical bytes) ──────────────
-
-/// Decode tagged bytes and emit Rivest canonical S-expression bytes
-/// (`<n>:<bytes>` for atoms, `(car cdr)` for cons, `()` for nil).
-/// Admitted by ADR-046's resolver-body iterative-resolution
-/// discipline inside the ψ_9 resolver body.
-pub(crate) fn canonicalize_into(tagged: &[u8], out: &mut Vec<u8>) -> Result<(), ShapeViolation> {
-    let mut pos = 0;
-    out.clear();
-    write_canonical(tagged, &mut pos, 0, out)?;
-    if pos != tagged.len() {
-        return Err(CORRUPT_TAGGED_BYTES);
-    }
-    Ok(())
-}
-
-fn write_canonical(
-    buf: &[u8],
-    pos: &mut usize,
+fn parse_expr(
+    p: &mut Parser<'_>,
+    out: &mut SExprValue,
     depth: usize,
-    out: &mut Vec<u8>,
 ) -> Result<(), ShapeViolation> {
     if depth > MAX_SEXPR_DEPTH {
         return Err(DEPTH_BOUND_VIOLATION);
     }
-    let tag = take_byte(buf, pos)?;
+    p.skip_ws();
+    let b = p.peek()?;
+    if b == b'(' {
+        p.pos += 1;
+        parse_list(p, out, depth + 1)
+    } else if b.is_ascii_digit() && peek_canonical_atom(p) {
+        parse_canonical_atom(p, out)
+    } else {
+        parse_token_atom(p, out)
+    }
+}
+
+fn peek_canonical_atom(p: &Parser<'_>) -> bool {
+    let mut i = p.pos;
+    while i < p.src.len() && p.src[i].is_ascii_digit() {
+        i += 1;
+    }
+    i < p.src.len() && p.src[i] == b':' && i > p.pos
+}
+
+fn parse_canonical_atom(p: &mut Parser<'_>, out: &mut SExprValue) -> Result<(), ShapeViolation> {
+    let start = p.pos;
+    while p.pos < p.src.len() && p.src[p.pos].is_ascii_digit() {
+        p.pos += 1;
+    }
+    let len_str =
+        core::str::from_utf8(&p.src[start..p.pos]).map_err(|_| INVALID_SEXPR_VIOLATION)?;
+    let len: usize = len_str.parse().map_err(|_| INVALID_SEXPR_VIOLATION)?;
+    if p.pos >= p.src.len() || p.src[p.pos] != b':' {
+        return Err(INVALID_SEXPR_VIOLATION);
+    }
+    p.pos += 1; // consume ':'
+    if len > MAX_SEXPR_ATOM_BYTES {
+        return Err(ATOM_WIDTH_VIOLATION);
+    }
+    if p.pos + len > p.src.len() {
+        return Err(INVALID_SEXPR_VIOLATION);
+    }
+    let bytes = &p.src[p.pos..p.pos + len];
+    p.pos += len;
+    out.push_byte(TAG_ATOM)?;
+    out.push_u16_be(len as u16)?;
+    out.extend(bytes)
+}
+
+fn parse_token_atom(p: &mut Parser<'_>, out: &mut SExprValue) -> Result<(), ShapeViolation> {
+    let start = p.pos;
+    while p.pos < p.src.len() {
+        let b = p.src[p.pos];
+        if b.is_ascii_whitespace() || b == b'(' || b == b')' {
+            break;
+        }
+        p.pos += 1;
+    }
+    let bytes = &p.src[start..p.pos];
+    if bytes.is_empty() {
+        return Err(INVALID_SEXPR_VIOLATION);
+    }
+    if bytes.len() > MAX_SEXPR_ATOM_BYTES {
+        return Err(ATOM_WIDTH_VIOLATION);
+    }
+    out.push_byte(TAG_ATOM)?;
+    out.push_u16_be(bytes.len() as u16)?;
+    out.extend(bytes)
+}
+
+/// Parse a list body — emit a chain of `TAG_CONS car cdr` then
+/// `TAG_NIL` for the proper-list tail. Walks children one at a time
+/// without buffering, by reserving each Cons's car position before
+/// recursing and stitching the cdr chain post-recursion.
+///
+/// The streaming approach: emit a TAG_CONS for each element seen,
+/// recurse on the element (which writes the car), then continue with
+/// the next element or terminate with TAG_NIL. Since the tagged form
+/// for a list `(a b c)` is `CONS a CONS b CONS c NIL`, the emit order
+/// matches the parse order — pure forward streaming.
+fn parse_list(
+    p: &mut Parser<'_>,
+    out: &mut SExprValue,
+    depth: usize,
+) -> Result<(), ShapeViolation> {
+    let mut element_count: u32 = 0;
+    loop {
+        p.skip_ws();
+        if p.is_eof() {
+            return Err(INVALID_SEXPR_VIOLATION);
+        }
+        if p.src[p.pos] == b')' {
+            p.pos += 1;
+            // Close the cons chain.
+            out.push_byte(TAG_NIL)?;
+            return Ok(());
+        }
+        if element_count as usize >= MAX_SEXPR_ELEMENTS {
+            return Err(ELEMENTS_BOUND_VIOLATION);
+        }
+        out.push_byte(TAG_CONS)?;
+        parse_expr(p, out, depth)?;
+        element_count += 1;
+    }
+}
+
+// ─── Streaming Rivest canonicalizer (tagged bytes → canonical bytes) ────
+
+/// Decode tagged bytes and emit Rivest canonical S-expression bytes
+/// into `out`. Returns the number of bytes written. The ψ_9 resolver
+/// invokes this inside its resolver body per ADR-046's
+/// iterative-resolution discipline.
+///
+/// # Errors
+///
+/// - [`CORRUPT_TAGGED_BYTES`] — the tagged buffer is truncated or
+///   carries an unknown structural tag.
+/// - [`TOTAL_WIDTH_VIOLATION`] — the canonical-form bytes exceed
+///   `out.len()`.
+pub fn canonicalize_into_slice(tagged: &[u8], out: &mut [u8]) -> Result<usize, ShapeViolation> {
+    let mut writer = SliceWriter::new(out);
+    let mut pos = 0;
+    emit_value(tagged, &mut pos, &mut writer, 0)?;
+    if pos != tagged.len() {
+        return Err(CORRUPT_TAGGED_BYTES);
+    }
+    Ok(writer.pos)
+}
+
+struct SliceWriter<'a> {
+    out: &'a mut [u8],
+    pos: usize,
+}
+
+impl<'a> SliceWriter<'a> {
+    fn new(out: &'a mut [u8]) -> Self {
+        Self { out, pos: 0 }
+    }
+
+    fn write(&mut self, bytes: &[u8]) -> Result<(), ShapeViolation> {
+        if self.pos + bytes.len() > self.out.len() {
+            return Err(TOTAL_WIDTH_VIOLATION);
+        }
+        self.out[self.pos..self.pos + bytes.len()].copy_from_slice(bytes);
+        self.pos += bytes.len();
+        Ok(())
+    }
+
+    fn write_byte(&mut self, b: u8) -> Result<(), ShapeViolation> {
+        self.write(&[b])
+    }
+}
+
+fn read_byte(tagged: &[u8], pos: &mut usize) -> Result<u8, ShapeViolation> {
+    if *pos >= tagged.len() {
+        return Err(CORRUPT_TAGGED_BYTES);
+    }
+    let b = tagged[*pos];
+    *pos += 1;
+    Ok(b)
+}
+
+fn read_u16_be(tagged: &[u8], pos: &mut usize) -> Result<u16, ShapeViolation> {
+    if *pos + 2 > tagged.len() {
+        return Err(CORRUPT_TAGGED_BYTES);
+    }
+    let v = u16::from_be_bytes([tagged[*pos], tagged[*pos + 1]]);
+    *pos += 2;
+    Ok(v)
+}
+
+fn read_slice<'a>(
+    tagged: &'a [u8],
+    pos: &mut usize,
+    len: usize,
+) -> Result<&'a [u8], ShapeViolation> {
+    if *pos + len > tagged.len() {
+        return Err(CORRUPT_TAGGED_BYTES);
+    }
+    let s = &tagged[*pos..*pos + len];
+    *pos += len;
+    Ok(s)
+}
+
+fn emit_value(
+    tagged: &[u8],
+    pos: &mut usize,
+    w: &mut SliceWriter<'_>,
+    depth: usize,
+) -> Result<(), ShapeViolation> {
+    if depth > MAX_SEXPR_DEPTH {
+        return Err(DEPTH_BOUND_VIOLATION);
+    }
+    let tag = read_byte(tagged, pos)?;
     match tag {
-        TAG_NIL => {
-            out.extend_from_slice(b"()");
-            Ok(())
-        }
+        TAG_NIL => w.write(b"()"),
         TAG_ATOM => {
-            let len = take_u16(buf, pos)? as usize;
-            let bytes = take_slice(buf, pos, len)?;
-            let mut len_buf = itoa_buf();
-            let len_str = format_usize_into(&mut len_buf, len);
-            out.extend_from_slice(len_str);
-            out.push(b':');
-            out.extend_from_slice(bytes);
-            Ok(())
+            let len = read_u16_be(tagged, pos)? as usize;
+            let bytes = read_slice(tagged, pos, len)?;
+            emit_atom(len, bytes, w)
         }
-        TAG_CONS => {
-            // Rivest canonical form for lists (Sexp.txt §4.3): flat
-            // form `(s_1 s_2 ... s_n)`, not nested `(s_1 (s_2 (s_3 ())))`.
-            // Walk the cons chain: open paren, write `car`, walk the
-            // cdr chain — emitting space + cdr.car for each Cons,
-            // stopping at Nil (proper list) or emitting a dotted-pair
-            // continuation for Atom-tailed improper lists.
-            out.push(b'(');
-            // First element (the original Cons's car).
-            write_canonical(buf, pos, depth + 1, out)?;
-            // Walk the cdr chain.
-            loop {
-                let next_tag = take_byte(buf, pos)?;
-                match next_tag {
-                    TAG_NIL => {
-                        out.push(b')');
-                        return Ok(());
-                    }
-                    TAG_CONS => {
-                        out.push(b' ');
-                        write_canonical(buf, pos, depth + 1, out)?;
-                        // continue walking this Cons's cdr
-                    }
-                    TAG_ATOM => {
-                        // Improper-list tail — rare. Emit Rivest's
-                        // dotted-pair extension form `(a . b)`. Our
-                        // surface parser only produces proper lists,
-                        // so this branch is unreachable for inputs
-                        // built through `SExprValue::parse`; the
-                        // branch is defensive for substrate-corrupted
-                        // tagged bytes.
-                        let len = take_u16(buf, pos)? as usize;
-                        let bytes = take_slice(buf, pos, len)?;
-                        out.extend_from_slice(b" . ");
-                        let mut len_buf = itoa_buf();
-                        let len_str = format_usize_into(&mut len_buf, len);
-                        out.extend_from_slice(len_str);
-                        out.push(b':');
-                        out.extend_from_slice(bytes);
-                        out.push(b')');
-                        return Ok(());
-                    }
-                    _ => return Err(CORRUPT_TAGGED_BYTES),
-                }
-            }
-        }
+        TAG_CONS => emit_list(tagged, pos, w, depth + 1),
         _ => Err(CORRUPT_TAGGED_BYTES),
     }
 }
 
-// `usize → ASCII decimal` without alloc beyond a 20-byte scratch.
-fn itoa_buf() -> [u8; 20] {
-    [0u8; 20]
+fn emit_atom(len: usize, bytes: &[u8], w: &mut SliceWriter<'_>) -> Result<(), ShapeViolation> {
+    let mut buf = [0u8; 20];
+    let len_str = format_usize_into(&mut buf, len);
+    w.write(len_str)?;
+    w.write_byte(b':')?;
+    w.write(bytes)
 }
 
+/// Emit a Rivest flat-list form `(s_1 s_2 ... s_n)`. We've already
+/// consumed the leading TAG_CONS; iterate by alternating "read child
+/// + read next tag (CONS or NIL)".
+fn emit_list(
+    tagged: &[u8],
+    pos: &mut usize,
+    w: &mut SliceWriter<'_>,
+    depth: usize,
+) -> Result<(), ShapeViolation> {
+    w.write_byte(b'(')?;
+    // First child of this cons.
+    emit_value(tagged, pos, w, depth)?;
+    loop {
+        let next_tag = read_byte(tagged, pos)?;
+        match next_tag {
+            TAG_NIL => {
+                w.write_byte(b')')?;
+                return Ok(());
+            }
+            TAG_CONS => {
+                w.write_byte(b' ')?;
+                emit_value(tagged, pos, w, depth)?;
+            }
+            TAG_ATOM => {
+                // Improper-list tail — emit Rivest's dotted-pair form.
+                // Unreachable for inputs constructed through
+                // `SExprValue::parse` (the parser only emits proper
+                // lists), defensive for substrate-corrupted bytes.
+                let len = read_u16_be(tagged, pos)? as usize;
+                let bytes = read_slice(tagged, pos, len)?;
+                w.write(b" . ")?;
+                emit_atom(len, bytes, w)?;
+                w.write_byte(b')')?;
+                return Ok(());
+            }
+            _ => return Err(CORRUPT_TAGGED_BYTES),
+        }
+    }
+}
+
+/// `usize → ASCII decimal` without alloc beyond a 20-byte scratch.
 fn format_usize_into(buf: &mut [u8; 20], mut n: usize) -> &[u8] {
     if n == 0 {
         buf[0] = b'0';
@@ -452,58 +540,10 @@ fn format_usize_into(buf: &mut [u8; 20], mut n: usize) -> &[u8] {
     &buf[idx..]
 }
 
-#[inline]
-fn take_byte(buf: &[u8], pos: &mut usize) -> Result<u8, ShapeViolation> {
-    if *pos >= buf.len() {
-        return Err(CORRUPT_TAGGED_BYTES);
-    }
-    let b = buf[*pos];
-    *pos += 1;
-    Ok(b)
-}
-
-#[inline]
-fn take_u16(buf: &[u8], pos: &mut usize) -> Result<u16, ShapeViolation> {
-    if *pos + 2 > buf.len() {
-        return Err(CORRUPT_TAGGED_BYTES);
-    }
-    let hi = buf[*pos];
-    let lo = buf[*pos + 1];
-    *pos += 2;
-    Ok(u16::from_be_bytes([hi, lo]))
-}
-
-#[inline]
-fn take_slice<'a>(buf: &'a [u8], pos: &mut usize, len: usize) -> Result<&'a [u8], ShapeViolation> {
-    if *pos + len > buf.len() {
-        return Err(CORRUPT_TAGGED_BYTES);
-    }
-    let s = &buf[*pos..*pos + len];
-    *pos += len;
-    Ok(s)
-}
-
-/// Slice-output variant — the byte-output signature
-/// [`crate::common::AddressInput::canonicalize_into`] requires.
-pub(crate) fn canonicalize_into_slice(
-    tagged: &[u8],
-    out: &mut [u8],
-) -> Result<usize, ShapeViolation> {
-    let mut tmp = Vec::with_capacity(tagged.len());
-    canonicalize_into(tagged, &mut tmp)?;
-    if tmp.len() > out.len() {
-        return Err(TOTAL_WIDTH_VIOLATION);
-    }
-    out[..tmp.len()].copy_from_slice(&tmp);
-    Ok(tmp.len())
-}
-
 // ─── ConstrainedTypeShape + IntoBindingValue + AddressInput ──────────────
 
 impl ConstrainedTypeShape for SExprValue {
     const IRI: &'static str = "https://uor.foundation/addr/SExprValue";
-    /// One Site per tagged-byte position; per-byte sites carry the
-    /// structurally-tagged S-expression value through the ψ-pipeline.
     const SITE_COUNT: usize = SEXPR_VALUE_MAX_BYTES;
     const CONSTRAINTS: &'static [ConstraintRef] = &[];
     const CYCLE_SIZE: u64 = u64::MAX;
@@ -514,11 +554,12 @@ impl prism::uor_foundation::pipeline::__sdk_seal::Sealed for SExprValue {}
 impl IntoBindingValue for SExprValue {
     const MAX_BYTES: usize = SEXPR_VALUE_MAX_BYTES;
     fn into_binding_bytes(&self, out: &mut [u8]) -> Result<usize, ShapeViolation> {
-        if self.bytes.len() > out.len() {
+        let n = self.len as usize;
+        if n > out.len() {
             return Err(TOTAL_WIDTH_VIOLATION);
         }
-        out[..self.bytes.len()].copy_from_slice(&self.bytes);
-        Ok(self.bytes.len())
+        out[..n].copy_from_slice(&self.bytes[..n]);
+        Ok(n)
     }
 }
 
@@ -545,7 +586,8 @@ mod tests {
     #[test]
     fn parses_nil() {
         let v = SExprValue::parse(b"()").expect("valid nil");
-        assert_eq!(v.bytes, vec![TAG_NIL]);
+        assert_eq!(v.bytes[0], TAG_NIL);
+        assert_eq!(v.len, 1);
     }
 
     #[test]
@@ -557,7 +599,6 @@ mod tests {
     #[test]
     fn parses_token_list() {
         let v = SExprValue::parse(b"(a b c)").expect("valid token list");
-        // Cons-of-Cons-of-Cons-of-Nil
         assert_eq!(v.bytes[0], TAG_CONS);
     }
 
@@ -569,6 +610,7 @@ mod tests {
 
     #[test]
     fn rejects_overdeep_recursion() {
+        extern crate alloc;
         let mut s = alloc::string::String::new();
         for _ in 0..(MAX_SEXPR_DEPTH + 2) {
             s.push('(');
@@ -581,32 +623,29 @@ mod tests {
         assert_eq!(err.constraint_iri, DEPTH_BOUND_VIOLATION.constraint_iri);
     }
 
+    #[cfg(feature = "alloc")]
     #[test]
     fn rejects_oversize_atom() {
-        let big = "a".repeat(MAX_SEXPR_ATOM_BYTES + 1);
+        extern crate alloc;
+        use alloc::string::String;
+        let big: String = "a".repeat(MAX_SEXPR_ATOM_BYTES + 1);
         let err = SExprValue::parse(big.as_bytes()).expect_err("must reject");
         assert_eq!(err.constraint_iri, ATOM_WIDTH_VIOLATION.constraint_iri);
     }
 
-    /// Canonical-form fixtures pinned against Rivest's "S-Expressions"
-    /// (1997 draft, <https://people.csail.mit.edu/rivest/Sexp.txt>):
-    /// flat list form `(s_1 s_2 ... s_n)` for proper lists, atoms as
-    /// `<length>:<bytes>`, the empty list as `()`.
+    #[cfg(feature = "alloc")]
     const CANONICAL_FIXTURES: &[(&[u8], &[u8])] = &[
         (b"()", b"()"),
         (b"(a b c)", b"(1:a 1:b 1:c)"),
         (b"5:hello", b"5:hello"),
         (b"(hello world)", b"(5:hello 5:world)"),
         (b"((a) (b))", b"((1:a) (1:b))"),
-        // Mixed-depth nesting.
         (b"(a (b c) d)", b"(1:a (1:b 1:c) 1:d)"),
-        // Whitespace invariance — multiple spaces, tabs, newlines all
-        // collapse in canonical form.
         (b"(  a\t b\n c  )", b"(1:a 1:b 1:c)"),
-        // Canonical-form input round-trip — Rivest canonical is idempotent.
         (b"(1:a 1:b 1:c)", b"(1:a 1:b 1:c)"),
     ];
 
+    #[cfg(feature = "alloc")]
     #[test]
     fn canonicalizer_matches_rivest_canonical_form() {
         for (raw, expected) in CANONICAL_FIXTURES {
@@ -615,6 +654,7 @@ mod tests {
         }
     }
 
+    #[cfg(feature = "alloc")]
     #[test]
     fn canonicalize_is_idempotent_on_its_own_output() {
         for (raw, _expected) in CANONICAL_FIXTURES {

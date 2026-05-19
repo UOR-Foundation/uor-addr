@@ -19,6 +19,12 @@ ASN.1 — then hashing the canonical bytes. Schema-pinned wrappers
 (schema.org/Photograph, schema.org/Article, in-toto Statement v1) add
 admission predicates without changing the label.
 
+The library is **`no_std` + `no_alloc`** by default — every
+canonicalization path streams into a caller-provided buffer with no
+allocator and no `std` calls. The default `std` feature is an
+ergonomic on-top wrapper; embedded targets build clean with
+`--no-default-features`.
+
 ## Quickstart
 
 ```rust
@@ -54,6 +60,19 @@ just examples       # 16 runnable demos covering every realization
 See [docs/realizations.md](docs/realizations.md) for guidance on
 picking the right realization for your data.
 
+## Distribution
+
+| Crate | Target | Consumed by |
+|---|---|---|
+| [`uor-addr`](crates/uor-addr) | crates.io | Rust applications (host + embedded) |
+| [`uor-addr-c`](crates/uor-addr-c) | C ABI (`extern "C"` + cbindgen header) | Embedded C/C++, Python `cffi`, Go `cgo`, Ruby `FFI`, .NET P/Invoke |
+| [`uor-addr-wasm`](crates/uor-addr-wasm) | WASM Component Model (wit-bindgen) | JS/TS (via `jco`), Python (`wasmtime-py`), Go (`wasmtime-go`), .NET, Ruby, Java |
+
+All three paths produce the **same 71-byte κ-label byte-for-byte** for
+the same input. The ψ-pipeline is allocator-free; only the FFI
+marshalling layers allocate when their target ABI requires it (e.g.
+WIT Component Model `list<u8>` → `Vec<u8>`).
+
 ## Documentation
 
 | Read | If you want to |
@@ -68,11 +87,17 @@ picking the right realization for your data.
 
 ## Project status
 
-- 324 tests pass across 13 test files; every realization has a
-  published-spec conformance suite.
+- 361 tests pass across 22 test binaries; every realization has a
+  published-spec conformance suite, plus 19,074 vectors × 5 identities
+  from UCD 15.1.0 `NormalizationTest.txt` exercising the in-crate NFC
+  normalizer.
 - 16 runnable examples (`just examples`).
-- `#![forbid(unsafe_code)]`; `no_std`-compatible
-  (`default-features = false`).
+- `#![forbid(unsafe_code)]` for the core crate; `no_std` + `no_alloc`
+  by default (verified by `cargo build --no-default-features --target
+  thumbv7em-none-eabihf`).
+- C ABI bindings + WASM Component Model bindings ship under
+  [`crates/uor-addr-c`](crates/uor-addr-c) and
+  [`crates/uor-addr-wasm`](crates/uor-addr-wasm).
 - Apache-2.0 licensed.
 
 ## Contributing

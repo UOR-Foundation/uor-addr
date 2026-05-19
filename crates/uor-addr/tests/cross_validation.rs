@@ -63,7 +63,7 @@ fn cn_rc01__live_fixture_agreement() {
             }
         };
         let local = address(&raw).expect("valid").address;
-        if remote != local {
+        if local != remote.as_str() {
             failures.push(format!(
                 "[{name}] mismatch:\n  remote: {remote}\n  local:  {local}"
             ));
@@ -99,7 +99,7 @@ fn cn_rc02__live_random_agreement() {
             }
         };
         let local = address(raw_bytes).expect("valid").address;
-        if remote != local {
+        if local != remote.as_str() {
             failures.push(format!(
                 "[#{i}] mismatch on {raw}: remote={remote} local={local}"
             ));

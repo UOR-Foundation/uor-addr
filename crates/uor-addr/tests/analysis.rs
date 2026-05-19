@@ -154,7 +154,7 @@ fn cp_c01__no_collisions_at_scale() {
         let prefix = &outcome.address.as_bytes()[7..23]; // First 16 hex = 8 digest bytes
                                                          // Track collisions on the full 64-hex digest, not just the
                                                          // prefix — birthday bound on 256 bits is `2^{-217}` at N=10⁶.
-        if !seen.insert(outcome.address.clone()) {
+        if !seen.insert(outcome.address) {
             panic!("CP-C01: collision detected at N={n} on prefix {prefix:?}");
         }
     }

@@ -70,5 +70,7 @@ pub use shapes::{
     XmlAddrBounds, MAX_XML_ATTRIBUTES, MAX_XML_DEPTH, MAX_XML_ELEMENT_NAME_BYTES,
     MAX_XML_TEXT_BYTES, XML_VALUE_MAX_BYTES,
 };
-pub use value::{canonicalize, XmlValue, XmlValueRegistry};
+#[cfg(feature = "alloc")]
+pub use value::canonicalize;
+pub use value::{XmlValue, XmlValueRegistry};
 pub use verbs::{address_inference, VERB_TERMS_ADDRESS_INFERENCE};

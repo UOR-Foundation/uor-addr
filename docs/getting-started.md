@@ -77,9 +77,55 @@ let grounded = outcome.witness.grounded();
 // The trace replay path is exercised by `tests/replay.rs`.
 ```
 
+## Embedded / `no_std`
+
+The crate is `no_std + no_alloc` by default — the κ-derivation
+pipeline never touches an allocator. Build for bare-metal Cortex-M4:
+
+```bash
+rustup target add thumbv7em-none-eabihf
+cargo build -p uor-addr --no-default-features --target thumbv7em-none-eabihf
+```
+
+The `alloc` and `std` features are purely ergonomic — they enable
+Vec-returning convenience APIs and stdlib re-exports without
+changing any κ-label byte-for-byte (CB-A03 + CB-A04 in
+[../CONFORMANCE.md](../CONFORMANCE.md)).
+
+## Consuming from non-Rust callers
+
+Two FFI distribution targets ship the same κ-label byte-for-byte:
+
+- **C / embedded** — [`uor-addr-c`](../crates/uor-addr-c/) emits a
+  `staticlib` + `cdylib` plus a `cbindgen`-generated header. Each
+  realization is exposed as one `extern "C"` function. Builds for
+  hosted targets and for `thumbv7em-none-eabihf` (Cortex-M4
+  bare-metal, no allocator).
+
+  ```c
+  #include "uor_addr.h"
+
+  uint8_t  out[UOR_ADDR_LABEL_BYTES];
+  size_t   written = 0;
+  int32_t  rc = uor_addr_json(
+      (const uint8_t *)"{\"foo\":\"bar\"}", 13,
+      out, sizeof(out), &written);
+  /* rc == UOR_ADDR_OK; out[..71] is the ASCII κ-label */
+  ```
+
+- **WASM Component Model** —
+  [`uor-addr-wasm`](../crates/uor-addr-wasm/) is a `wit-bindgen`
+  component declared by
+  [`wit/uor-addr.wit`](../crates/uor-addr-wasm/wit/uor-addr.wit).
+  Build with `cargo build -p uor-addr-wasm --target wasm32-wasip2
+  --release`; consume the resulting `.wasm` from JS / Python / Go /
+  .NET / Ruby / Java / C# via their respective wasmtime bindings.
+
 ## Where to next?
 
 - Pick the right realization: [realizations.md](realizations.md).
 - See the full architectural picture: [../ARCHITECTURE.md](../ARCHITECTURE.md).
 - Run every example: `just examples`.
 - Reproduce the V&V gate: [../VERIFICATION.md](../VERIFICATION.md).
+- Mint κ-labels from C: [../crates/uor-addr-c/README.md](../crates/uor-addr-c/README.md).
+- Build the WASM component: [../crates/uor-addr-wasm/README.md](../crates/uor-addr-wasm/README.md).

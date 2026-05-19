@@ -1,0 +1,33 @@
+[package]
+name          = "uor-addr-c"
+version       = "0.1.0"
+edition       = "2021"
+authors       = ["The UOR Foundation <https://uor.foundation>"]
+description   = "C ABI bindings for uor-addr — typed content-addressing exposed over `extern \"C\"` for embedded and any-language consumption."
+license       = "Apache-2.0"
+repository    = "https://github.com/UOR-Foundation/uor-addr"
+homepage      = "https://github.com/UOR-Foundation/uor-addr"
+documentation = "https://docs.rs/uor-addr-c"
+readme        = "README.md"
+keywords      = ["uor", "content-addressing", "ffi", "c-abi", "no-std"]
+categories    = ["external-ffi-bindings", "cryptography", "no-std"]
+rust-version  = "1.83"
+
+[lib]
+crate-type = ["staticlib", "cdylib", "rlib"]
+name       = "uor_addr_c"
+
+[dependencies]
+uor-addr = { path = "../uor-addr", version = "0.1.0", default-features = false }
+
+[features]
+# Default mirrors the core crate's defaults — no `std`, no allocator.
+# Embedded callers build with `--no-default-features` (the default here).
+default = []
+# `std` re-exports for hosted callers that want stdlib panic handling
+# / I/O routes through the C bindings.
+std     = ["uor-addr/std"]
+alloc   = ["uor-addr/alloc"]
+
+[build-dependencies]
+cbindgen = { version = "0.27", default-features = false }

@@ -87,6 +87,7 @@ fn x690_annex_a_vectors(
         (
             "OctetString {0x01,0x02,0x03}",
             Asn1Value::octet_string(&[0x01, 0x02, 0x03])
+                .unwrap()
                 .tagged_bytes()
                 .to_vec(),
             vec![0x04, 0x03, 0x01, 0x02, 0x03],
@@ -133,7 +134,10 @@ fn x690_annex_a_vectors(
         // UTF8String (§8.21)
         (
             "UTF8String \"hello\"",
-            Asn1Value::utf8_string("hello").tagged_bytes().to_vec(),
+            Asn1Value::utf8_string("hello")
+                .unwrap()
+                .tagged_bytes()
+                .to_vec(),
             vec![0x0C, 0x05, b'h', b'e', b'l', b'l', b'o'],
         ),
         // PrintableString (X.680 §41.4)
@@ -158,6 +162,7 @@ fn x690_annex_a_vectors(
         (
             "SEQUENCE {1, 2}",
             Asn1Value::sequence(&[Asn1Value::integer(1), Asn1Value::integer(2)])
+                .unwrap()
                 .tagged_bytes()
                 .to_vec(),
             vec![0x30, 0x06, 0x02, 0x01, 0x01, 0x02, 0x01, 0x02],
@@ -168,6 +173,7 @@ fn x690_annex_a_vectors(
         (
             "SET {Integer 2, Integer 1} — sorts to {1, 2}",
             Asn1Value::set(&[Asn1Value::integer(2), Asn1Value::integer(1)])
+                .unwrap()
                 .tagged_bytes()
                 .to_vec(),
             vec![0x31, 0x06, 0x02, 0x01, 0x01, 0x02, 0x01, 0x02],
@@ -355,18 +361,26 @@ fn der_kappa_label_is_deterministic_across_constructor_paths() {
     // values must produce identical κ-labels. Verify via SET ordering:
     // two callers passing children in different orders must yield the
     // same κ-label (because Set canonical-orders its children).
-    let a = address(Asn1Value::set(&[Asn1Value::integer(1), Asn1Value::integer(2)]).tagged_bytes())
-        .expect("κ-label")
-        .address;
-    let b = address(Asn1Value::set(&[Asn1Value::integer(2), Asn1Value::integer(1)]).tagged_bytes())
-        .expect("κ-label")
-        .address;
+    let a = address(
+        Asn1Value::set(&[Asn1Value::integer(1), Asn1Value::integer(2)])
+            .unwrap()
+            .tagged_bytes(),
+    )
+    .expect("κ-label")
+    .address;
+    let b = address(
+        Asn1Value::set(&[Asn1Value::integer(2), Asn1Value::integer(1)])
+            .unwrap()
+            .tagged_bytes(),
+    )
+    .expect("κ-label")
+    .address;
     assert_eq!(a, b, "SET canonical-ordering must yield identical κ-labels");
 }
 
 #[test]
 fn empty_sequence_is_admissible() {
-    let der = Asn1Value::sequence(&[]).tagged_bytes().to_vec();
+    let der = Asn1Value::sequence(&[]).unwrap().tagged_bytes().to_vec();
     assert_eq!(der, vec![0x30, 0x00]);
     Asn1Value::parse(&der).expect("empty sequence is valid DER");
 }
@@ -377,7 +391,7 @@ fn deeply_nested_sequences_admit_within_bound_reject_past_it() {
     // Build a sequence nested within the bound.
     let mut value = Asn1Value::integer(0);
     for _ in 0..MAX_ASN1_DEPTH / 2 {
-        value = Asn1Value::sequence(core::slice::from_ref(&value));
+        value = Asn1Value::sequence(core::slice::from_ref(&value)).unwrap();
     }
     let bytes = value.tagged_bytes().to_vec();
     Asn1Value::parse(&bytes).expect("nested within bound");
@@ -385,7 +399,7 @@ fn deeply_nested_sequences_admit_within_bound_reject_past_it() {
     // Sufficiently past the bound — rejected.
     let mut value = Asn1Value::integer(0);
     for _ in 0..(MAX_ASN1_DEPTH + 4) {
-        value = Asn1Value::sequence(core::slice::from_ref(&value));
+        value = Asn1Value::sequence(core::slice::from_ref(&value)).unwrap();
     }
     let bytes = value.tagged_bytes().to_vec();
     match address(&bytes) {
