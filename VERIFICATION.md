@@ -44,33 +44,30 @@ common doc-rot.
 
 ### 2.2 Typed-surface invariants (axis 3)
 
-`cargo test --workspace` runs **113 tests across all realizations**:
+`cargo test --workspace` runs **324 tests across all realizations**.
+Each shipped realization carries a dedicated published-spec test
+vector suite:
 
-- 38 lib unit tests (`json::*`, `sexp::*`, `label::*`, `variant::storage::*`)
-- 14 [`common_surface.rs`](crates/uor-addr/tests/common_surface.rs) tests
-  pinning the `AddressInput` trait contract, the `AddressLabel` IRI /
-  site-count formula, and end-to-end κ-derivation through the common
-  surface.
-- 8 [`byte_identity.rs`](crates/uor-addr/tests/byte_identity.rs) tests
-  pinning JSON byte-equality against the 12-fixture
-  `mcp.uor.foundation/tools/encode_address` baseline.
-- 14 [`conformance.rs`](crates/uor-addr/tests/conformance.rs) tests
-  covering JSON CD-* invariants + the source-grep invariants
-  (`CS-S01`, `CS-S02`).
-- 16 [`typed_input.rs`](crates/uor-addr/tests/typed_input.rs) tests
-  pinning JSON typed-input case distinction (CT-T\*),
-  whitespace/NFC/key-ordering equivalence (CT-E\*), and bound
-  enforcement (CT-B\*).
-- 8 [`analysis.rs`](crates/uor-addr/tests/analysis.rs) tests pinning
-  the CP class.
-- 3 [`replay.rs`](crates/uor-addr/tests/replay.rs) tests pinning
-  TC-05 round-trip (`CL-R00`–`CL-R02`).
-- 7 [`sexp_conformance.rs`](crates/uor-addr/tests/sexp_conformance.rs)
-  tests pinning Rivest §4.2/§4.3 canonical-form conformance plus
-  cross-format distinction against the JSON realization.
-- 5 [`variant_storage.rs`](crates/uor-addr/tests/variant_storage.rs)
-  tests pinning the ADR-048 non-default `C` selection, predicate
-  evaluation, and bandwidth-additivity.
+| Suite | Count | Pins |
+|---|---|---|
+| lib unit tests | 114 | per-module structural invariants |
+| `common_surface.rs` | 14 | `AddressInput` trait contract |
+| `byte_identity.rs` | 8 | JSON 12-fixture byte-identity baseline |
+| `conformance.rs` | 14 | JSON CD-\* + CS-S\* source-grep invariants |
+| `typed_input.rs` | 16 | JSON typed-input bounds + structural distinction |
+| `analysis.rs` | 8 | CP class (empirical scaling) |
+| `replay.rs` | 3 | TC-05 round-trip |
+| `jcs_rfc8785.rs` | 7 | RFC 8785 §3.2 + UAX #15 NFC + ECMA-262 |
+| `sexp_conformance.rs` | 7 | Rivest §4.2/§4.3 + cross-format |
+| `sexp_rivest_examples.rs` | 9 | Rivest §6 worked examples |
+| `xml_c14n_1_1.rs` | 19 | W3C XML-C14N 1.1 rules §1.1.3 – §1.1.5 |
+| `asn1_x690_der.rs` | 18 | ITU-T X.690 Annex A + DER canonical rules |
+| `ring_amendment_43.rs` | 11 | Amendment 43 §2 layout coverage |
+| `codemodule_ccmas.rs` | 14 | CCMAS grammar conformance |
+| `schema_org_conformance.rs` | 19 | schema.org/Photograph + Article subtypes |
+| `in_toto_statement_v1.rs` | 19 | in-toto Statement v1 + predicate variants |
+| `variant_storage.rs` | 5 | ADR-048 cost-model variant |
+| `all_realizations.rs` | 19 | cross-realization integration |
 
 This axis pins:
 

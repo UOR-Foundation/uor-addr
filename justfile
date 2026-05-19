@@ -31,16 +31,32 @@ lint:
 test:
 	cargo test --workspace
 
-# Axis 4 — conformance suite (release). Covers the JSON realization
-# (`conformance`), the S-expression realization (`sexp_conformance`),
-# the storage cost-model variant (`variant_storage`), every shipped
-# realization end-to-end (`all_realizations`), and the common
-# architectural surface (`common_surface`).
+# Axis 4 — conformance suite (release). Each shipped realization
+# has a dedicated published-spec test vector suite plus the
+# cross-realization integration test.
 conformance:
-	cargo test -p uor-addr --release --test conformance
+	# Common architectural surface
 	cargo test -p uor-addr --release --test common_surface
+	# JSON realization — RFC 8259 + RFC 8785 JCS + UAX #15 NFC
+	cargo test -p uor-addr --release --test conformance
+	cargo test -p uor-addr --release --test jcs_rfc8785
+	# S-expression — Rivest 1997
 	cargo test -p uor-addr --release --test sexp_conformance
+	cargo test -p uor-addr --release --test sexp_rivest_examples
+	# XML — W3C XML-C14N 1.1
+	cargo test -p uor-addr --release --test xml_c14n_1_1
+	# ASN.1 — ITU-T X.690 DER
+	cargo test -p uor-addr --release --test asn1_x690_der
+	# Ring — UOR-Framework Amendment 43 §2
+	cargo test -p uor-addr --release --test ring_amendment_43
+	# Code-module AST — CCMAS canonical
+	cargo test -p uor-addr --release --test codemodule_ccmas
+	# Schema-pinned descendants — schema.org + in-toto
+	cargo test -p uor-addr --release --test schema_org_conformance
+	cargo test -p uor-addr --release --test in_toto_statement_v1
+	# Cost-model variants
 	cargo test -p uor-addr --release --test variant_storage
+	# Cross-realization
 	cargo test -p uor-addr --release --test all_realizations
 
 # Axis 5 — analysis suite (release, large samples).

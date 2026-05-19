@@ -136,7 +136,7 @@ fn shim_layer_reproduces_harvested_fixtures() {
     }
     assert!(
         failures.is_empty(),
-        "{} byte-identity failure(s) against UOR-ADDR-1 reference fixtures:\n\n{}",
+        "{} byte-identity failure(s) against UOR-ADDR reference fixtures:\n\n{}",
         failures.len(),
         failures.join("\n\n")
     );

@@ -36,8 +36,8 @@
 //! ## What this verb deliberately is not
 //!
 //! - **Not** a `dispatch_kernel` invocation of a custom
-//!   `ContentAddressingAxis`. The earlier framing of UOR-ADDR-1 as
-//!   such an axis violates ADR-035's ψ-residuals discipline: axis
+//!   `ContentAddressingAxis`. Framing UOR-ADDR as such an axis
+//!   would violate ADR-035's ψ-residuals discipline: axis
 //!   invocations belong inside resolver bodies per ADR-046, not in
 //!   the typed-iso surface.
 //! - **Not** an enumerator. There is no σ-enumeration anywhere — the

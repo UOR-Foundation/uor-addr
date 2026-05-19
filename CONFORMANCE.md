@@ -15,12 +15,19 @@ This document originally specified the conformance contract for the
 JSON realization (`uor_addr::json`). Additional shipped realizations
 extend the contract under the same invariant-ID scheme:
 
-| Realization | Conformance fixtures | Test file |
+| Realization | Imported spec | Test file |
 |---|---|---|
-| `uor_addr::json` (JCS-RFC8785 + NFC) | 12-fixture `mcp.uor.foundation/tools/encode_address` baseline + JCS test vectors | [tests/byte_identity.rs](crates/uor-addr/tests/byte_identity.rs), [tests/conformance.rs](crates/uor-addr/tests/conformance.rs) |
-| `uor_addr::sexp` (Rivest 1997 canonical) | Sexp.txt §4.2/§4.3 canonical-form fixtures + typed-distinction theorem corpus | [tests/sexp_conformance.rs](crates/uor-addr/tests/sexp_conformance.rs) |
-| `uor_addr::variant::storage` (ADR-048 non-default `C`) | predicate-evaluation + bandwidth-additivity + typed-commitment conformance | [tests/variant_storage.rs](crates/uor-addr/tests/variant_storage.rs) |
-| Common architectural surface (`AddressInput` trait) | `AddressInput` trait conformance + verb-arena ψ-Term composition + output-shape IRI/site-count | [tests/common_surface.rs](crates/uor-addr/tests/common_surface.rs) |
+| `uor_addr::json` | RFC 8259 + RFC 8785 JCS + UAX #15 NFC | [byte_identity.rs](crates/uor-addr/tests/byte_identity.rs), [conformance.rs](crates/uor-addr/tests/conformance.rs), [jcs_rfc8785.rs](crates/uor-addr/tests/jcs_rfc8785.rs), [typed_input.rs](crates/uor-addr/tests/typed_input.rs) |
+| `uor_addr::sexp` | Rivest 1997 + RFC 2693 §3 | [sexp_conformance.rs](crates/uor-addr/tests/sexp_conformance.rs), [sexp_rivest_examples.rs](crates/uor-addr/tests/sexp_rivest_examples.rs) |
+| `uor_addr::xml` | W3C XML-C14N 1.1 (subset) | [xml_c14n_1_1.rs](crates/uor-addr/tests/xml_c14n_1_1.rs) |
+| `uor_addr::asn1` | ITU-T X.690 DER | [asn1_x690_der.rs](crates/uor-addr/tests/asn1_x690_der.rs) |
+| `uor_addr::ring` | UOR-Framework Amendment 43 §2 | [ring_amendment_43.rs](crates/uor-addr/tests/ring_amendment_43.rs) |
+| `uor_addr::codemodule` | CCMAS canonical AST | [codemodule_ccmas.rs](crates/uor-addr/tests/codemodule_ccmas.rs) |
+| `uor_addr::schema::photo` + `::document` | schema.org/Photograph + schema.org/Article | [schema_org_conformance.rs](crates/uor-addr/tests/schema_org_conformance.rs) |
+| `uor_addr::schema::codemodule_signed` | in-toto Statement v1 | [in_toto_statement_v1.rs](crates/uor-addr/tests/in_toto_statement_v1.rs) |
+| `uor_addr::variant::storage` | ADR-048 non-default `C` | [variant_storage.rs](crates/uor-addr/tests/variant_storage.rs) |
+| Common architectural surface | `AddressInput` trait + `AddressLabel` shape | [common_surface.rs](crates/uor-addr/tests/common_surface.rs) |
+| Cross-realization integration | ψ-pipeline + κ-label uniformity | [all_realizations.rs](crates/uor-addr/tests/all_realizations.rs) |
 
 The CS-V01 / CD-D01 / CL-K01 / CL-W01 / CL-R01 / CT-T\* / CT-B\*
 invariant classes apply to **every** UOR-ADDR realization (the
@@ -74,7 +81,9 @@ after JCS+NFC canonicalisation:
    the violated bound's IRI; the constructor never silently truncates.
 10. **Cost-model selection (CT-C01).** The PrismModel's 5th parameter
     `C` is explicitly bound to `prism::pipeline::EmptyCommitment`
-    (wiki ADR-048). UOR-ADDR-1 carries no auxiliary cost surface.
+    (wiki ADR-048). The JSON realization carries no auxiliary cost
+    surface; cost-model-bearing variants live in
+    [`crate::variant`](crates/uor-addr/src/variant/).
 
 ## Conformance classes
 
