@@ -10,7 +10,7 @@ default: vv
 # ──────────────────────────────────────────────────────────────────────────
 
 # Full V&V — every axis required for merge. Halts on the first failure.
-vv: fmt-check lint test embedded wasm conformance analysis replay examples doc-check verify
+vv: fmt-check lint test embedded wasm conformance analysis replay examples doc-check verify version-sync
 
 # Fast CI subset — no Lean, no live network. Use when iterating locally.
 ci: fmt-check lint test embedded wasm
@@ -114,6 +114,13 @@ doc-check:
 # Axis 9 — Lean proofs (lake build).
 verify:
 	cd uor-addr-lean && lake build
+
+# Axis 11 — single-source-of-truth version sync. Cargo.toml's
+# [workspace.package].version is the master; sync-versions.py
+# propagates it to bindings/npm + bindings/python; --check refuses
+# drift. CI runs this on every PR.
+version-sync:
+	python3 tools/sync-versions.py --check
 
 # Axis 10 — live cross-validation. Gated; opt in via UOR_ADDR_LIVE=1.
 cn:

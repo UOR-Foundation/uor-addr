@@ -183,3 +183,19 @@ jobs:
       - uses: EmbarkStudios/cargo-deny-action@v2
         with:
           command: check
+
+  version-sync:
+    name: version sync (single source of truth)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      # Cargo.toml's [workspace.package].version is the single source
+      # of truth for the release version. Workspace members inherit
+      # it via `version.workspace = true`; downstream bindings
+      # (npm package.json, python pyproject.toml) and the
+      # [workspace.dependencies] inter-crate pins are propagated by
+      # `tools/sync-versions.py`. This gate refuses drift.
+      - run: python3 tools/sync-versions.py --check
