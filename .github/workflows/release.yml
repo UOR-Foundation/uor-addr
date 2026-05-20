@@ -454,26 +454,31 @@ jobs:
         env:
           NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
 
-  publish-pypi:
-    name: Publish uor-addr to PyPI — ${{ matrix.label }}
+  # ── Build per-platform wheels (no publish here) ──────────────────
+  #
+  # Each leg builds + repairs its wheel and uploads it as a workflow
+  # artifact. Publishing is centralized in `publish-pypi` below: the
+  # `pypa/gh-action-pypi-publish` action is a Linux-x86_64 Docker
+  # action and cannot run on arm64 (exec format error), Windows (no
+  # Linux Docker), or macOS — so the upload must happen from a single
+  # x86_64 Linux job after all wheels are built.
+  build-wheels:
+    name: Build wheel — ${{ matrix.label }}
     needs: prebuilt-c
     runs-on: ${{ matrix.os }}
-    # The environment name must match the PyPI trusted-publisher
-    # configuration exactly — the OIDC token GitHub mints carries this
-    # environment as a claim, and PyPI rejects the upload if it does
-    # not match the registered publisher. All five matrix legs share
-    # the one environment.
-    environment: uor-addr
     permissions:
       contents: write   # `gh release upload` of the built wheel
-      id-token: write   # required for PyPI trusted publishing
     strategy:
       fail-fast: false
       matrix:
         include:
           - { os: ubuntu-latest,    label: linux-x86_64,   artifact: libuor_addr_c.so,    repair: auditwheel }
           - { os: ubuntu-24.04-arm, label: linux-aarch64,  artifact: libuor_addr_c.so,    repair: auditwheel }
-          - { os: macos-latest,     label: macos-x86_64,   artifact: libuor_addr_c.dylib, repair: delocate, macos_target: '11.0' }
+          # macos-13 is the Intel runner — building x86_64-apple-darwin
+          # there lets `delocate-wheel` run on a matching-arch host
+          # (macos-latest is Apple Silicon / arm64, where an x86_64
+          # dylib fails delocate's arch check).
+          - { os: macos-13,         label: macos-x86_64,   artifact: libuor_addr_c.dylib, repair: delocate, macos_target: '11.0' }
           - { os: macos-latest,     label: macos-aarch64,  artifact: libuor_addr_c.dylib, repair: delocate, macos_target: '11.0' }
           - { os: windows-latest,   label: windows-x86_64, artifact: uor_addr_c.dll,      repair: none }
     steps:
@@ -554,21 +559,20 @@ jobs:
         run: |
           set -euo pipefail
           # delocate-wheel rebrands the host platform tag (e.g.
-          # macosx_15_0_arm64) to the deployment-target-compatible
-          # tag (macosx_11_0_arm64). It also bundles any dependent
-          # dylibs — we have none, but the rebranding alone is the
-          # value here.
+          # macosx_13_0_x86_64) to the deployment-target-compatible
+          # tag (macosx_11_0_x86_64). It also bundles any dependent
+          # dylibs — we have none, but the rebranding is the value.
+          # Runs on a matching-arch host so the dylib arch check
+          # passes (macos-13 → x86_64, macos-latest → arm64).
           orig=$(ls dist/uor_addr-*-py3-none-macosx_*.whl)
           delocate-wheel -v "$orig"
           ls -la dist/
 
       - name: Smoke test wheel (cross-OS)
         shell: bash
-        # Runs natively on every matrix leg now — including
-        # linux-aarch64, which executes on a native `ubuntu-24.04-arm`
-        # runner (no QEMU). Installs the freshly-built wheel into a
-        # throwaway venv and exercises both a plain κ-label mint and
-        # the TC-05 witness round-trip.
+        # Runs natively on every matrix leg — installs the freshly
+        # built wheel into a throwaway venv and exercises both a plain
+        # κ-label mint and the TC-05 witness round-trip.
         run: |
           set -euo pipefail
           python -m venv smoke_env
@@ -586,7 +590,7 @@ jobs:
           # Also exercise the TC-05 witness surface.
           with kappa.json_address_with_witness(b'{"foo":"bar"}') as g:
               assert g.verify() == g.kappa_label(), 'TC-05 round-trip failed'
-              print(f'TC-05 wheel smoke ok')
+              print('TC-05 wheel smoke ok')
           PY
 
       - name: Upload wheel to GitHub Release
@@ -598,8 +602,36 @@ jobs:
             bindings/python/dist/*.whl \
             --clobber --repo "$GITHUB_REPOSITORY"
 
+      - name: Upload wheel as workflow artifact (for publish-pypi)
+        uses: actions/upload-artifact@v4
+        with:
+          name: wheel-${{ matrix.label }}
+          path: bindings/python/dist/*.whl
+          if-no-files-found: error
+
+  # ── Publish all wheels to PyPI from one x86_64 Linux job ─────────
+  publish-pypi:
+    name: Publish uor-addr to PyPI
+    needs: build-wheels
+    runs-on: ubuntu-latest
+    # The environment name must match the PyPI trusted-publisher
+    # configuration exactly — the OIDC token GitHub mints carries this
+    # environment as a claim, and PyPI rejects the upload if it does
+    # not match the registered publisher.
+    environment: uor-addr
+    permissions:
+      id-token: write   # required for PyPI trusted publishing
+    steps:
+      - name: Download all wheels
+        uses: actions/download-artifact@v4
+        with:
+          pattern: wheel-*
+          path: dist
+          merge-multiple: true
+      - name: List wheels
+        run: ls -la dist/
       - name: Publish to PyPI (trusted publisher)
         uses: pypa/gh-action-pypi-publish@release/v1
         with:
-          packages-dir: bindings/python/dist
+          packages-dir: dist
           skip-existing: true
