@@ -147,14 +147,18 @@ jobs:
           RUSTDOCFLAGS: "-D rustdoc::broken_intra_doc_links"
         run: cargo doc --workspace --no-deps
 
+      # Dry-run packaging verification for the leaf crate only. Its
+      # dependencies (uor-prism, uor-foundation) are already on
+      # crates.io, so `cargo package` resolves cleanly. The dependent
+      # crates (uor-addr-c, uor-addr-wasm) carry a `{ path, version }`
+      # dep on uor-addr; on a first-ever release that version is not
+      # yet on the registry, so `cargo publish --dry-run` for them
+      # fails with "no matching package named `uor-addr`". They cannot
+      # be dry-run-verified before uor-addr is published — their real
+      # publish steps below (after uor-addr is published + index-
+      # confirmed) are the authoritative verification.
       - name: Verify packaging — uor-addr
         run: cargo publish --dry-run --allow-dirty -p uor-addr
-
-      - name: Verify packaging — uor-addr-c (no-verify; depends on uor-addr)
-        run: cargo publish --dry-run --allow-dirty --no-verify -p uor-addr-c
-
-      - name: Verify packaging — uor-addr-wasm (no-verify; depends on uor-addr)
-        run: cargo publish --dry-run --allow-dirty --no-verify -p uor-addr-wasm
 
       - name: Create GitHub Release
         uses: softprops/action-gh-release@v2
