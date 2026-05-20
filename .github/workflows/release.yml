@@ -394,7 +394,10 @@ jobs:
             cp "$dir/$file" "staged/libuor_addr_c-${label}-${GITHUB_REF_NAME}.${ext}"
           done
           ls -la staged/
-          gh release upload "$GITHUB_REF_NAME" staged/* --clobber
+          # `--repo` is required: this job has no `actions/checkout`,
+          # so `gh` cannot infer the repository from a local git
+          # remote (there is no `.git` directory).
+          gh release upload "$GITHUB_REF_NAME" staged/* --clobber --repo "$GITHUB_REPOSITORY"
 
   publish-npm:
     name: Publish @uor-foundation/uor-addr to npm
@@ -462,7 +465,7 @@ jobs:
     # the one environment.
     environment: uor-addr
     permissions:
-      contents: read
+      contents: write   # `gh release upload` of the built wheel
       id-token: write   # required for PyPI trusted publishing
     strategy:
       fail-fast: false
@@ -593,7 +596,7 @@ jobs:
         run: |
           gh release upload "$GITHUB_REF_NAME" \
             bindings/python/dist/*.whl \
-            --clobber
+            --clobber --repo "$GITHUB_REPOSITORY"
 
       - name: Publish to PyPI (trusted publisher)
         uses: pypa/gh-action-pypi-publish@release/v1
