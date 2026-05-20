@@ -474,12 +474,17 @@ jobs:
         include:
           - { os: ubuntu-latest,    label: linux-x86_64,   artifact: libuor_addr_c.so,    repair: auditwheel }
           - { os: ubuntu-24.04-arm, label: linux-aarch64,  artifact: libuor_addr_c.so,    repair: auditwheel }
-          # macos-13 is the Intel runner. macos-latest is Apple
-          # Silicon (arm64), where an x86_64 Python can't load the
-          # x86_64 dylib for the smoke test. Building + smoke-testing
-          # the x86_64 wheel on a matching-arch host is what keeps the
-          # `pip install` + ctypes-load check honest.
-          - { os: macos-13,         label: macos-x86_64,   artifact: libuor_addr_c.dylib, repair: none, macos_target: '11.0' }
+          # Both macOS wheels build on macos-latest (Apple Silicon).
+          # The x86_64 wheel is cross-built: the prebuilt-c step
+          # already produced an x86_64 dylib (cross-compiled on the
+          # arm64 runner), and `_PYTHON_HOST_PLATFORM` forces the wheel
+          # tag to macosx_11_0_x86_64 regardless of the build host's
+          # arch. Its native smoke test is skipped (an arm64 runner
+          # can't load x86_64 Python without Rosetta gymnastics); the
+          # arm64 wheel's smoke test + the Linux/Windows smoke tests
+          # already exercise the ctypes wrapper logic. macos-13 Intel
+          # runners are not reliably schedulable, so this avoids them.
+          - { os: macos-latest,     label: macos-x86_64,   artifact: libuor_addr_c.dylib, repair: none, macos_target: '11.0', host_platform: 'macosx-11.0-x86_64' }
           - { os: macos-latest,     label: macos-aarch64,  artifact: libuor_addr_c.dylib, repair: none, macos_target: '11.0' }
           - { os: windows-latest,   label: windows-x86_64, artifact: uor_addr_c.dll,      repair: none }
     steps:
@@ -532,6 +537,11 @@ jobs:
           # the wheel claims compatibility with; pip uses this when
           # picking wheels at install time.
           MACOSX_DEPLOYMENT_TARGET: ${{ matrix.macos_target }}
+          # Cross-build tag override. For the macos-x86_64 leg
+          # (built on the arm64 runner), this forces the wheel tag to
+          # macosx_11_0_x86_64 regardless of the build host's arch.
+          # Empty on every other leg, where the native tag is correct.
+          _PYTHON_HOST_PLATFORM: ${{ matrix.host_platform }}
         run: |
           set -euo pipefail
           # `setup.py` overrides `bdist_wheel.get_tag()` + sets
@@ -560,9 +570,13 @@ jobs:
 
       - name: Smoke test wheel (cross-OS)
         shell: bash
-        # Runs natively on every matrix leg — installs the freshly
-        # built wheel into a throwaway venv and exercises both a plain
-        # κ-label mint and the TC-05 witness round-trip.
+        # Runs natively on every leg except macos-x86_64, which is
+        # cross-built on the arm64 runner — an arm64 host can't load
+        # x86_64 Python to exercise it. The arm64 macOS wheel + the
+        # Linux/Windows wheels already smoke-test the ctypes wrapper;
+        # the cross-built dylib itself comes from the same source as
+        # the (tested) arm64 build.
+        if: matrix.host_platform == ''
         run: |
           set -euo pipefail
           python -m venv smoke_env
