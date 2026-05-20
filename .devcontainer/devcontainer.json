@@ -3,7 +3,16 @@
   "features": {
     "ghcr.io/devcontainers/features/rust:1": {},
     "ghcr.io/guiyomh/features/just:0": {},
-    "ghcr.io/lumenpink/devcontainer-features/wasm-pack:0": {}
+    "ghcr.io/lumenpink/devcontainer-features/wasm-pack:0": {},
+    "ghcr.io/devcontainers/features/python:1": {
+      "version": "3.12"
+    },
+    "ghcr.io/devcontainers/features/node:1": {
+      "version": "20"
+    },
+    "ghcr.io/devcontainers-contrib/features/apt-packages:1": {
+      "packages": "patchelf,gcc-aarch64-linux-gnu"
+    }
   },
   "customizations": {
     "vscode": {
@@ -32,5 +41,5 @@
   "remoteEnv": {
     "PATH": "/home/codespace/.elan/bin:/home/codespace/.cargo/bin:${containerEnv:PATH}"
   },
-  "postCreateCommand": "curl https://elan.lean-lang.org/elan-init.sh -sSf | sh -s -- -y --default-toolchain none"
+  "postCreateCommand": "bash -c 'set -euxo pipefail; curl https://elan.lean-lang.org/elan-init.sh -sSf | sh -s -- -y --default-toolchain none; rustup target add wasm32-wasip2 thumbv7em-none-eabihf; pip install --user --upgrade pip build wheel auditwheel twine; cargo install --locked cbindgen || true'"
 }

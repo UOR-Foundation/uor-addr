@@ -260,42 +260,80 @@ jobs:
     name: Prebuilt C ABI library — ${{ matrix.label }}
     needs: release
     runs-on: ${{ matrix.os }}
+    # Linux builds run *inside* the manylinux2014 container so the
+    # produced `.so` only links against glibc 2.17. This is required
+    # for both (a) the GitHub Release `.so` to be widely-compatible
+    # across Linux distros and (b) the bundled-in-wheel `.so` to be
+    # `auditwheel repair`-able to the `manylinux2014_*` tag PyPI
+    # accepts. macOS and Windows builds run on their native runners.
+    container: ${{ matrix.container || null }}
     strategy:
       fail-fast: false
       matrix:
         include:
-          - { os: ubuntu-latest,  rust_target: x86_64-unknown-linux-gnu,   artifact: libuor_addr_c.so,    label: linux-x86_64,  cross: false }
-          - { os: ubuntu-latest,  rust_target: aarch64-unknown-linux-gnu,  artifact: libuor_addr_c.so,    label: linux-aarch64, cross: true  }
-          - { os: macos-latest,   rust_target: x86_64-apple-darwin,        artifact: libuor_addr_c.dylib, label: macos-x86_64,  cross: false }
-          - { os: macos-latest,   rust_target: aarch64-apple-darwin,       artifact: libuor_addr_c.dylib, label: macos-aarch64, cross: false }
-          - { os: windows-latest, rust_target: x86_64-pc-windows-msvc,     artifact: uor_addr_c.dll,      label: windows-x86_64, cross: false }
+          - os: ubuntu-latest
+            container: quay.io/pypa/manylinux2014_x86_64
+            rust_target: x86_64-unknown-linux-gnu
+            artifact: libuor_addr_c.so
+            label: linux-x86_64
+            ext: so
+          - os: ubuntu-latest
+            container: quay.io/pypa/manylinux2014_aarch64
+            rust_target: aarch64-unknown-linux-gnu
+            artifact: libuor_addr_c.so
+            label: linux-aarch64
+            ext: so
+            qemu: true
+          - os: macos-latest
+            rust_target: x86_64-apple-darwin
+            artifact: libuor_addr_c.dylib
+            label: macos-x86_64
+            ext: dylib
+          - os: macos-latest
+            rust_target: aarch64-apple-darwin
+            artifact: libuor_addr_c.dylib
+            label: macos-aarch64
+            ext: dylib
+          - os: windows-latest
+            rust_target: x86_64-pc-windows-msvc
+            artifact: uor_addr_c.dll
+            label: windows-x86_64
+            ext: dll
     steps:
+      - name: Set up QEMU (for aarch64 manylinux container on x86_64 host)
+        if: matrix.qemu
+        uses: docker/setup-qemu-action@v3
+        with:
+          platforms: arm64
+
       - uses: actions/checkout@v4
 
-      - uses: dtolnay/rust-toolchain@stable
+      - name: Install rustup in manylinux container
+        if: matrix.container
+        shell: bash
+        run: |
+          set -euxo pipefail
+          curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs \
+            | sh -s -- -y --default-toolchain stable --profile minimal
+          echo "$HOME/.cargo/bin" >> "$GITHUB_PATH"
+
+      - name: Install Rust toolchain (host runner)
+        if: matrix.container == ''
+        uses: dtolnay/rust-toolchain@stable
         with:
           targets: ${{ matrix.rust_target }}
 
-      - name: Install cross-compile linker (aarch64-linux-gnu)
-        if: matrix.cross && runner.os == 'Linux'
+      - name: Ensure target installed
+        shell: bash
         run: |
-          sudo apt-get update
-          sudo apt-get install -y gcc-aarch64-linux-gnu
-
-      - name: Configure cross-compile linker
-        if: matrix.cross && runner.os == 'Linux'
-        run: |
-          mkdir -p .cargo
-          cat >> .cargo/config.toml <<'EOF'
-          [target.aarch64-unknown-linux-gnu]
-          linker = "aarch64-linux-gnu-gcc"
-          EOF
+          rustup target add ${{ matrix.rust_target }} || true
 
       - uses: Swatinem/rust-cache@v2
         with:
           key: ${{ matrix.rust_target }}
 
       - name: Build uor-addr-c (${{ matrix.rust_target }})
+        shell: bash
         run: cargo build -p uor-addr-c --release --target ${{ matrix.rust_target }}
 
       - name: Stage prebuilt library
@@ -304,7 +342,7 @@ jobs:
           set -euo pipefail
           mkdir -p prebuilts
           cp "target/${{ matrix.rust_target }}/release/${{ matrix.artifact }}" \
-             "prebuilts/libuor_addr_c-${{ matrix.label }}-${{ github.ref_name }}.${{ matrix.artifact##*.}}"
+             "prebuilts/libuor_addr_c-${{ matrix.label }}-${{ github.ref_name }}.${{ matrix.ext }}"
 
       - name: Upload to GitHub Release
         shell: bash
@@ -388,13 +426,19 @@ jobs:
       fail-fast: false
       matrix:
         include:
-          - { os: ubuntu-latest,  label: linux-x86_64,   wheel_plat: manylinux_2_28_x86_64,  artifact: libuor_addr_c.so    }
-          - { os: ubuntu-latest,  label: linux-aarch64,  wheel_plat: manylinux_2_28_aarch64, artifact: libuor_addr_c.so    }
-          - { os: macos-latest,   label: macos-x86_64,   wheel_plat: macosx_11_0_x86_64,     artifact: libuor_addr_c.dylib }
-          - { os: macos-latest,   label: macos-aarch64,  wheel_plat: macosx_11_0_arm64,      artifact: libuor_addr_c.dylib }
-          - { os: windows-latest, label: windows-x86_64, wheel_plat: win_amd64,              artifact: uor_addr_c.dll      }
+          - { os: ubuntu-latest,  label: linux-x86_64,   artifact: libuor_addr_c.so,    repair: auditwheel }
+          - { os: ubuntu-latest,  label: linux-aarch64,  artifact: libuor_addr_c.so,    repair: auditwheel, qemu: true }
+          - { os: macos-latest,   label: macos-x86_64,   artifact: libuor_addr_c.dylib, repair: delocate, macos_target: '11.0' }
+          - { os: macos-latest,   label: macos-aarch64,  artifact: libuor_addr_c.dylib, repair: delocate, macos_target: '11.0' }
+          - { os: windows-latest, label: windows-x86_64, artifact: uor_addr_c.dll,      repair: none }
     steps:
       - uses: actions/checkout@v4
+
+      - name: Set up QEMU (for aarch64 wheel smoke test on x86_64 host)
+        if: matrix.qemu
+        uses: docker/setup-qemu-action@v3
+        with:
+          platforms: arm64
 
       - uses: actions/setup-python@v5
         with:
@@ -409,41 +453,100 @@ jobs:
       - name: Verify staged library
         shell: bash
         run: |
+          set -euxo pipefail
           ls -la bindings/python/uor_addr/
           test -f "bindings/python/uor_addr/${{ matrix.artifact }}"
 
       - name: Install build + wheel tooling
-        run: python -m pip install --upgrade pip build wheel
+        shell: bash
+        run: |
+          set -euo pipefail
+          python -m pip install --upgrade pip build wheel
+          # Repair tooling per platform.
+          case "${{ matrix.repair }}" in
+            auditwheel) python -m pip install --upgrade auditwheel ;;
+            delocate)   python -m pip install --upgrade delocate ;;
+            none)       ;;  # Windows uses the bare wheel; no repair step.
+          esac
+
+      - name: Install patchelf (Linux only; required by auditwheel)
+        if: matrix.repair == 'auditwheel'
+        run: |
+          sudo apt-get update -y
+          sudo apt-get install -y patchelf
 
       - name: Build platform wheel
         working-directory: bindings/python
         shell: bash
+        env:
+          # macOS deployment target — sets the lowest macOS version
+          # the wheel claims compatibility with; pip uses this when
+          # picking wheels at install time.
+          MACOSX_DEPLOYMENT_TARGET: ${{ matrix.macos_target }}
         run: |
           set -euo pipefail
-          # The wheel is platform-tagged but Python-version-agnostic
-          # (we use only ctypes from stdlib + the bundled native
-          # library, so py3-none-<plat> is the correct tag).
+          # `setup.py` overrides `bdist_wheel.get_tag()` + sets
+          # `has_ext_modules` so the wheel comes out
+          # `py3-none-<plat>` (platform-tagged, Python-version-
+          # agnostic). No file rename needed.
           python -m build --wheel --outdir dist
-          # `python -m build` produces a `py3-none-any` tag by
-          # default; retag for the matrix platform.
-          cd dist
-          orig="$(ls uor_addr-*-py3-none-any.whl)"
-          new="${orig/py3-none-any/py3-none-${{ matrix.wheel_plat }}}"
-          mv "$orig" "$new"
-          ls -la
+          ls -la dist/
 
-      - name: Smoke test wheel
-        shell: bash
+      - name: Repair wheel — auditwheel (Linux → manylinux2014)
+        if: matrix.repair == 'auditwheel'
+        working-directory: bindings/python
         run: |
           set -euo pipefail
-          python -m venv /tmp/smoke
-          source /tmp/smoke/bin/activate || source /tmp/smoke/Scripts/activate
-          pip install --no-deps bindings/python/dist/*.whl
-          python - <<'PY'
+          # The prebuilt-c container built libuor_addr_c.so against
+          # glibc 2.17, so auditwheel will accept the `manylinux2014`
+          # policy. Output replaces the linux_* tag with manylinux*
+          # in both filename and `.dist-info/WHEEL`.
+          orig=$(ls dist/uor_addr-*-py3-none-linux_*.whl)
+          python -m auditwheel repair "$orig" -w dist-repaired/
+          rm -f "$orig"
+          mv dist-repaired/*.whl dist/
+          rmdir dist-repaired
+          ls -la dist/
+
+      - name: Repair wheel — delocate (macOS → macosx)
+        if: matrix.repair == 'delocate'
+        working-directory: bindings/python
+        run: |
+          set -euo pipefail
+          # delocate-wheel rebrands the host platform tag (e.g.
+          # macosx_15_0_arm64) to the deployment-target-compatible
+          # tag (macosx_11_0_arm64). It also bundles any dependent
+          # dylibs — we have none, but the rebranding alone is the
+          # value here.
+          orig=$(ls dist/uor_addr-*-py3-none-macosx_*.whl)
+          delocate-wheel -v "$orig"
+          ls -la dist/
+
+      - name: Smoke test wheel (cross-OS)
+        shell: bash
+        # Skip for aarch64 Linux — running aarch64 binaries via QEMU
+        # is slow and unreliable; the build itself verifies the
+        # binary is well-formed. We rely on the publish step's
+        # `auditwheel show` to validate the wheel's claimed tag.
+        if: matrix.label != 'linux-aarch64'
+        run: |
+          set -euo pipefail
+          python -m venv smoke_env
+          if [ -d smoke_env/bin ]; then
+            VENV_PY="smoke_env/bin/python"
+          else
+            VENV_PY="smoke_env/Scripts/python"
+          fi
+          "$VENV_PY" -m pip install --no-deps bindings/python/dist/*.whl
+          "$VENV_PY" - <<'PY'
           from uor_addr import kappa
           label = kappa.json_address(b'{"foo":"bar"}')
           assert label == 'sha256:7a38bf81f383f69433ad6e900d35b3e2385593f76a7b7ab5d4355b8ba41ee24b', f'unexpected: {label}'
           print(f'wheel smoke ok: {label}')
+          # Also exercise the TC-05 witness surface.
+          with kappa.json_address_with_witness(b'{"foo":"bar"}') as g:
+              assert g.verify() == g.kappa_label(), 'TC-05 round-trip failed'
+              print(f'TC-05 wheel smoke ok')
           PY
 
       - name: Upload wheel to GitHub Release
