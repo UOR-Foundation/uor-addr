@@ -474,12 +474,13 @@ jobs:
         include:
           - { os: ubuntu-latest,    label: linux-x86_64,   artifact: libuor_addr_c.so,    repair: auditwheel }
           - { os: ubuntu-24.04-arm, label: linux-aarch64,  artifact: libuor_addr_c.so,    repair: auditwheel }
-          # macos-13 is the Intel runner — building x86_64-apple-darwin
-          # there lets `delocate-wheel` run on a matching-arch host
-          # (macos-latest is Apple Silicon / arm64, where an x86_64
-          # dylib fails delocate's arch check).
-          - { os: macos-13,         label: macos-x86_64,   artifact: libuor_addr_c.dylib, repair: delocate, macos_target: '11.0' }
-          - { os: macos-latest,     label: macos-aarch64,  artifact: libuor_addr_c.dylib, repair: delocate, macos_target: '11.0' }
+          # macos-13 is the Intel runner. macos-latest is Apple
+          # Silicon (arm64), where an x86_64 Python can't load the
+          # x86_64 dylib for the smoke test. Building + smoke-testing
+          # the x86_64 wheel on a matching-arch host is what keeps the
+          # `pip install` + ctypes-load check honest.
+          - { os: macos-13,         label: macos-x86_64,   artifact: libuor_addr_c.dylib, repair: none, macos_target: '11.0' }
+          - { os: macos-latest,     label: macos-aarch64,  artifact: libuor_addr_c.dylib, repair: none, macos_target: '11.0' }
           - { os: windows-latest,   label: windows-x86_64, artifact: uor_addr_c.dll,      repair: none }
     steps:
       - uses: actions/checkout@v4
@@ -506,11 +507,15 @@ jobs:
         run: |
           set -euo pipefail
           python -m pip install --upgrade pip build wheel
-          # Repair tooling per platform.
+          # Linux wheels are rebranded to manylinux via auditwheel.
+          # macOS + Windows wheels need no repair: the bundled
+          # libuor_addr_c.{dylib,dll} is a self-contained Rust cdylib
+          # with no external dynamic-library dependencies to bundle,
+          # and the platform tag is set correctly at build time
+          # (MACOSX_DEPLOYMENT_TARGET on macOS; win_amd64 on Windows).
           case "${{ matrix.repair }}" in
             auditwheel) python -m pip install --upgrade auditwheel ;;
-            delocate)   python -m pip install --upgrade delocate ;;
-            none)       ;;  # Windows uses the bare wheel; no repair step.
+            none)       ;;
           esac
 
       - name: Install patchelf (Linux only; required by auditwheel)
@@ -551,21 +556,6 @@ jobs:
           rm -f "$orig"
           mv dist-repaired/*.whl dist/
           rmdir dist-repaired
-          ls -la dist/
-
-      - name: Repair wheel — delocate (macOS → macosx)
-        if: matrix.repair == 'delocate'
-        working-directory: bindings/python
-        run: |
-          set -euo pipefail
-          # delocate-wheel rebrands the host platform tag (e.g.
-          # macosx_13_0_x86_64) to the deployment-target-compatible
-          # tag (macosx_11_0_x86_64). It also bundles any dependent
-          # dylibs — we have none, but the rebranding is the value.
-          # Runs on a matching-arch host so the dylib arch check
-          # passes (macos-13 → x86_64, macos-latest → arm64).
-          orig=$(ls dist/uor_addr-*-py3-none-macosx_*.whl)
-          delocate-wheel -v "$orig"
           ls -la dist/
 
       - name: Smoke test wheel (cross-OS)
