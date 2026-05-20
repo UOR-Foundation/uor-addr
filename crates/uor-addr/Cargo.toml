@@ -1,17 +1,17 @@
 [package]
-name          = "uor-addr"
-version       = "0.1.0"
-edition       = "2021"
-authors       = ["The UOR Foundation <https://uor.foundation>"]
+name              = "uor-addr"
+version.workspace = true
+edition.workspace = true
+authors.workspace = true
+license.workspace = true
+repository.workspace = true
+homepage.workspace = true
+rust-version.workspace = true
 description   = "UOR-ADDR — the typed reference vocabulary for content-addressing across recursively-grammared formats. Standard-library Layer-3 Prism realization of the UOR Foundation; ships the common architectural surface plus the JSON realization under JCS-RFC8785 + NFC + SHA-256."
-license       = "Apache-2.0"
-repository    = "https://github.com/UOR-Foundation/uor-addr"
-homepage      = "https://github.com/UOR-Foundation/uor-addr"
 documentation = "https://docs.rs/uor-addr"
 readme        = "README.md"
 keywords      = ["uor", "prism", "content-addressing", "verifiable", "no-std"]
 categories    = ["cryptography", "data-structures", "no-std"]
-rust-version  = "1.83"
 
 [dependencies]
 uor-prism          = { workspace = true }

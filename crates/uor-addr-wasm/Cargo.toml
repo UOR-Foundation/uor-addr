@@ -1,17 +1,17 @@
 [package]
-name          = "uor-addr-wasm"
-version       = "0.1.0"
-edition       = "2021"
-authors       = ["The UOR Foundation <https://uor.foundation>"]
+name              = "uor-addr-wasm"
+version.workspace = true
+edition.workspace = true
+authors.workspace = true
+license.workspace = true
+repository.workspace = true
+homepage.workspace = true
+rust-version.workspace = true
 description   = "WASM Component Model bindings for uor-addr via wit-bindgen — polyglot κ-label minting consumable from any language with a Wasm runtime."
-license       = "Apache-2.0"
-repository    = "https://github.com/UOR-Foundation/uor-addr"
-homepage      = "https://github.com/UOR-Foundation/uor-addr"
 documentation = "https://docs.rs/uor-addr-wasm"
 readme        = "README.md"
 keywords      = ["uor", "content-addressing", "wasm", "component-model", "wit"]
 categories    = ["wasm", "cryptography"]
-rust-version  = "1.83"
 
 [lib]
 crate-type = ["cdylib", "rlib"]
@@ -23,7 +23,7 @@ name       = "uor_addr_wasm"
 # generated Rust glue, so an allocator is required at the binding
 # layer. The underlying uor-addr pipeline remains no_alloc — only the
 # input/output marshalling allocates.
-uor-addr         = { path = "../uor-addr", version = "0.1.0", default-features = false, features = ["alloc"] }
+uor-addr         = { workspace = true, features = ["alloc"] }
 # Required for the `grounded.verify()` Component Model export which
 # replays `Grounded<AddressLabel>::derivation()` through
 # `prism_verify::certify_from_trace` without re-invoking the canonical
