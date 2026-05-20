@@ -537,13 +537,17 @@ jobs:
           # the wheel claims compatibility with; pip uses this when
           # picking wheels at install time.
           MACOSX_DEPLOYMENT_TARGET: ${{ matrix.macos_target }}
-          # Cross-build tag override. For the macos-x86_64 leg
-          # (built on the arm64 runner), this forces the wheel tag to
-          # macosx_11_0_x86_64 regardless of the build host's arch.
-          # Empty on every other leg, where the native tag is correct.
-          _PYTHON_HOST_PLATFORM: ${{ matrix.host_platform }}
+          HOST_PLATFORM: ${{ matrix.host_platform }}
         run: |
           set -euo pipefail
+          # Cross-build tag override (macos-x86_64 leg only). Export
+          # `_PYTHON_HOST_PLATFORM` ONLY when non-empty — an *empty*
+          # value blanks the wheel's platform tag entirely (yields the
+          # invalid `uor_addr-…-py3-none-.whl`), so we must not set it
+          # on the native legs.
+          if [ -n "${HOST_PLATFORM}" ]; then
+            export _PYTHON_HOST_PLATFORM="${HOST_PLATFORM}"
+          fi
           # `setup.py` overrides `bdist_wheel.get_tag()` + sets
           # `has_ext_modules` so the wheel comes out
           # `py3-none-<plat>` (platform-tagged, Python-version-
