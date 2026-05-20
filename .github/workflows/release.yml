@@ -340,6 +340,17 @@ jobs:
 
       - name: Build uor-addr-c (${{ matrix.rust_target }})
         shell: bash
+        env:
+          # The repo `.cargo/config.toml` pins
+          # `aarch64-unknown-linux-gnu` to the cross-linker
+          # `aarch64-linux-gnu-gcc` (for local x86_64 → aarch64
+          # cross-builds). On the native `ubuntu-24.04-arm` runner the
+          # manylinux_2_28_aarch64 container builds aarch64 directly,
+          # where that cross-linker does not exist — override it with
+          # the container's native `cc`. The env var only governs the
+          # aarch64-gnu target, so it is inert on the x86_64 / macOS /
+          # Windows matrix legs.
+          CARGO_TARGET_AARCH64_UNKNOWN_LINUX_GNU_LINKER: cc
         run: cargo build -p uor-addr-c --release --target ${{ matrix.rust_target }}
 
       # Upload only as a workflow artifact. GitHub Release attachment
