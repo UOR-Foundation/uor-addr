@@ -27,6 +27,15 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
+      # Self-enable GitHub Pages (build_type = workflow) if it isn't
+      # already. Without this, `deploy-pages` fails the run with
+      # `HttpError: Not Found` on repos where Pages was never turned
+      # on in Settings. `enablement: true` makes the workflow
+      # idempotently configure Pages via the API on first run.
+      - name: Configure GitHub Pages
+        uses: actions/configure-pages@v5
+        with:
+          enablement: true
       - run: rustup show active-toolchain || rustup toolchain install
       - uses: Swatinem/rust-cache@v2
       - run: cargo doc --workspace --no-deps
