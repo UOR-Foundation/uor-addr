@@ -419,6 +419,12 @@ jobs:
     name: Publish uor-addr to PyPI — ${{ matrix.label }}
     needs: prebuilt-c
     runs-on: ${{ matrix.os }}
+    # The environment name must match the PyPI trusted-publisher
+    # configuration exactly — the OIDC token GitHub mints carries this
+    # environment as a claim, and PyPI rejects the upload if it does
+    # not match the registered publisher. All five matrix legs share
+    # the one environment.
+    environment: uor-addr
     permissions:
       contents: read
       id-token: write   # required for PyPI trusted publishing
