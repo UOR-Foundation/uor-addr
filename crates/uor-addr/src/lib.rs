@@ -104,8 +104,12 @@ pub mod asn1;
 pub mod canonical;
 pub mod codemodule;
 pub mod common;
+#[cfg(feature = "gguf")]
+pub mod gguf;
 pub mod json;
 pub mod label;
+#[cfg(feature = "onnx")]
+pub mod onnx;
 pub mod outcome;
 pub mod ring;
 pub mod schema;

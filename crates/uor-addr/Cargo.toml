@@ -17,6 +17,12 @@ categories    = ["cryptography", "data-structures", "no-std"]
 uor-prism          = { workspace = true }
 uor-foundation     = { workspace = true }
 uor-foundation-sdk = { workspace = true }
+# Tensor element-type alphabet for the GGUF / ONNX realizations
+# (`prism::tensor::dtype`). Optional — present only when `gguf` or
+# `onnx` is enabled. Both realizations import the dtype types and
+# `TensorDtypeRegistry` directly; the feature gating keeps the dep
+# absent under `--no-default-features` with neither realization on.
+uor-prism-tensor   = { workspace = true, optional = true }
 # `ryu` — RFC 8785 §3.2.2.3 (ECMA-262 7.1.12.1) shortest-round-trip
 # decimal serialization of `f64`. `no_std` + `no_alloc` by default;
 # the only pure-Rust dependency the crate needs for canonical-form
@@ -30,13 +36,20 @@ ryu = { version = "1", default-features = false }
 # (`canonicalize() -> Vec<u8>`, alloc-backed conveniences) on top of
 # `std`. The crate's source-of-truth no_alloc surface is reachable
 # under `--no-default-features`.
-default = ["std"]
+default = ["std", "gguf", "onnx"]
 std     = ["alloc", "uor-prism/std"]
 # Enable alloc-bearing convenience wrappers on top of the
 # no_alloc core. The κ-derivation pipeline is allocator-free
 # whether or not this feature is enabled — `alloc` only gates
 # convenience surfaces.
 alloc   = []
+# GGUF realization. The realization is no_alloc-compatible (the parser
+# walks input bytes by reference and streams tensor data through the
+# hash axis). Activating it pulls in the explicit uor-prism-tensor dep
+# used for the dtype registry.
+gguf  = ["dep:uor-prism-tensor"]
+# ONNX realization. Same no_alloc + dtype-registry discipline.
+onnx  = ["dep:uor-prism-tensor"]
 
 [dev-dependencies]
 # TC-05 replay surface — exercises the `Grounded<AddressLabel>` round-trip

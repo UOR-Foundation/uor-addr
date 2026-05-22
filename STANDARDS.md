@@ -230,3 +230,46 @@ Conformance:
 [`uor_addr::variant::signed::tests`](crates/uor-addr/src/variant/signed.rs)
 plus
 [crates/uor-addr/tests/all_realizations.rs](crates/uor-addr/tests/all_realizations.rs).
+
+## GGUF realization (`uor_addr::gguf`)
+
+| Concern | Authoritative source |
+|---|---|
+| GGUF v3 binary format | https://github.com/ggml-org/ggml/blob/master/docs/gguf.md |
+| Reference C++ header | https://github.com/ggml-org/ggml/blob/master/include/gguf.h |
+| Reference Python tooling | https://github.com/ggml-org/llama.cpp/tree/master/gguf-py |
+| GGML type enum (per-dtype IDs) | https://github.com/ggml-org/ggml/blob/master/include/ggml.h |
+| Tensor element-type alphabet | `prism::tensor::dtype` (uor-prism-tensor 0.2.0) |
+| Canonical form encoder (executable spec) | `tools/canonical-gguf.py` |
+| Bounds calibration helper | `tools/calibrate-gguf-bounds.py` |
+| SHA-256 σ-projection | FIPS 180-4 |
+
+The κ-label is SHA-256 over a fixed-width **two-level commitment**:
+`magic ‖ version ‖ tensor_count ‖ kv_count ‖ alignment ‖ metadata_root ‖
+tensor_root`. Each section root is a streamed SHA-256 over the sorted
+metadata / tensor skeletons; tensor data and large metadata leaves bind
+via their streamed digests, so the commitment is bounded regardless of
+model size and flows through the foundation pipeline's 4096-byte route
+buffer. `tools/canonical-gguf.py` is the executable form of this
+canonicalization; CL-GGUF asserts byte-identity against it.
+
+## ONNX realization (`uor_addr::onnx`)
+
+| Concern | Authoritative source |
+|---|---|
+| ONNX protobuf schema | https://github.com/onnx/onnx/blob/main/onnx/onnx.proto |
+| ONNX IR specification | https://github.com/onnx/onnx/blob/main/docs/IR.md |
+| ONNX versioning | https://github.com/onnx/onnx/blob/main/docs/Versioning.md |
+| Protobuf v3 wire format | https://protobuf.dev/programming-guides/encoding/ |
+| Tensor element-type alphabet | `prism::tensor::dtype` (uor-prism-tensor 0.2.0) |
+| Canonical form encoder (executable spec) | `tools/canonical-onnx.py` |
+| Bounds calibration helper | `tools/calibrate-onnx-bounds.py` |
+| SHA-256 σ-projection | FIPS 180-4 |
+
+The κ-label is SHA-256 over `LE_i64(ir_version) ‖ opset_root ‖ graph_root
+‖ model_meta_root`. `graph_root` orders nodes by Kahn topological sort
+with lexicographic `(name, op_type, domain)` tie-break, sorts
+initializers / IO by name, reduces typed-data fields to the canonical
+`raw_data` layout, and recurses into `GRAPH` subgraphs (depth-bounded).
+`tools/canonical-onnx.py` is the executable form; CL-ONNX asserts
+byte-identity against it.

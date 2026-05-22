@@ -144,6 +144,20 @@ interface kappa {
 
     /// in-toto Statement v1 descendant, with verifiable witness.
     schema-codemodule-signed-address-with-witness: func(input: list<u8>) -> result<grounded, address-error>;
+
+    /// GGUF v3 realization (spec-canonical structural commitment; binds
+    /// metadata and tensor weights via streamed digests).
+    gguf-address: func(input: list<u8>) -> result<kappa-label, address-error>;
+
+    /// GGUF v3 realization, returning the verifiable witness handle.
+    gguf-address-with-witness: func(input: list<u8>) -> result<grounded, address-error>;
+
+    /// ONNX IR v13 realization (protobuf-canonical commitment;
+    /// topological node ordering + initializer-weight digests).
+    onnx-address: func(input: list<u8>) -> result<kappa-label, address-error>;
+
+    /// ONNX IR v13 realization, returning the verifiable witness handle.
+    onnx-address-with-witness: func(input: list<u8>) -> result<grounded, address-error>;
 }
 
 /// The `uor-addr` component world — exports the `kappa` interface.

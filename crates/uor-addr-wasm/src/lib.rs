@@ -330,6 +330,42 @@ mod component {
                 uor_addr::schema::codemodule_signed::AddressFailure::SchemaViolation
             )
         }
+
+        // ── GGUF v3 realization ──
+
+        fn gguf_address(input: Vec<u8>) -> Result<KappaLabel, AddressError> {
+            map_addr!(
+                uor_addr::gguf::address(&input),
+                uor_addr::gguf::AddressFailure,
+                uor_addr::gguf::AddressFailure::InvalidGguf
+            )
+        }
+
+        fn gguf_address_with_witness(input: Vec<u8>) -> Result<Grounded, AddressError> {
+            map_witness!(
+                uor_addr::gguf::address(&input),
+                uor_addr::gguf::AddressFailure,
+                uor_addr::gguf::AddressFailure::InvalidGguf
+            )
+        }
+
+        // ── ONNX IR v13 realization ──
+
+        fn onnx_address(input: Vec<u8>) -> Result<KappaLabel, AddressError> {
+            map_addr!(
+                uor_addr::onnx::address(&input),
+                uor_addr::onnx::AddressFailure,
+                uor_addr::onnx::AddressFailure::InvalidOnnx
+            )
+        }
+
+        fn onnx_address_with_witness(input: Vec<u8>) -> Result<Grounded, AddressError> {
+            map_witness!(
+                uor_addr::onnx::address(&input),
+                uor_addr::onnx::AddressFailure,
+                uor_addr::onnx::AddressFailure::InvalidOnnx
+            )
+        }
     }
 
     export!(UorAddrComponent);
