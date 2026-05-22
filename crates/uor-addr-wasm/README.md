@@ -34,21 +34,28 @@ world uor-addr { export kappa; }
 ## Building
 
 ```bash
-# Component-Model build (Bytecode Alliance tooling):
-cargo install cargo-component
-cargo component build -p uor-addr-wasm --release
-
-# Vanilla cargo on wasm32-wasip2 (WASI Preview 2 + Component Model):
-rustup target add wasm32-wasip2
-cargo build -p uor-addr-wasm --release --target wasm32-wasip2
+# Build the zero-import core module, then componentize it:
+rustup target add wasm32-unknown-unknown
+cargo build -p uor-addr-wasm --release --target wasm32-unknown-unknown
+wasm-tools component new \
+  target/wasm32-unknown-unknown/release/uor_addr_wasm.wasm \
+  -o uor_addr_wasm.wasm
 ```
+
+This crate imports **nothing** from the host, so the componentized
+output has zero imports and needs no WASI adapter. Avoid
+`wasm32-wasip2`: that target links std's WASI runtime
+(`cli`/`io`/`exit`/`environment`) into the component even though it is
+never called, forcing every host to provision WASI 0.2 and pinning the
+JS path to jco's Node-only `preview2-shim` (breaking browser / Deno /
+Bun / Workers use). `cargo component build` also works but is
+unnecessary for a host-import-free guest.
 
 The crate is **only meaningful on `wasm32-*` targets**. On host
 architectures the workspace builds it as an empty rlib so
-`cargo build --workspace` succeeds without requiring `cargo component`
-or `wasm32-wasip2` everywhere; the `wit-bindgen::generate!` invocation
-and the Component Model `export!` macro are gated on
-`target_arch = "wasm32"`.
+`cargo build --workspace` succeeds without a wasm toolchain everywhere;
+the `wit-bindgen::generate!` invocation and the Component Model
+`export!` macro are gated on `target_arch = "wasm32"`.
 
 ## Consuming the component
 

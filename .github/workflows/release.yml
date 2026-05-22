@@ -44,7 +44,7 @@ jobs:
       - uses: dtolnay/rust-toolchain@stable
         with:
           components: rustfmt, clippy
-          targets: thumbv7em-none-eabihf, wasm32-wasip2
+          targets: thumbv7em-none-eabihf, wasm32-unknown-unknown
 
       - name: Ensure no_std + wasm targets are installed
         # Belt-and-suspenders: explicit `rustup target add` in case
@@ -52,7 +52,15 @@ jobs:
         # them. Idempotent.
         run: |
           rustup target add thumbv7em-none-eabihf
-          rustup target add wasm32-wasip2
+          rustup target add wasm32-unknown-unknown
+
+      # wasm-tools componentizes the wasm32-unknown-unknown core module
+      # into a zero-import Component Model component (see below). Prebuilt
+      # binary install — no compile.
+      - name: Install wasm-tools
+        uses: taiki-e/install-action@v2
+        with:
+          tool: wasm-tools
 
       - name: Cache cargo registry
         uses: actions/cache@v4
@@ -139,8 +147,21 @@ jobs:
       - name: Embedded build (uor-addr-c, no_std + no_alloc)
         run: cargo build -p uor-addr-c --no-default-features --target thumbv7em-none-eabihf
 
+      # Build the core module for wasm32-unknown-unknown (zero host
+      # imports) and componentize it. We deliberately avoid wasm32-wasip2:
+      # that target links std's WASI runtime into the component even
+      # though this pure-compute library never calls it, forcing every
+      # host to provision WASI 0.2 and breaking the jco/browser path. The
+      # resulting component imports nothing and is consumable everywhere
+      # (wasmtime, jco, browsers) with no adapter.
       - name: WASM Component Model build (uor-addr-wasm)
-        run: cargo build -p uor-addr-wasm --target wasm32-wasip2 --release
+        run: |
+          cargo build -p uor-addr-wasm --target wasm32-unknown-unknown --release
+          wasm-tools component new \
+            target/wasm32-unknown-unknown/release/uor_addr_wasm.wasm \
+            -o target/uor_addr_wasm.wasm
+          echo "component imports (expect none):"
+          wasm-tools component wit target/uor_addr_wasm.wasm | grep -i import || echo "  (zero imports — confirmed)"
 
       - name: Build documentation
         env:
@@ -247,7 +268,7 @@ jobs:
       - name: Attach uor_addr_wasm.wasm to release
         run: |
           gh release upload "$GITHUB_REF_NAME" \
-            target/wasm32-wasip2/release/uor_addr_wasm.wasm \
+            target/uor_addr_wasm.wasm \
             --clobber
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
@@ -411,7 +432,7 @@ jobs:
 
       - uses: dtolnay/rust-toolchain@stable
         with:
-          targets: wasm32-wasip2
+          targets: wasm32-unknown-unknown
 
       - uses: actions/setup-node@v4
         with:
@@ -420,8 +441,16 @@ jobs:
 
       - uses: Swatinem/rust-cache@v2
 
-      - name: Build WASM Component Model artifact
-        run: cargo build -p uor-addr-wasm --target wasm32-wasip2 --release
+      # Build the WASM core module for wasm32-unknown-unknown (not
+      # wasm32-wasip2). The wasip2 target links std's WASI runtime into
+      # the component; jco can only satisfy those imports with the
+      # Node-only preview2-shim, making the npm package unusable in the
+      # browser / Deno / Bun / Workers / bundlers. The unknown-unknown
+      # core module has zero host imports — bindings/npm/scripts/build.mjs
+      # componentizes it and inlines the wasm into a single universal ES
+      # module.
+      - name: Build WASM core module (wasm32-unknown-unknown)
+        run: cargo build -p uor-addr-wasm --target wasm32-unknown-unknown --release
 
       - name: Install npm deps
         working-directory: bindings/npm
