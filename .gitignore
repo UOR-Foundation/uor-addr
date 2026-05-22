@@ -29,3 +29,7 @@ bindings/python/uor_addr/libuor_addr_c.so
 bindings/python/uor_addr/libuor_addr_c.dylib
 bindings/python/uor_addr/uor_addr_c.dll
 bindings/python/uor_addr/__pycache__/
+
+# Python bytecode cache — the tools/ helpers import each other via importlib.
+__pycache__/
+*.pyc

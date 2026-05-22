@@ -45,8 +45,13 @@ uor-addr-wasm = { path = "crates/uor-addr-wasm", version = "0.1.0", default-feat
 # `prism::fhe`) and the TC-05 replay surface (`prism::replay`,
 # `prism::seal`). Per ADR-031, downstream Prism applications consume
 # this façade rather than the substrate directly.
-uor-prism          = { version = "0.1.3", default-features = false }
-uor-prism-verify   = { version = "0.1.3", default-features = false }
+uor-prism          = { version = "0.2.0", default-features = false }
+uor-prism-verify   = { version = "0.2.0", default-features = false }
+# Explicit dep for the GGUF / ONNX realizations' tensor element-type
+# alphabet (`prism::tensor::dtype::TensorDtypeRegistry` + the per-dtype
+# `BLOCK_BYTES` / `BLOCK_ELEMS` metadata). Pulled in only when the
+# `gguf` or `onnx` feature is enabled.
+uor-prism-tensor   = { version = "0.2.0", default-features = false }
 # Substrate kept as a direct dep because the SDK macros emit code
 # referencing absolute `::uor_foundation::*` paths. This is the same
 # dependency posture every Prism application that uses the SDK macros

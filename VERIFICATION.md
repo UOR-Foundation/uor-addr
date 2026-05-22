@@ -236,3 +236,18 @@ Mirror `just vv` in CI. The recommended pipeline:
 If any required job fails, the contract has drifted. The PR must either
 update [CONFORMANCE.md](CONFORMANCE.md) (declaring an explicit contract
 change) or fix the code.
+
+## TC-05 replay — GGUF and ONNX
+
+Both container realizations expose the witness surface
+(`*_with_witness` over C ABI and the WASM Component Model
+`gguf-address-with-witness` / `onnx-address-with-witness`), minting a
+`Grounded<AddressLabel>` that replays through
+`prism_verify::certify_from_trace` to a byte-identical κ-label without
+re-invoking SHA-256. The Lean side states the realization soundness
+theorems (`UorAddr.Gguf.Theorems`, `UorAddr.Onnx.Theorems`):
+`canonical_form_deterministic`, `canonical_form_is_unique`,
+`kappa_label_admits_through_psi`, `distinct_commitments_yield_distinct_labels`,
+`recurse_terminates_at_descent_bound`, plus `wire_format_round_trip`
+(GGUF) and `topological_canonical_unique` + `external_data_dereference_total`
+(ONNX). `lake build` compiles them sorry-free.

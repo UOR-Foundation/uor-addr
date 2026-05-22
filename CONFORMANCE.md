@@ -282,3 +282,38 @@ SD3 — Verification" section for the architectural framing.
   must justify the new bound and update `tests/analysis.rs` consts.
 - **All conformance changes pass through [VERIFICATION.md](VERIFICATION.md)
   §1's `just vv` gate.**
+
+## CL-GGUF — closed-loop GGUF conformance
+
+Synthetic fixtures under `crates/uor-addr/tests/fixtures/gguf/` with
+committed `.kappa-label` files produced by `tools/canonical-gguf.py`.
+`tests/gguf_byte_identity.rs` asserts the Rust κ-label equals the
+attested label (CF-W*); `tests/gguf_conformance.rs` asserts format
+invariants (label well-formedness, determinism, invariance under
+metadata-KV / tensor reordering and tensor-data relayout, sensitivity to
+weights and metadata, rejection of malformed input). Runs every CI build.
+
+## CL-ONNX — closed-loop ONNX conformance
+
+Synthetic fixtures under `crates/uor-addr/tests/fixtures/onnx/` with
+committed `.kappa-label` files produced by `tools/canonical-onnx.py`.
+`tests/onnx_byte_identity.rs` asserts byte-identity; `tests/onnx_conformance.rs`
+asserts invariance under node reordering (topological canonicalization)
+and `raw_data` vs typed-`float_data` storage, sensitivity to weights and
+op types, and rejection of wrong IR version / unknown dtype / graph
+cycle.
+
+## CN-GGUF / CN-ONNX — cross-network validation
+
+Gated behind `UOR_ADDR_LIVE=1` (`tests/gguf_cross_validation.rs`,
+`tests/onnx_cross_validation.rs`). Run the spec-side Python canonical-form
+encoder against reference models and assert the live-computed κ-label
+matches the Rust κ-label. The Python encoders are stdlib-only and are the
+canonical-form spec attestation.
+
+## CT-GGUF / CT-ONNX — cross-tool validation
+
+Gated behind `UOR_ADDR_LIVE=1` (`tests/gguf_cross_tool.rs`,
+`tests/onnx_cross_tool.rs`). POST fixture bytes to
+`mcp.uor.foundation/tools/encode_{gguf,onnx}_address` and assert the
+returned κ-label matches the Rust κ-label.

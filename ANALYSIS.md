@@ -242,3 +242,27 @@ by re-running the same `cargo test` command in the same environment.
 - It does **not** establish performance bounds. Throughput and
   latency are measured by `just bench` (criterion) and are out of
   the V&V scope.
+
+## GGUF / ONNX canonical-form design notes
+
+**Streamed two-level commitment.** Both container realizations bind
+unbounded content (tensor weights, token-vocabulary arrays) through
+streamed SHA-256 section roots rather than inlining bytes into the
+ψ-pipeline carrier. This is forced by the foundation's fixed 4096-byte
+route buffer and is the streaming realization of content-addressing:
+logically-equivalent inputs produce identical κ-labels, and any weight
+change flips the label.
+
+**GGUF.** Tensor offsets are *recomputed* in sorted-name order (not
+preserved) so two files whose tensor-data sections are laid out
+differently canonicalize identically; `general.alignment` is read before
+sorting; metadata KVs and tensor info sort lexicographically on raw UTF-8
+bytes with no Unicode normalization (consistent with the GGUF spec and
+gguf-py).
+
+**ONNX.** Node order is canonicalized by Kahn's algorithm with a total
+`(name, op_type, domain)` tie-break, so any valid topological input
+ordering collapses to one canonical order; protobuf field-order freedom
+is removed by schema-aware field selection; typed-data tensor fields are
+reduced to the canonical `raw_data` little-endian layout so the two
+storage forms canonicalize identically.

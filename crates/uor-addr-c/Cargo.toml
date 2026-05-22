@@ -38,9 +38,14 @@ uor-prism-verify = { workspace = true, default-features = false }
 # `target_os = "none"` panic_handler in scope and the κ-label-only
 # functions reachable. The `*_with_witness` / `grounded_*` API requires
 # an allocator (handle storage), so it is gated behind `alloc` / `std`.
-default = ["std"]
+default = ["std", "gguf", "onnx"]
 std     = ["alloc", "uor-addr/std"]
 alloc   = ["uor-addr/alloc"]
+# GGUF / ONNX realization exports (`uor_addr_gguf` / `uor_addr_onnx`).
+# Both are no_alloc-compatible in the underlying crate, so these add no
+# allocator requirement to the C surface.
+gguf    = ["uor-addr/gguf"]
+onnx    = ["uor-addr/onnx"]
 
 [build-dependencies]
 cbindgen = { version = "0.27", default-features = false }

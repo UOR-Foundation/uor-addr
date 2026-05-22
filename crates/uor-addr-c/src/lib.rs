@@ -355,6 +355,71 @@ pub unsafe extern "C" fn uor_addr_schema_codemodule_signed(
     }
 }
 
+// ─── GGUF realization ──────────────────────────────────────────────
+
+/// GGUF v3 realization (spec-canonical structural commitment + SHA-256).
+///
+/// The κ-label binds every metadata byte and every tensor weight (the
+/// latter via streamed per-tensor digests). Uses the crate's
+/// `GgufAddrBounds` encoding profile; applications needing different
+/// ceilings use the Rust crate directly with their own `GgufHostBounds`.
+///
+/// # Safety
+///
+/// Same pointer-validity requirements as [`uor_addr_json`].
+#[cfg(feature = "gguf")]
+#[no_mangle]
+pub unsafe extern "C" fn uor_addr_gguf(
+    input: *const u8,
+    input_len: usize,
+    out_label: *mut u8,
+    out_label_len: usize,
+    out_written: *mut usize,
+) -> i32 {
+    let s = match unsafe { borrow_input(input, input_len) } {
+        Ok(s) => s,
+        Err(code) => return code,
+    };
+    match uor_addr::gguf::address(s) {
+        Ok(outcome) => unsafe { write_outcome(outcome, out_label, out_label_len, out_written) },
+        Err(uor_addr::gguf::AddressFailure::InvalidGguf) => UOR_ADDR_ERR_INVALID_INPUT,
+        Err(uor_addr::gguf::AddressFailure::TooLarge) => UOR_ADDR_ERR_TOO_LARGE,
+        Err(uor_addr::gguf::AddressFailure::PipelineFailure) => UOR_ADDR_ERR_PIPELINE,
+    }
+}
+
+// ─── ONNX realization ──────────────────────────────────────────────
+
+/// ONNX IR v13 realization (protobuf-canonical commitment + SHA-256).
+///
+/// The κ-label binds the graph structure (nodes in topological order),
+/// initializer weights, and metadata. Uses the crate's `OnnxAddrBounds`
+/// encoding profile.
+///
+/// # Safety
+///
+/// Same pointer-validity requirements as [`uor_addr_json`].
+#[cfg(feature = "onnx")]
+#[no_mangle]
+pub unsafe extern "C" fn uor_addr_onnx(
+    input: *const u8,
+    input_len: usize,
+    out_label: *mut u8,
+    out_label_len: usize,
+    out_written: *mut usize,
+) -> i32 {
+    let s = match unsafe { borrow_input(input, input_len) } {
+        Ok(s) => s,
+        Err(code) => return code,
+    };
+    match uor_addr::onnx::address(s) {
+        Ok(outcome) => unsafe { write_outcome(outcome, out_label, out_label_len, out_written) },
+        Err(uor_addr::onnx::AddressFailure::InvalidOnnx) => UOR_ADDR_ERR_INVALID_INPUT,
+        Err(uor_addr::onnx::AddressFailure::TooLarge) => UOR_ADDR_ERR_TOO_LARGE,
+        Err(uor_addr::onnx::AddressFailure::PipelineFailure) => UOR_ADDR_ERR_PIPELINE,
+    }
+}
+
 // ─── Grounded witness (TC-05 cross-language replay) ────────────────
 //
 // Mirrors the WIT `resource grounded` exposed by the WASM Component

@@ -390,3 +390,27 @@ UOR-ADDR's existence does not require any wiki architectural
 commitment to change. UOR-ADDR adds no new ADR. Its architecture is
 the framework's existing commitments specialized to the typed
 content-addressing problem.
+
+## Container-format realizations — GGUF and ONNX
+
+Two container-format realizations join the six recursively-grammared
+realizations, validating tensor element types against the
+`prism::tensor::dtype` alphabet (uor-prism-tensor 0.2.0):
+
+| Module | Format |
+|---|---|
+| `uor_addr::gguf` | GGUF v3 under a streamed two-level structural commitment (metadata + tensor-info skeletons, with tensor weights bound via per-tensor streamed digests) |
+| `uor_addr::onnx` | ONNX IR v13 under a protobuf-canonical commitment (Kahn-topological node ordering, name-sorted initializers / IO, typed-data→raw_data reduction, depth-bounded subgraph recursion) |
+
+### Streamed-commitment design (the carrier constraint)
+
+The foundation pipeline threads a fixed 4096-byte route-input buffer, so
+neither multi-GB tensor data nor a many-tensor structural skeleton can
+flow through `forward()` inline. Both realizations therefore reduce their
+input to a **fixed-width two-level commitment** at the host boundary:
+variable-length leaves (tensor data, metadata arrays, long strings) are
+folded into 32-byte streamed SHA-256 section roots (using
+`prism::crypto::Sha256Hasher`'s incremental `fold_bytes`), and only the
+bounded commitment flows through the ψ-pipeline. The κ-label is therefore
+a Merkle-style commitment — sensitive to every weight and structural byte,
+bounded for any model size.

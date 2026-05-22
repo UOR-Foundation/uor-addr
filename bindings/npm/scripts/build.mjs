@@ -139,6 +139,10 @@ export interface Kappa {
   schemaDocumentAddress(input: Uint8Array): KappaLabel;
   /** in-toto Statement v1 admission + JSON canonicalization. */
   schemaCodemoduleSignedAddress(input: Uint8Array): KappaLabel;
+  /** GGUF v3 spec-canonical structural commitment (binds metadata + tensor weights). */
+  ggufAddress(input: Uint8Array): KappaLabel;
+  /** ONNX IR v13 protobuf-canonical commitment (topological node ordering + weight digests). */
+  onnxAddress(input: Uint8Array): KappaLabel;
 
   // ── Witness-bearing variants (TC-05 cross-language replay) ──
 
@@ -160,6 +164,10 @@ export interface Kappa {
   schemaDocumentAddressWithWitness(input: Uint8Array): Grounded;
   /** in-toto Statement v1; returns a verifiable witness. */
   schemaCodemoduleSignedAddressWithWitness(input: Uint8Array): Grounded;
+  /** GGUF v3 realization; returns a verifiable [\`Grounded\`] witness. */
+  ggufAddressWithWitness(input: Uint8Array): Grounded;
+  /** ONNX IR v13 realization; returns a verifiable [\`Grounded\`] witness. */
+  onnxAddressWithWitness(input: Uint8Array): Grounded;
 }
 
 export const kappa: Kappa;

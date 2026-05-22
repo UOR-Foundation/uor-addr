@@ -173,6 +173,37 @@ int32_t uor_addr_schema_codemodule_signed(const uint8_t *input,
                                           uintptr_t out_label_len,
                                           uintptr_t *out_written);
 
+// GGUF v3 realization (spec-canonical structural commitment + SHA-256).
+//
+// The κ-label binds every metadata byte and every tensor weight (the
+// latter via streamed per-tensor digests). Uses the crate's
+// `GgufAddrBounds` encoding profile; applications needing different
+// ceilings use the Rust crate directly with their own `GgufHostBounds`.
+//
+// # Safety
+//
+// Same pointer-validity requirements as [`uor_addr_json`].
+int32_t uor_addr_gguf(const uint8_t *input,
+                      uintptr_t input_len,
+                      uint8_t *out_label,
+                      uintptr_t out_label_len,
+                      uintptr_t *out_written);
+
+// ONNX IR v13 realization (protobuf-canonical commitment + SHA-256).
+//
+// The κ-label binds the graph structure (nodes in topological order),
+// initializer weights, and metadata. Uses the crate's `OnnxAddrBounds`
+// encoding profile.
+//
+// # Safety
+//
+// Same pointer-validity requirements as [`uor_addr_json`].
+int32_t uor_addr_onnx(const uint8_t *input,
+                      uintptr_t input_len,
+                      uint8_t *out_label,
+                      uintptr_t out_label_len,
+                      uintptr_t *out_written);
+
 // Free a Grounded handle. Calling with a null pointer is a no-op.
 // After this call returns, `handle` is invalid; any further use is
 // undefined behaviour.
