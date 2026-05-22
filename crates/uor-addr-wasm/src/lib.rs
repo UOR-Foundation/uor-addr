@@ -12,10 +12,20 @@
 //!
 //! # Polyglot consumption
 //!
-//! Build with `cargo build --target wasm32-wasip2 --release`. The
-//! resulting `.wasm` artifact is consumable from:
+//! This crate is pure compute — it imports nothing from the host. Build
+//! it for `wasm32-unknown-unknown` and componentize the resulting core
+//! module (`jco new`, or `wasm-tools component new`) to obtain a
+//! **zero-import Component Model component**. Prefer this over
+//! `wasm32-wasip2`: the wasip2 target links std's WASI runtime
+//! (`cli`/`io`/`exit`/`environment`) into the component even though it
+//! is never called, which forces every host to provision WASI 0.2 and —
+//! for the JS path — pins jco's Node-only `preview2-shim`, breaking
+//! browser / Deno / Bun / Workers / bundler use.
 //!
-//! - **JS / TS** via `jco transpile` → npm-publishable bindings.
+//! The zero-import component is consumable from:
+//!
+//! - **JS / TS** via `jco transpile` → npm-publishable bindings that run
+//!   in any JS environment (see `bindings/npm/scripts/build.mjs`).
 //! - **Python** via `wasmtime-py` (once it adds Component Model
 //!   support; until then Python uses the C ABI path).
 //! - **Go** via `wasmtime-go`.
@@ -45,10 +55,10 @@
 //! ψ-pipeline remains no_alloc — only the host-input / host-output
 //! marshalling at the Component Model boundary allocates.
 
-// `uor-addr-wasm` targets `wasm32-wasip2`. Outside that target, the
-// crate compiles to an empty `rlib`/`cdylib` so the workspace builds
-// without requiring `cargo component` everywhere. The Component
-// Model symbol exports only link on `wasm32`.
+// `uor-addr-wasm` targets `wasm32-unknown-unknown` (componentized
+// post-build). Outside `wasm32`, the crate compiles to an empty
+// `rlib`/`cdylib` so the workspace builds without a wasm toolchain
+// everywhere. The Component Model symbol exports only link on `wasm32`.
 
 #![cfg_attr(not(target_arch = "wasm32"), allow(dead_code))]
 

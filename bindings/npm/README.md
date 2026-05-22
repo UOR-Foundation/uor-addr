@@ -10,7 +10,7 @@ Wraps the [`uor-addr-wasm`](https://github.com/UOR-Foundation/uor-addr/tree/main
 npm install @uor-foundation/uor-addr
 ```
 
-Requires Node 20+ (uses the WASI Preview 2 + Component Model bindings jco emits).
+Runs anywhere a WebAssembly engine is available — Node, Deno, Bun, Cloudflare Workers, and the browser. The package is a single self-contained ES module: the WebAssembly is inlined, so there are no `node:` imports, no `fetch`, and no sidecar `.wasm` asset to resolve.
 
 ## Quickstart
 
@@ -87,13 +87,13 @@ The κ-label this package produces is **byte-for-byte identical** to `uor_addr::
 ## Building from source
 
 ```bash
-# From the workspace root:
-cargo build -p uor-addr-wasm --target wasm32-wasip2 --release
+# From the workspace root — build the zero-import core module:
+cargo build -p uor-addr-wasm --target wasm32-unknown-unknown --release
 
 # Then in this directory:
 cd bindings/npm
 npm install
-npm run build      # transpiles the wasm component via jco
+npm run build      # componentizes + inlines the wasm into one ES module
 npm test           # smoke-tests every realization
 ```
 

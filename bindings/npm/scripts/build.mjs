@@ -1,35 +1,75 @@
-// Build script: transpile the uor-addr-wasm Component Model artifact
-// at ../../target/wasm32-wasip2/release/uor_addr_wasm.wasm into ES
-// module + TypeScript glue under ./dist/.
+// Build script: turn the uor-addr-wasm core module at
+// ../../target/wasm32-unknown-unknown/release/uor_addr_wasm.wasm into a
+// single self-contained, environment-agnostic ES module under ./dist/.
 //
-// In CI / publish flow, the .wasm artifact is already produced by the
-// `wasm` job in .github/workflows/release.yml and dropped at the same
-// path. Locally, `cargo build -p uor-addr-wasm --target wasm32-wasip2
-// --release` produces it from the workspace root.
+// Why wasm32-unknown-unknown and not wasm32-wasip2: the wasip2 target
+// links std's WASI runtime (cli/io/exit/environment) into the
+// component even though this pure-compute library never calls it. jco
+// can only satisfy those imports with `@bytecodealliance/preview2-shim`,
+// which is Node-only — so a wasip2-derived package is unusable in the
+// browser, Deno, Bun, Cloudflare Workers, and any bundler that resolves
+// `node:` specifiers statically. Building for wasm32-unknown-unknown
+// produces a core module with no WASI dependency; `jco new`
+// componentizes it into a zero-import component, and base64-inlining the
+// core wasm (`--base64-cutoff`) plus `--no-nodejs-compat` yields a lone
+// uor-addr.js with no `node:` imports, no fetch, and no separate .wasm
+// asset — runnable anywhere a WebAssembly engine exists.
+//
+// In CI / publish flow, the core module is produced by the `publish-npm`
+// job in .github/workflows/release.yml. Locally, run:
+//   cargo build -p uor-addr-wasm --target wasm32-unknown-unknown --release
 
 import { execSync } from "node:child_process";
-import { existsSync, mkdirSync, readFileSync, writeFileSync } from "node:fs";
+import { existsSync, mkdirSync, rmSync, writeFileSync } from "node:fs";
 import { dirname, join, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
 const root = resolve(__dirname, "..", "..", "..");
-const wasmPath = join(root, "target", "wasm32-wasip2", "release", "uor_addr_wasm.wasm");
+const coreModulePath = join(
+  root, "target", "wasm32-unknown-unknown", "release", "uor_addr_wasm.wasm",
+);
 const distDir = resolve(__dirname, "..", "dist");
+const componentPath = join(distDir, "uor-addr.component.wasm");
 
-if (!existsSync(wasmPath)) {
-  console.error(`error: expected wasm artifact at ${wasmPath}`);
-  console.error("       run: cargo build -p uor-addr-wasm --target wasm32-wasip2 --release");
+// Inline core wasm of any plausible size as base64 so the published
+// package is a single self-contained module (no fetch, no fs, no
+// sidecar .wasm). 256 MiB is well above the ~1.5 MiB artifact.
+const BASE64_CUTOFF = 256 * 1024 * 1024;
+
+if (!existsSync(coreModulePath)) {
+  console.error(`error: expected core wasm module at ${coreModulePath}`);
+  console.error("       run: cargo build -p uor-addr-wasm --target wasm32-unknown-unknown --release");
   process.exit(1);
 }
 
+// Start from a clean dist/ so stale sidecar artifacts (e.g. a previous
+// build's uor-addr.core.wasm) never ship.
+rmSync(distDir, { recursive: true, force: true });
 mkdirSync(distDir, { recursive: true });
 
-console.log("transpiling uor_addr_wasm.wasm via jco…");
+const jco = resolve(__dirname, "..");
+
+// 1. Componentize: wrap the bare core module into a Component Model
+//    component using the WIT embedded by wit-bindgen. No WASI adapter is
+//    needed because the module imports nothing from the host.
+console.log("componentizing uor_addr_wasm.wasm via jco new…");
 execSync(
-  `npx jco transpile "${wasmPath}" --out-dir "${distDir}" --name uor-addr --no-typescript`,
-  { stdio: "inherit", cwd: resolve(__dirname, "..") }
+  `npx jco new "${coreModulePath}" -o "${componentPath}"`,
+  { stdio: "inherit", cwd: jco },
 );
+
+// 2. Transpile to a single universal ES module. --base64-cutoff inlines
+//    the core wasm; --no-nodejs-compat strips the Node-only fs fallback.
+console.log("transpiling component via jco…");
+execSync(
+  `npx jco transpile "${componentPath}" --out-dir "${distDir}" --name uor-addr ` +
+    `--no-typescript --no-nodejs-compat --minify --base64-cutoff ${BASE64_CUTOFF}`,
+  { stdio: "inherit", cwd: jco },
+);
+
+// The intermediate component is not part of the published package.
+rmSync(componentPath, { force: true });
 
 // Generate a TypeScript ambient declaration matching the WIT exports
 // (one *-address function per realization). jco's --no-typescript flag

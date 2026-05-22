@@ -62,19 +62,38 @@ jobs:
       - run: cargo build -p uor-addr-c --no-default-features --target thumbv7em-none-eabihf
 
   wasm:
-    name: wasm component model (wasm32-wasip2)
+    name: wasm component model (wasm32-unknown-unknown)
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
       - run: rustup show active-toolchain || rustup toolchain install
-      - run: rustup target add wasm32-wasip2
+      - run: rustup target add wasm32-unknown-unknown
       - uses: Swatinem/rust-cache@v2
-      - run: cargo build -p uor-addr-wasm --target wasm32-wasip2 --release
+      - name: Install wasm-tools
+        uses: taiki-e/install-action@v2
+        with:
+          tool: wasm-tools
+      # Build the zero-import core module and componentize it — the same
+      # path the release ships. wasm32-wasip2 is avoided on purpose: it
+      # links std's unused WASI runtime into the component, which only
+      # the Node-only jco preview2-shim can satisfy.
+      - run: cargo build -p uor-addr-wasm --target wasm32-unknown-unknown --release
+      - name: Componentize + assert zero imports
+        run: |
+          wasm-tools component new \
+            target/wasm32-unknown-unknown/release/uor_addr_wasm.wasm \
+            -o target/uor_addr_wasm.wasm
+          if wasm-tools component wit target/uor_addr_wasm.wasm | grep -qi import; then
+            echo "::error::component has host imports — expected zero (pure-compute library)"
+            wasm-tools component wit target/uor_addr_wasm.wasm | grep -i import
+            exit 1
+          fi
+          echo "zero host imports — confirmed"
       - name: Upload .wasm artifact
         uses: actions/upload-artifact@v4
         with:
           name: uor-addr-wasm-component
-          path: target/wasm32-wasip2/release/uor_addr_wasm.wasm
+          path: target/uor_addr_wasm.wasm
           if-no-files-found: error
 
   conformance:
