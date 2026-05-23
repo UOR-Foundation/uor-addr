@@ -9,7 +9,7 @@
 //! cargo run -p uor-addr --example address_value
 //! ```
 
-use uor_addr::address;
+use uor_addr::json::address;
 
 fn main() {
     let inputs: &[&[u8]] = &[

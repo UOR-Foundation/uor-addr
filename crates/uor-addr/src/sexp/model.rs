@@ -1,13 +1,16 @@
-//! `sexp::AddressModel` — the S-expression realization's
-//! `PrismModel<H, B, A, R, C>` declaration (wiki ADR-020 + ADR-036 +
-//! ADR-048 + ARCHITECTURE.md "Common PrismModel form").
+//! `sexp::AddressModel` — the S-expression realization's `PrismModel`
+//! declaration, binding the shared [`AddrBounds`]
+//! profile and the shared [`AddressResolverTuple`](crate::resolvers)
+//! ψ-tower. The input is the ADR-060 stream-carrier handle
+//! [`SExprValue`]; `prism_model!` threads the `'a` input-carrier lifetime
+//! and derives the inline carrier width from the bounds.
 
 use prism::pipeline::{prism_model, EmptyCommitment};
 use prism::vocabulary::DefaultHostTypes;
 
+use crate::bounds::AddrBounds;
 use crate::label::AddressLabel;
-use crate::sexp::resolvers::AddressResolverTuple;
-use crate::sexp::shapes::bounds::SExprAddrBounds;
+use crate::resolvers::AddressResolverTuple;
 use crate::sexp::value::SExprValue;
 
 #[allow(unused_imports)]
@@ -18,12 +21,12 @@ prism_model! {
     pub struct AddressRoute;
     impl PrismModel<
         DefaultHostTypes,
-        SExprAddrBounds,
+        AddrBounds,
         prism::crypto::Sha256Hasher,
         AddressResolverTuple<prism::crypto::Sha256Hasher>,
         EmptyCommitment
     > for AddressModel {
-        type Input = SExprValue;
+        type Input = SExprValue<'a>;
         type Output = AddressLabel;
         type Route = AddressRoute;
         fn route(input: Self::Input) -> Self::Output {

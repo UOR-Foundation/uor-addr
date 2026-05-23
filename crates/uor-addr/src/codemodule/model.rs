@@ -1,14 +1,16 @@
 //! `codemodule::AddressModel` — the code-module AST realization's
-//! `PrismModel<H, B, A, R, C>` declaration (wiki ADR-020 + ADR-036 +
-//! ADR-048 + ARCHITECTURE.md "Common PrismModel form").
+//! `PrismModel` declaration, binding the shared
+//! [`AddrBounds`] profile and the shared
+//! [`AddressResolverTuple`](crate::resolvers) ψ-tower. The input is the
+//! ADR-060 stream-carrier handle [`CodeModuleCarrier`].
 
 use prism::pipeline::{prism_model, EmptyCommitment};
 use prism::vocabulary::DefaultHostTypes;
 
-use crate::codemodule::resolvers::AddressResolverTuple;
-use crate::codemodule::shapes::bounds::CodeModuleAddrBounds;
-use crate::codemodule::value::CodeModuleValue;
+use crate::bounds::AddrBounds;
+use crate::codemodule::value::CodeModuleCarrier;
 use crate::label::AddressLabel;
+use crate::resolvers::AddressResolverTuple;
 
 #[allow(unused_imports)]
 use crate::codemodule::verbs::{address_inference, VERB_TERMS_ADDRESS_INFERENCE};
@@ -18,12 +20,12 @@ prism_model! {
     pub struct AddressRoute;
     impl PrismModel<
         DefaultHostTypes,
-        CodeModuleAddrBounds,
+        AddrBounds,
         prism::crypto::Sha256Hasher,
         AddressResolverTuple<prism::crypto::Sha256Hasher>,
         EmptyCommitment
     > for AddressModel {
-        type Input = CodeModuleValue;
+        type Input = CodeModuleCarrier<'a>;
         type Output = AddressLabel;
         type Route = AddressRoute;
         fn route(input: Self::Input) -> Self::Output {

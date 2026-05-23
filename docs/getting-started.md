@@ -33,8 +33,8 @@ See [realizations.md](realizations.md) for the full decision matrix.
 ## 2. Mint a κ-label
 
 The `address` function takes raw bytes and returns an outcome carrying
-the wire-format κ-label plus a `Grounded<AddressLabel>` witness for
-downstream verification.
+the wire-format κ-label plus an owned `AddressWitness` for downstream
+verification.
 
 ```rust
 let outcome = uor_addr::json::address(br#"{"foo": "bar"}"#).unwrap();
@@ -64,33 +64,43 @@ assert_ne!(int, str);
 
 ## 3. Verify a κ-label without re-hashing
 
-Every `address()` call also emits a `Grounded<AddressLabel>` witness.
-Downstream consumers replay it through
-`prism_verify::certify_from_trace` to re-derive a
-`Certified<GroundingCertificate>` — the verifier sees the trace, not
+Every `address()` call also emits an **owned** `AddressWitness` holding
+the replayable trace plus the σ-projection fingerprint. Downstream
+consumers call `witness.verify()`, which re-certifies through
+`prism::replay::certify_from_trace` — the verifier sees the trace, not
 the original input, and does not invoke SHA-256 again.
 
 ```rust
 let outcome = uor_addr::json::address(br#"{"foo": "bar"}"#).unwrap();
-let grounded = outcome.witness.grounded();
-// grounded.output_bytes() == outcome.address.as_bytes()
+let witness = outcome.witness;
+assert_eq!(witness.kappa_label(), outcome.address);
+// verify() replays the trace and re-confirms the fingerprint,
+// returning the same κ-label without re-hashing.
+assert_eq!(witness.verify().unwrap(), outcome.address);
 // The trace replay path is exercised by `tests/replay.rs`.
 ```
 
 ## Embedded / `no_std`
 
-The crate is `no_std + no_alloc` by default — the κ-derivation
-pipeline never touches an allocator. Build for bare-metal Cortex-M4:
+The crate is `no_std` by default, and the ψ-pipeline itself never
+touches an allocator. The realizations whose canonical form is produced
+without heap — **ring, sexp, asn1, codemodule** — are `no_alloc`: their
+input flows as an `Inline`, `Stream`, or `Borrowed`-over-input carrier.
+Build for bare-metal Cortex-M4:
 
 ```bash
 rustup target add thumbv7em-none-eabihf
 cargo build -p uor-addr --no-default-features --target thumbv7em-none-eabihf
 ```
 
-The `alloc` and `std` features are purely ergonomic — they enable
-Vec-returning convenience APIs and stdlib re-exports without
-changing any κ-label byte-for-byte (CB-A03 + CB-A04 in
-[../CONFORMANCE.md](../CONFORMANCE.md)).
+That `--no-default-features` build exposes the `no_alloc` realizations'
+κ-label functions only. The realizations that must materialize a
+canonical form on the heap — **json, xml, the `schema::*` descendants,
+gguf, onnx** (object-key / attribute sorting, or the materialized
+flat skeleton) — gate their `address()` / `canonicalize()` entry points
+behind the `alloc` feature. Enabling `alloc` (or `std`) is otherwise
+purely additive and never changes any κ-label byte-for-byte (CB-A03 +
+CB-A04 in [../CONFORMANCE.md](../CONFORMANCE.md)).
 
 ## Consuming from non-Rust callers
 

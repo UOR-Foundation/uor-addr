@@ -134,7 +134,7 @@ fn cross_format_distinction_against_json_realization() {
     // vs `SExprValue`) produce different canonicalization byte
     // sequences for the same surface intent, so κ-labels differ.
     let sexpr_label = address(b"(a b c)").expect("κ-label").address;
-    let json_label = uor_addr::address(br#"["a","b","c"]"#)
+    let json_label = uor_addr::json::address(br#"["a","b","c"]"#)
         .expect("κ-label")
         .address;
     assert_ne!(

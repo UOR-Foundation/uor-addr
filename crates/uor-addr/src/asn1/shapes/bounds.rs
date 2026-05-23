@@ -1,41 +1,16 @@
-//! `Asn1AddrBounds` — ASN.1 realization's `HostBounds` profile.
+//! ASN.1 realization grammar constant.
+//!
+//! ADR-060 removed the fixed-buffer capacity profile (`Asn1AddrBounds`)
+//! and its byte/element ceilings (`ASN1_VALUE_MAX_BYTES`,
+//! `MAX_ASN1_ELEMENTS`): DER is canonical by construction, so the input
+//! bytes flow through the pipeline as a borrowed carrier with no size
+//! cap, and the owned DER builder uses unbounded `alloc` storage.
+//!
+//! The single remaining bound is a **native-stack-overflow guard** for
+//! the recursive TLV validator.
 
-use prism::vocabulary::HostBounds;
-
-pub const MAX_ASN1_DEPTH: usize = 32;
-pub const MAX_ASN1_ELEMENTS: usize = 256;
-pub const ASN1_VALUE_MAX_BYTES: usize = 3968;
-
-#[derive(Debug, Default, Clone, Copy, PartialEq, Eq, Hash)]
-pub struct Asn1AddrBounds;
-
-impl HostBounds for Asn1AddrBounds {
-    const FINGERPRINT_MIN_BYTES: usize = 32;
-    const FINGERPRINT_MAX_BYTES: usize = 32;
-    const TRACE_MAX_EVENTS: usize = 64;
-    const WITT_LEVEL_MAX_BITS: u32 = 32;
-
-    const TERM_VALUE_MAX_BYTES: usize = 4096;
-    const AXIS_OUTPUT_BYTES_MAX: usize = 4096;
-    const FOLD_UNROLL_THRESHOLD: usize = 8;
-    const BETTI_DIMENSION_MAX: usize = 71;
-    const NERVE_CONSTRAINTS_MAX: usize = 128;
-    const NERVE_SITES_MAX: usize = 71;
-    const JACOBIAN_SITES_MAX: usize = 71;
-    const RECURSION_TRACE_DEPTH_MAX: usize = 16;
-    const OP_CHAIN_DEPTH_MAX: usize = 8;
-    const AFFINE_COEFFS_MAX: usize = 80;
-    const CONJUNCTION_TERMS_MAX: usize = 128;
-    const ROUTE_INPUT_BUFFER_BYTES: usize = 4096;
-    const ROUTE_OUTPUT_BUFFER_BYTES: usize = 4096;
-    const UNFOLD_ITERATIONS_MAX: usize = 256;
-
-    const NERVE_OUTPUT_BYTES_MAX: usize = 4096;
-    const CHAIN_COMPLEX_OUTPUT_BYTES_MAX: usize = 4096;
-    const HOMOLOGY_GROUPS_OUTPUT_BYTES_MAX: usize = 4096;
-    const COCHAIN_COMPLEX_OUTPUT_BYTES_MAX: usize = 4096;
-    const COHOMOLOGY_GROUPS_OUTPUT_BYTES_MAX: usize = 4096;
-    const POSTNIKOV_TOWER_OUTPUT_BYTES_MAX: usize = 4096;
-    const HOMOTOPY_GROUPS_OUTPUT_BYTES_MAX: usize = 4096;
-    const K_INVARIANTS_OUTPUT_BYTES_MAX: usize = 4096;
-}
+/// Maximum constructed-type (SEQUENCE / SET) nesting depth the recursive
+/// DER validator descends before reporting a depth-bound violation.
+/// Guards the native call stack against pathologically-nested input; it
+/// is not a ceiling on value size or element count.
+pub const MAX_ASN1_DEPTH: usize = 1024;

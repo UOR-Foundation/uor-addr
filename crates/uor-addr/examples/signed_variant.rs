@@ -78,10 +78,13 @@ fn main() {
     fn assert_typed_commitment<C: TypedCommitment>() {}
     assert_typed_commitment::<SignedCommitment>();
     fn assert_prism_model<
+        'a,
         M: prism::pipeline::PrismModel<
+            'a,
             prism::vocabulary::DefaultHostTypes,
             uor_addr::AddrBounds,
             uor_addr::Sha256Hasher,
+            { uor_addr::ADDR_INLINE_BYTES },
             uor_addr::AddressResolverTuple<uor_addr::Sha256Hasher>,
             SignedCommitment,
             Route = AddressSignedRoute,

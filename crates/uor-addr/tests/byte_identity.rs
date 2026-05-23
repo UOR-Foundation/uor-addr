@@ -16,7 +16,7 @@
 //!    in-surface canonicalizer (reached via [`canonicalize`])
 //!    produces the expected canonical-form bytes for each fixture.
 
-use uor_addr::{address, canonicalize};
+use uor_addr::json::{address, canonicalize};
 
 struct Fixture {
     name: &'static str,
@@ -171,7 +171,7 @@ fn canonicalize_kernel_matches_expected_canonical_form() {
 #[test]
 fn pipeline_rejects_invalid_json() {
     match address(b"not json") {
-        Err(uor_addr::AddressFailure::InvalidJson) => {}
+        Err(uor_addr::json::AddressFailure::InvalidJson) => {}
         other => panic!("expected InvalidJson, got {:?}", other),
     }
 }
@@ -189,15 +189,17 @@ fn pipeline_address_is_seventy_one_ascii_bytes() {
 }
 
 #[test]
-fn pipeline_witness_borrows_grounded() {
-    // The Grounded<AddressLabel> is carried inside AddressOutcome::witness
-    // and is foundation-sealed (constructible only via PrismModel::forward).
+fn pipeline_witness_recovers_kappa_label() {
+    // The AddressWitness carried inside AddressOutcome::witness is
+    // foundation-sealed (constructible only via PrismModel::forward) and
+    // its replay must recover the exact 71-byte κ-label.
     let outcome = address(br#"{"foo":"bar"}"#).expect("valid JSON");
-    let grounded = outcome.witness.grounded();
-    // output_bytes() returns the 71-byte κ-label.
-    let bytes = grounded.output_bytes();
-    assert_eq!(bytes.len(), 71);
-    assert_eq!(std::str::from_utf8(bytes).unwrap(), outcome.address);
+    let label = outcome.witness.kappa_label();
+    assert_eq!(label.len(), 71);
+    assert_eq!(label, outcome.address);
+    // verify() replays the derivation and returns the recovered κ-label.
+    let recovered = outcome.witness.verify().expect("replay");
+    assert_eq!(recovered, outcome.address);
 }
 
 #[test]

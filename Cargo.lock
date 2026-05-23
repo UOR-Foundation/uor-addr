@@ -857,24 +857,23 @@ name = "uor-addr-wasm"
 version = "0.1.0"
 dependencies = [
  "uor-addr",
- "uor-prism-verify",
  "wit-bindgen 0.34.0",
 ]
 
 [[package]]
 name = "uor-foundation"
-version = "0.4.15"
+version = "0.5.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "2ee155b60c34cf2d088d50697a3e8f311b4ecc496d8e2b4b2686d0c3f4514c76"
+checksum = "8db6f717d4b2b0832bbd645fd2f7b8aed3bfac8a3c457a11cb1db3a5513b9b0f"
 dependencies = [
  "libm",
 ]
 
 [[package]]
 name = "uor-foundation-sdk"
-version = "0.4.15"
+version = "0.5.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "d407fe53c77029a661ae90fb9f9ce948875d88c9602f66e5803861dd0fce2c11"
+checksum = "3e9b6e32f35a44b3f7e8bc209b791ef4e9944f670c884779065dc4bc3ff57826"
 dependencies = [
  "proc-macro2",
  "quote",
@@ -883,9 +882,9 @@ dependencies = [
 
 [[package]]
 name = "uor-prism"
-version = "0.2.0"
+version = "0.3.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "647ad4b27cdabd7c9d9bfba4c825a01b90d26f336cd2e04863484856850e92e6"
+checksum = "859b8b102746bb0e961ace05764a5d7596ad0ad9ab1a21d3b1a3e77f74085fea"
 dependencies = [
  "uor-foundation",
  "uor-foundation-sdk",
@@ -897,9 +896,9 @@ dependencies = [
 
 [[package]]
 name = "uor-prism-crypto"
-version = "0.2.0"
+version = "0.3.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "006f0dc21e3e44c0da35c95e34206050064f01b49d6df4d59f55820f28257d09"
+checksum = "85cc2e625a7ee0467fcae3a576da45aa51459ab63ecf07abeb808c90dea466fb"
 dependencies = [
  "blake3",
  "sha2",
@@ -910,9 +909,9 @@ dependencies = [
 
 [[package]]
 name = "uor-prism-fhe"
-version = "0.2.0"
+version = "0.3.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "10bf7e290275980f8eb1f36d2d5c59f763ab0a9be67754bc235843215d38df0d"
+checksum = "71ffeb487a0cb193e9df7b31d5f183c25484467b33a520ec170ef3a3a0c72759"
 dependencies = [
  "uor-foundation",
  "uor-foundation-sdk",
@@ -920,9 +919,9 @@ dependencies = [
 
 [[package]]
 name = "uor-prism-numerics"
-version = "0.2.0"
+version = "0.3.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "b7c1bda1bdc1ff743a2fe28bc599425233836ddaac39bb68721b3b4d6c75f7d6"
+checksum = "37319cb48e6a153a4e1d23bcb0adb26fbb43f25476b498bdf0ca80846b388828"
 dependencies = [
  "uor-foundation",
  "uor-foundation-sdk",
@@ -930,9 +929,9 @@ dependencies = [
 
 [[package]]
 name = "uor-prism-tensor"
-version = "0.2.0"
+version = "0.3.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "94661561c48a8de88c97192ef0a7ab98403912f6c7da7a13ec5973b353b6bf89"
+checksum = "16ef57fa09bf9ac9f96e821e98926ed6401672347de49387893da5407848c80d"
 dependencies = [
  "uor-foundation",
  "uor-foundation-sdk",
@@ -941,9 +940,9 @@ dependencies = [
 
 [[package]]
 name = "uor-prism-verify"
-version = "0.2.0"
+version = "0.3.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "0cd28439743aae8704e589adad75656c2d08e670898dd15cb6f4489ce7527a0a"
+checksum = "0c86b1b2f6f2c17bcd973836eff77000ebd6a545edfe6cc5b084b3c57f5d5ef2"
 dependencies = [
  "uor-foundation",
  "uor-prism",

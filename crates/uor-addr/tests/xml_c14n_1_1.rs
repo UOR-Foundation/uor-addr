@@ -238,23 +238,20 @@ fn rejects_overdeep_nesting() {
         s.push_str(&alloc::format!("</n{i}>"));
     }
     match address(s.as_bytes()) {
-        Err(AddressFailure::InvalidXml) | Err(AddressFailure::TooLarge) => {}
+        Err(AddressFailure::InvalidXml) => {}
         other => panic!("expected rejection: {other:?}"),
     }
 }
 
 #[test]
-fn rejects_too_many_attributes() {
-    use uor_addr::xml::MAX_XML_ATTRIBUTES;
+fn admits_many_attributes() {
+    // ADR-060 removed the attribute-count cap; many attributes admit.
     let mut s = alloc::string::String::from("<r");
-    for i in 0..(MAX_XML_ATTRIBUTES + 2) {
+    for i in 0..512 {
         s.push_str(&alloc::format!(r#" a{i}="v""#));
     }
     s.push_str("/>");
-    match address(s.as_bytes()) {
-        Err(AddressFailure::InvalidXml) | Err(AddressFailure::TooLarge) => {}
-        other => panic!("expected rejection: {other:?}"),
-    }
+    address(s.as_bytes()).expect("many attributes admit");
 }
 
 extern crate alloc;

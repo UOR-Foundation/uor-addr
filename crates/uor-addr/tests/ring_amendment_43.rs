@@ -5,7 +5,7 @@
 //! layout `header(k) || le_bytes(x, k+1)` documented at
 //! <https://github.com/UOR-Foundation/UOR-Framework/wiki/Amendment-43>.
 
-use uor_addr::ring::{address, canonicalize, AddressFailure, RingElement, MAX_WITT_LEVEL};
+use uor_addr::ring::{address, AddressFailure, RingElement, MAX_WITT_LEVEL};
 
 #[test]
 fn amendment_43_canonical_bytes_layout_at_every_witt_level() {
@@ -60,12 +60,13 @@ fn maximum_coefficient_value_per_width() {
 
 #[test]
 fn canonicalize_is_identity_amendment_43() {
-    // Amendment 43 §2 pins canonical bytes at construction.
+    // Amendment 43 §2 pins canonical bytes at construction: re-parsing a
+    // ring element's tagged bytes and re-emitting them is the identity.
     for k in 0..=MAX_WITT_LEVEL {
         let element = RingElement::from_components(k, 0xABCD).expect("valid");
         let bytes = element.tagged_bytes().to_vec();
-        let canon = canonicalize(&bytes).expect("canonicalize");
-        assert_eq!(canon, bytes);
+        let reparsed = RingElement::parse(&bytes).expect("re-parse canonical bytes");
+        assert_eq!(reparsed.tagged_bytes(), bytes);
     }
 }
 
@@ -121,11 +122,16 @@ fn rejects_truncated_canonical_bytes() {
 }
 
 #[test]
-fn rejects_oversize_input() {
-    let too_large = alloc::vec![0u8; uor_addr::ring::RING_VALUE_MAX_BYTES + 1];
-    match address(&too_large) {
-        Err(AddressFailure::TooLarge) => {}
-        other => panic!("expected TooLarge: {other:?}"),
+fn large_input_is_unbounded_no_size_cap() {
+    // ADR-060 removed the fixed input size cap. A large buffer is no
+    // longer rejected for its size; the only ground for rejection is
+    // structural — this all-zero buffer declares witt level 0 (1+1 = 2
+    // bytes expected) yet carries far more, so it surfaces the structural
+    // InvalidRingElement, NOT a size-cap failure.
+    let large = alloc::vec![0u8; uor_addr::ring::RING_VALUE_MAX_BYTES + 1];
+    match address(&large) {
+        Err(AddressFailure::InvalidRingElement) => {}
+        other => panic!("expected InvalidRingElement (no size cap): {other:?}"),
     }
 }
 

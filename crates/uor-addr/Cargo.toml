@@ -43,13 +43,15 @@ std     = ["alloc", "uor-prism/std"]
 # whether or not this feature is enabled — `alloc` only gates
 # convenience surfaces.
 alloc   = []
-# GGUF realization. The realization is no_alloc-compatible (the parser
-# walks input bytes by reference and streams tensor data through the
-# hash axis). Activating it pulls in the explicit uor-prism-tensor dep
-# used for the dtype registry.
-gguf  = ["dep:uor-prism-tensor"]
-# ONNX realization. Same no_alloc + dtype-registry discipline.
-onnx  = ["dep:uor-prism-tensor"]
+# GGUF realization. Under ADR-060 the canonical form is the full flat
+# Merkle skeleton, materialized in an `alloc` buffer (entry sort scratch
+# + the skeleton), so the realization requires `alloc`. Activating it
+# also pulls in the explicit uor-prism-tensor dep used for the dtype
+# registry. (gguf/onnx are off in the bare-metal `--no-default-features`
+# build, so the alloc requirement never reaches that target.)
+gguf  = ["alloc", "dep:uor-prism-tensor"]
+# ONNX realization. Same alloc + dtype-registry discipline.
+onnx  = ["alloc", "dep:uor-prism-tensor"]
 
 [dev-dependencies]
 # TC-05 replay surface — exercises the `Grounded<AddressLabel>` round-trip

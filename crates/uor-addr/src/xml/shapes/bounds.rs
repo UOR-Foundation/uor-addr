@@ -1,43 +1,21 @@
-//! `XmlAddrBounds` — XML realization's `HostBounds` profile.
+//! XML realization grammar constant.
+//!
+//! ADR-060 removed the fixed-buffer capacity profile (`XmlAddrBounds`)
+//! and every byte/count ceiling it implied (`XML_VALUE_MAX_BYTES`,
+//! `MAX_XML_TEXT_BYTES`, `MAX_XML_ATTRIBUTES`,
+//! `MAX_XML_ELEMENT_NAME_BYTES`). Element names, attribute values, text
+//! runs, attribute counts, and child counts are now unbounded — the
+//! canonicalizer materializes the canonical form in an `alloc` buffer and
+//! the input flows through the pipeline as a borrowed carrier.
+//!
+//! The single remaining bound is a **native-stack-overflow guard** for
+//! the recursive-descent parser/canonicalizer: a maximally-nested
+//! document would otherwise exhaust the call stack. This is a safety
+//! bound on recursion, not a capacity ceiling on content.
 
-use prism::vocabulary::HostBounds;
-
-pub const MAX_XML_DEPTH: usize = 32;
-pub const MAX_XML_ELEMENT_NAME_BYTES: usize = 128;
-pub const MAX_XML_ATTRIBUTES: usize = 64;
-pub const MAX_XML_TEXT_BYTES: usize = 1024;
-pub const XML_VALUE_MAX_BYTES: usize = 3968;
-
-#[derive(Debug, Default, Clone, Copy, PartialEq, Eq, Hash)]
-pub struct XmlAddrBounds;
-
-impl HostBounds for XmlAddrBounds {
-    const FINGERPRINT_MIN_BYTES: usize = 32;
-    const FINGERPRINT_MAX_BYTES: usize = 32;
-    const TRACE_MAX_EVENTS: usize = 64;
-    const WITT_LEVEL_MAX_BITS: u32 = 32;
-
-    const TERM_VALUE_MAX_BYTES: usize = 4096;
-    const AXIS_OUTPUT_BYTES_MAX: usize = 4096;
-    const FOLD_UNROLL_THRESHOLD: usize = 8;
-    const BETTI_DIMENSION_MAX: usize = 71;
-    const NERVE_CONSTRAINTS_MAX: usize = 128;
-    const NERVE_SITES_MAX: usize = 71;
-    const JACOBIAN_SITES_MAX: usize = 71;
-    const RECURSION_TRACE_DEPTH_MAX: usize = 16;
-    const OP_CHAIN_DEPTH_MAX: usize = 8;
-    const AFFINE_COEFFS_MAX: usize = 80;
-    const CONJUNCTION_TERMS_MAX: usize = 128;
-    const ROUTE_INPUT_BUFFER_BYTES: usize = 4096;
-    const ROUTE_OUTPUT_BUFFER_BYTES: usize = 4096;
-    const UNFOLD_ITERATIONS_MAX: usize = 256;
-
-    const NERVE_OUTPUT_BYTES_MAX: usize = 4096;
-    const CHAIN_COMPLEX_OUTPUT_BYTES_MAX: usize = 4096;
-    const HOMOLOGY_GROUPS_OUTPUT_BYTES_MAX: usize = 4096;
-    const COCHAIN_COMPLEX_OUTPUT_BYTES_MAX: usize = 4096;
-    const COHOMOLOGY_GROUPS_OUTPUT_BYTES_MAX: usize = 4096;
-    const POSTNIKOV_TOWER_OUTPUT_BYTES_MAX: usize = 4096;
-    const HOMOTOPY_GROUPS_OUTPUT_BYTES_MAX: usize = 4096;
-    const K_INVARIANTS_OUTPUT_BYTES_MAX: usize = 4096;
-}
+/// Maximum element nesting depth the recursive-descent canonicalizer
+/// will descend before reporting a depth-bound violation. Guards the
+/// native call stack against pathologically-nested input (e.g. the
+/// "billion laughs"-style deep-nesting denial of service); it is not a
+/// ceiling on document size, element count, or content width.
+pub const MAX_XML_DEPTH: usize = 1024;

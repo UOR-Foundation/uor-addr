@@ -71,7 +71,10 @@ fn ring_realization_distinguishes_witt_levels() {
 #[test]
 fn ring_realization_rejects_overflow_witt_level() {
     let err = uor_addr::ring::address(&[255u8, 0]).expect_err("must reject");
-    assert!(matches!(err, uor_addr::ring::AddressFailure::TooLarge));
+    assert!(matches!(
+        err,
+        uor_addr::ring::AddressFailure::InvalidRingElement
+    ));
 }
 
 // ─── ASN.1 realization (X.690 DER) ─────────────────────────────────────
@@ -126,7 +129,6 @@ fn xml_realization_is_invariant_under_attribute_order() {
 #[test]
 fn codemodule_realization_emits_well_formed_kappa() {
     let m = uor_addr::codemodule::CodeModuleValue::module("hello", &[])
-        .expect("valid")
         .tagged_bytes()
         .to_vec();
     let outcome = uor_addr::codemodule::address(&m).expect("κ-label");

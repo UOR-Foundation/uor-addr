@@ -4,17 +4,21 @@ canonical-form specification.
 
 Reads a GGUF v3 file, applies the canonicalization rules implemented by
 `crates/uor-addr/src/gguf/value.rs`, and emits the κ-label (SHA-256 of
-the canonical two-level commitment). The κ-label is byte-identical to
+the canonical flat Merkle skeleton). The κ-label is byte-identical to
 the Rust crate's `uor_addr::gguf::address` output — this script is the
 spec attestation the CL-GGUF / CN-GGUF conformance vectors check against.
 
-Stdlib-only (hashlib, struct) so it runs without `gguf-py`; the canonical
-commitment is the realization's own discipline, applied directly over the
-GGUF wire bytes.
+ADR-060: the canonical form is the full flat skeleton (header, then
+metadata KVs sorted by key, then tensor info sorted by name with
+recomputed offsets), with every variable-length leaf — strings, array
+payloads, tensor data — replaced by its streamed SHA-256 digest. There
+is no two-level commitment and no count / width ceiling.
+
+Stdlib-only (hashlib, struct) so it runs without `gguf-py`.
 
 Usage:
     python3 canonical-gguf.py MODEL.gguf            # prints the κ-label
-    python3 canonical-gguf.py --commitment MODEL.gguf   # hex of the 96-byte commitment
+    python3 canonical-gguf.py --commitment MODEL.gguf   # hex of the skeleton
 """
 import hashlib
 import struct
@@ -145,31 +149,32 @@ def commitment(raw):
 
     data_start = align_up(c.p, alignment)
 
-    # metadata_root
-    mh = hashlib.sha256()
-    for key, type_tag, val_off, span in sorted(kvs, key=lambda e: e[0]):
-        mh.update(sha256(key))
-        mh.update(struct.pack("<I", type_tag))
-        mh.update(canonical_value(raw, val_off, span, type_tag))
-    metadata_root = mh.digest()
+    # ADR-060: emit the full flat Merkle skeleton inline (no intermediate
+    # two-level commitment). Variable-length leaves (strings, array
+    # payloads, tensor data) are replaced by their streamed SHA-256 digest.
+    out = bytearray()
+    out += struct.pack("<IIQQQ", GGUF_MAGIC, GGUF_VERSION, tensor_count, kv_count, alignment)
 
-    # tensor_root
-    th = hashlib.sha256()
+    # metadata KVs, sorted by key bytes.
+    for key, type_tag, val_off, span in sorted(kvs, key=lambda e: e[0]):
+        out += sha256(key)
+        out += struct.pack("<I", type_tag)
+        out += canonical_value(raw, val_off, span, type_tag)
+
+    # tensor info, sorted by name bytes, with recomputed canonical offsets.
     canonical_offset = 0
     for name, dims, type_id, offset, data_bytes in sorted(tensors, key=lambda t: t[0]):
-        th.update(sha256(name))
-        th.update(struct.pack("<I", len(dims)))
+        out += sha256(name)
+        out += struct.pack("<I", len(dims))
         for d in dims:
-            th.update(struct.pack("<Q", d))
-        th.update(struct.pack("<I", type_id))
-        th.update(struct.pack("<Q", canonical_offset))
+            out += struct.pack("<Q", d)
+        out += struct.pack("<I", type_id)
+        out += struct.pack("<Q", canonical_offset)
         start = data_start + offset
-        th.update(sha256(raw[start:start + data_bytes]))
+        out += sha256(raw[start:start + data_bytes])
         canonical_offset = align_up(canonical_offset + data_bytes, alignment)
-    tensor_root = th.digest()
 
-    return (struct.pack("<IIQQQ", GGUF_MAGIC, GGUF_VERSION, tensor_count, kv_count, alignment)
-            + metadata_root + tensor_root)
+    return bytes(out)
 
 
 def kappa_label(raw):

@@ -8,7 +8,7 @@
 
 #![allow(non_snake_case)]
 
-use uor_addr::address;
+use uor_addr::json::address;
 
 const ENDPOINT: &str = "https://mcp.uor.foundation/tools/encode_address";
 

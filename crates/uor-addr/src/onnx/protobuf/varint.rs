@@ -60,9 +60,6 @@ mod tests {
 
     #[test]
     fn overflow_is_error() {
-        assert_eq!(
-            read_varint(&[0x80; 11], 0),
-            Err(WireError::VarintOverflow)
-        );
+        assert_eq!(read_varint(&[0x80; 11], 0), Err(WireError::VarintOverflow));
     }
 }

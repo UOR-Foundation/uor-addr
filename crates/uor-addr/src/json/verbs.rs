@@ -18,14 +18,14 @@
 //! content address is naturally characterized by its k-invariant
 //! signature. Foundation's catamorphism evaluates the chain end-to-end
 //! via the application's `ResolverTuple`
-//! ([`crate::json::resolvers::AddressResolverTuple`]).
+//! ([`crate::resolvers::AddressResolverTuple`]).
 //!
 //! ## Pure-prism commitment — wiki ADR-035 ψ-residuals discipline
 //!
 //! The verb body composes only ψ-Term variants (`Term::Nerve /
 //! PostnikovTower / HomotopyGroups / KInvariants`); the canonical
 //! hash axis is consumed by ψ_9's resolver
-//! ([`crate::json::resolvers::AddressKInvariantResolver`]), **never** by
+//! ([`crate::resolvers::AddressKInvariantResolver`]), **never** by
 //! the verb body's term composition. No `Term::AxisInvocation`, no
 //! `Term::FirstAdmit`, no σ-residual byte-comparison ops. ADR-035
 //! commits this discipline at the verb-body level; ADR-046 admits
@@ -48,11 +48,11 @@
 
 use prism::pipeline::verb;
 
-use crate::json::value::JsonValue;
+use crate::json::value::JsonCarrier;
 use crate::label::AddressLabel;
 
 verb! {
-    pub fn address_inference(input: JsonValue) -> AddressLabel {
+    pub fn address_inference(input: JsonCarrier<'_>) -> AddressLabel {
         k_invariants(homotopy_groups(postnikov_tower(nerve(input))))
     }
 }
@@ -64,19 +64,19 @@ mod tests {
 
     #[test]
     fn verb_term_arena_is_emitted_and_nonempty() {
-        let arena = address_inference_term_arena();
+        let arena = address_inference_term_arena::<{ crate::ADDR_INLINE_BYTES }>();
         assert!(!arena.is_empty());
     }
 
     #[test]
     fn verb_arena_contains_psi_1_nerve() {
-        let arena = address_inference_term_arena();
+        let arena = address_inference_term_arena::<{ crate::ADDR_INLINE_BYTES }>();
         assert!(arena.iter().any(|t| matches!(t, Term::Nerve { .. })));
     }
 
     #[test]
     fn verb_arena_contains_psi_7_postnikov_tower() {
-        let arena = address_inference_term_arena();
+        let arena = address_inference_term_arena::<{ crate::ADDR_INLINE_BYTES }>();
         assert!(arena
             .iter()
             .any(|t| matches!(t, Term::PostnikovTower { .. })));
@@ -84,7 +84,7 @@ mod tests {
 
     #[test]
     fn verb_arena_contains_psi_8_homotopy_groups() {
-        let arena = address_inference_term_arena();
+        let arena = address_inference_term_arena::<{ crate::ADDR_INLINE_BYTES }>();
         assert!(arena
             .iter()
             .any(|t| matches!(t, Term::HomotopyGroups { .. })));
@@ -92,7 +92,7 @@ mod tests {
 
     #[test]
     fn verb_arena_contains_psi_9_k_invariants() {
-        let arena = address_inference_term_arena();
+        let arena = address_inference_term_arena::<{ crate::ADDR_INLINE_BYTES }>();
         assert!(arena.iter().any(|t| matches!(t, Term::KInvariants { .. })));
     }
 
@@ -103,7 +103,7 @@ mod tests {
         // Concat, or AxisInvocation. The canonical hash axis is
         // consumed by resolvers per ADR-046's discipline boundary —
         // never by the verb body's term composition.
-        let arena = address_inference_term_arena();
+        let arena = address_inference_term_arena::<{ crate::ADDR_INLINE_BYTES }>();
         let has_first_admit = arena.iter().any(|t| matches!(t, Term::FirstAdmit { .. }));
         let has_axis_invocation = arena
             .iter()

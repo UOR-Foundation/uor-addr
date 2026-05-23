@@ -17,7 +17,7 @@
 //! ```
 
 use std::collections::HashMap;
-use uor_addr::address;
+use uor_addr::json::address;
 
 fn main() {
     // Three syntactic variants of the same JSON value.

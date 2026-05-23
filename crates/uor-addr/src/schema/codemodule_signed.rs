@@ -153,7 +153,6 @@ pub fn address(raw: &[u8]) -> Result<crate::AddressOutcome, AddressFailure> {
     SignedCodeModuleValue::parse(raw).map_err(|_| AddressFailure::SchemaViolation)?;
     crate::json::address(raw).map_err(|e| match e {
         crate::json::AddressFailure::InvalidJson => AddressFailure::SchemaViolation,
-        crate::json::AddressFailure::TooLarge => AddressFailure::TooLarge,
         crate::json::AddressFailure::PipelineFailure => AddressFailure::PipelineFailure,
     })
 }
@@ -161,7 +160,6 @@ pub fn address(raw: &[u8]) -> Result<crate::AddressOutcome, AddressFailure> {
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum AddressFailure {
     SchemaViolation,
-    TooLarge,
     PipelineFailure,
 }
 

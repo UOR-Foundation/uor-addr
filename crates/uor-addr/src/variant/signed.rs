@@ -42,11 +42,11 @@
 use prism::pipeline::{prism_model, SingletonCommitment, UltrametricCloseTo};
 use prism::vocabulary::DefaultHostTypes;
 
-use crate::json::resolvers::AddressResolverTuple;
-use crate::json::shapes::bounds::AddrBounds;
-use crate::json::shapes::Sha256Hasher;
-use crate::json::value::JsonValue;
+use crate::bounds::AddrBounds;
+use crate::json::value::JsonCarrier;
 use crate::label::AddressLabel;
+use crate::resolvers::AddressResolverTuple;
+use prism::crypto::Sha256Hasher;
 
 #[allow(unused_imports)]
 use crate::json::verbs::{address_inference, VERB_TERMS_ADDRESS_INFERENCE};
@@ -87,7 +87,7 @@ prism_model! {
         AddressResolverTuple<Sha256Hasher>,
         SignedCommitment
     > for AddressSignedModel {
-        type Input = JsonValue;
+        type Input = JsonCarrier<'a>;
         type Output = AddressLabel;
         type Route = AddressSignedRoute;
         fn route(input: Self::Input) -> Self::Output {
@@ -128,10 +128,13 @@ mod tests {
     #[test]
     fn signed_model_is_a_distinct_prism_model() {
         fn assert_is_prism_model<
+            'a,
             M: prism::pipeline::PrismModel<
+                'a,
                 prism::vocabulary::DefaultHostTypes,
                 crate::AddrBounds,
                 crate::Sha256Hasher,
+                { crate::ADDR_INLINE_BYTES },
                 crate::AddressResolverTuple<crate::Sha256Hasher>,
                 SignedCommitment,
                 Route = AddressSignedRoute,

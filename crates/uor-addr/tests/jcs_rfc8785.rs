@@ -233,7 +233,7 @@ fn depth_bound_is_strict() {
     }
     address(s.as_bytes()).expect("within-bound depth admits");
 
-    // Sufficiently past the bound — rejected as TooLarge.
+    // Sufficiently past the bound — rejected (depth guard remains).
     let mut s = String::new();
     for _ in 0..(MAX_JSON_DEPTH + 4) {
         s.push('[');
@@ -242,7 +242,7 @@ fn depth_bound_is_strict() {
         s.push(']');
     }
     match address(s.as_bytes()) {
-        Err(AddressFailure::TooLarge) => {}
-        other => panic!("expected TooLarge: {other:?}"),
+        Err(AddressFailure::InvalidJson) => {}
+        other => panic!("expected InvalidJson: {other:?}"),
     }
 }

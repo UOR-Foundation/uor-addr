@@ -21,7 +21,7 @@
 //! cargo run -p uor-addr --example typed_distinction
 //! ```
 
-use uor_addr::address;
+use uor_addr::json::address;
 
 fn main() {
     // Each row: a pair of inputs that LOOK similar but are typed-distinct.

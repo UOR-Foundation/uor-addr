@@ -134,54 +134,32 @@ fn parser_rejects_malformed_input() {
     ];
     for raw in cases {
         match address(raw) {
-            Err(AddressFailure::InvalidSExpr) | Err(AddressFailure::TooLarge) => {}
+            Err(AddressFailure::InvalidSExpr) => {}
             other => panic!("expected rejection for {raw:?}, got {other:?}"),
         }
     }
 }
 
 #[test]
-fn depth_bound_is_strict_for_sexp() {
-    use uor_addr::sexp::MAX_SEXPR_DEPTH;
-
-    // Well within the bound — accepted.
+fn admits_deeply_nested_sexp() {
+    // ADR-060 removed the sexp depth cap; deep nesting is now admitted.
+    const DEPTH: usize = 256;
     let mut s = alloc::string::String::new();
-    for _ in 0..MAX_SEXPR_DEPTH {
+    for _ in 0..DEPTH {
         s.push('(');
     }
     s.push('x');
-    for _ in 0..MAX_SEXPR_DEPTH {
+    for _ in 0..DEPTH {
         s.push(')');
     }
-    address(s.as_bytes()).expect("within-bound depth admits");
-
-    // Sufficiently past the bound — rejected.
-    let mut s = alloc::string::String::new();
-    for _ in 0..(MAX_SEXPR_DEPTH + 4) {
-        s.push('(');
-    }
-    s.push('x');
-    for _ in 0..(MAX_SEXPR_DEPTH + 4) {
-        s.push(')');
-    }
-    match address(s.as_bytes()) {
-        Err(AddressFailure::TooLarge) => {}
-        other => panic!("expected TooLarge: {other:?}"),
-    }
+    address(s.as_bytes()).expect("deeply nested sexp admits");
 }
 
 #[test]
-fn atom_width_bound_is_strict() {
-    use uor_addr::sexp::MAX_SEXPR_ATOM_BYTES;
-    // Atom at the boundary — admits.
-    let big = "a".repeat(MAX_SEXPR_ATOM_BYTES);
-    address(big.as_bytes()).expect("at-bound atom admits");
-    // One past the boundary — rejects.
-    let too_big = "a".repeat(MAX_SEXPR_ATOM_BYTES + 1);
-    match address(too_big.as_bytes()) {
-        Err(AddressFailure::TooLarge) => {}
-        other => panic!("expected TooLarge: {other:?}"),
-    }
+fn admits_unbounded_atom_width() {
+    // ADR-060 removed the atom-width cap; wide atoms are now admitted.
+    let big = "a".repeat(100_000);
+    address(big.as_bytes()).expect("wide atom admits");
 }
 
 extern crate alloc;

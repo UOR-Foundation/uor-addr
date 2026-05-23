@@ -9,128 +9,70 @@
 //! realizations (sibling crates per ADR-031's demand-driven clause)
 //! depend on. A regression here is a break in the surface contract.
 
-use prism::pipeline::{
-    ConstrainedTypeShape, EmptyCommitment, IntoBindingValue, ShapeRegistryProvider,
-};
+use prism::pipeline::{ConstrainedTypeShape, EmptyCommitment, IntoBindingValue};
 use uor_addr::common::{AddressInput, AddressLabel};
-use uor_addr::{
-    address, JsonValue, JsonValueRegistry, ADDRESS_LABEL_BYTES, VERB_TERMS_ADDRESS_INFERENCE,
-};
+use uor_addr::json::address;
+use uor_addr::json::verbs::VERB_TERMS_ADDRESS_INFERENCE;
+use uor_addr::json::{canonicalize, JsonCarrier, JsonValue};
+use uor_addr::{ADDRESS_LABEL_BYTES, ADDR_INLINE_BYTES};
 
 // ─── AddressInput trait conformance — JSON realization ────────────────
 
 #[test]
 fn json_value_is_address_input() {
-    // The compile-time witness — if `JsonValue` does not satisfy
+    // The compile-time witness — if `JsonCarrier` does not satisfy
     // `AddressInput`, this fn does not compile. Per ARCHITECTURE.md
-    // "AddressInput trait" the JSON realization must impl
-    // `AddressInput` on its typed-input shape.
-    fn assert_address_input<V: AddressInput>() {}
-    assert_address_input::<JsonValue>();
+    // "AddressInput trait" (ADR-060) the JSON realization impls
+    // `AddressInput` on its borrowed canonical-input carrier.
+    fn assert_address_input<'a, V: AddressInput<'a>>() {}
+    assert_address_input::<JsonCarrier<'_>>();
 }
 
 #[test]
 fn address_input_supertraits_are_satisfied_by_json_value() {
-    // ARCHITECTURE.md AddressInput composes three substrate
-    // commitments: `ConstrainedTypeShape` (constraint geometry),
-    // `IntoBindingValue` (catamorphism's typed-input serialization),
-    // and the `Registry` associated type (ADR-057 recursive-shape
-    // registry). All three must be satisfied by every conforming
+    // ARCHITECTURE.md AddressInput (ADR-060, blanket marker) composes
+    // two substrate commitments: `ConstrainedTypeShape` (constraint
+    // geometry) and `IntoBindingValue<'a>` (the canonical-form
+    // `TermValue` carrier). Both must be satisfied by every conforming
     // realization.
     fn requires_constrained_type_shape<V: ConstrainedTypeShape>() {}
-    fn requires_into_binding_value<V: IntoBindingValue>() {}
-    requires_constrained_type_shape::<JsonValue>();
-    requires_into_binding_value::<JsonValue>();
+    fn requires_into_binding_value<'a, V: IntoBindingValue<'a>>() {}
+    requires_constrained_type_shape::<JsonCarrier<'_>>();
+    requires_into_binding_value::<JsonCarrier<'_>>();
 }
 
 #[test]
-fn address_input_registry_for_json_is_json_value_registry() {
-    // ARCHITECTURE.md "AddressInput trait" — `Registry` is the
-    // application registry of registered shapes for the format's
-    // grammar cases per ADR-057. The JSON realization's registry is
-    // [`JsonValueRegistry`], emitted by `register_shape!` in
-    // [`crate::json::value`] aggregating one entry for `JsonValue`.
-    fn assert_registry_is<V, R>()
-    where
-        V: AddressInput<Registry = R>,
-        R: ShapeRegistryProvider,
-    {
-    }
-    assert_registry_is::<JsonValue, JsonValueRegistry>();
-
-    // The registry carries one entry for `JsonValue` itself. A future
-    // migration to the `partition_coproduct!` over the seven JSON
-    // cases would expand the registered set to seven entries.
-    let entries = <<JsonValue as AddressInput>::Registry as ShapeRegistryProvider>::REGISTRY;
-    assert_eq!(
-        entries.len(),
-        1,
-        "JsonValue's application registry must carry one entry (the JsonValue shape itself)"
-    );
-    assert_eq!(entries[0].iri, "https://uor.foundation/addr/JsonValue");
-}
-
-#[test]
-fn address_input_parse_dispatches_to_json_value_parser() {
-    // ARCHITECTURE.md "AddressInput trait" — `parse` is the
-    // host-boundary parser per SD2's Grounding stage. The trait
-    // method must surface the same well-formed-input contract as
-    // the realization's underlying parser.
+fn json_value_parse_accepts_well_formed_input() {
+    // ARCHITECTURE.md "AddressInput trait" — the realization's
+    // host-boundary parser per SD2's Grounding stage. The parser
+    // surfaces the well-formed-input contract for the JSON grammar.
     let raw = br#"{"foo":"bar"}"#;
-    let via_trait = <JsonValue as AddressInput>::parse(raw).expect("trait parse succeeds");
-    let direct = JsonValue::parse(raw).expect("direct parse succeeds");
-    // Same constraint-geometry-typed value reaches both paths.
-    let mut a = [0u8; 4096];
-    let mut b = [0u8; 4096];
-    let na = via_trait.into_binding_bytes(&mut a).unwrap();
-    let nb = direct.into_binding_bytes(&mut b).unwrap();
-    assert_eq!(&a[..na], &b[..nb]);
+    let value = JsonValue::parse(raw).expect("parse succeeds");
+    // The parsed handle exposes its structurally-tagged binding bytes.
+    assert!(!value.tagged_bytes().is_empty());
 }
 
 #[test]
-fn address_input_parse_surfaces_typed_input_violations() {
+fn json_value_parse_surfaces_typed_input_violations() {
     // ARCHITECTURE.md "AddressInput trait" — the parse method
     // returns a `ShapeViolation` carrying the violated
     // typed-input-bound IRI; downstream consumers depend on the
     // IRI for routing the specific violation.
-    let err = <JsonValue as AddressInput>::parse(b"not json").expect_err("must reject");
+    let err = JsonValue::parse(b"not json").expect_err("must reject");
     assert!(err.constraint_iri.ends_with("/validUtf8Json"));
 }
 
 #[test]
-fn address_input_canonicalize_into_writes_jcs_nfc_canonical_bytes() {
-    // ARCHITECTURE.md "AddressInput trait" — `canonicalize_into`
-    // emits the canonical-form byte sequence the σ-projection
-    // consumes. For the JSON realization the discipline is
-    // JCS-RFC8785 + Unicode NFC.
-    //
-    // The trait method takes the parser-emitted byte sequence (the
-    // structurally-tagged binding form) and writes canonical bytes
-    // into the caller-supplied slice; returns the number written.
-    let value = JsonValue::parse(br#"{"b": 1, "a": 2}"#).expect("valid");
-    let mut tagged = [0u8; 4096];
-    let n = value.into_binding_bytes(&mut tagged).expect("fits");
-    let mut canonical = [0u8; 4096];
-    let m = <JsonValue as AddressInput>::canonicalize_into(&tagged[..n], &mut canonical)
-        .expect("canonicalizes");
+fn json_canonicalize_writes_jcs_nfc_canonical_bytes() {
+    // ARCHITECTURE.md "AddressInput trait" — `canonicalize` emits the
+    // canonical-form byte sequence the σ-projection consumes. For the
+    // JSON realization the discipline is JCS-RFC8785 + Unicode NFC.
+    let canonical = canonicalize(br#"{"b": 1, "a": 2}"#).expect("canonicalizes");
     assert_eq!(
-        &canonical[..m],
+        &canonical[..],
         br#"{"a":2,"b":1}"#,
         "JCS §3.2.3 re-orders keys lexicographically"
     );
-}
-
-#[test]
-fn address_input_canonicalize_into_returns_buffer_too_small() {
-    // ARCHITECTURE.md "AddressInput trait" — the canonicalizer must
-    // surface a `ShapeViolation` if the output slice is too small.
-    let value = JsonValue::parse(br#"{"foo":"bar"}"#).expect("valid");
-    let mut tagged = [0u8; 4096];
-    let n = value.into_binding_bytes(&mut tagged).expect("fits");
-    let mut tiny = [0u8; 4];
-    let err = <JsonValue as AddressInput>::canonicalize_into(&tagged[..n], &mut tiny)
-        .expect_err("buffer too small");
-    assert!(err.constraint_iri.ends_with("/serializedWidth"));
 }
 
 // ─── Common verb arena — ARCHITECTURE.md "Common verb arena" ──────────
@@ -143,7 +85,7 @@ fn common_verb_arena_composes_only_psi_term_variants() {
     // `crate::verbs` pins this from the implementation side; this
     // test pins the same commitment from the common-surface API.
     use prism::operation::Term;
-    let arena = VERB_TERMS_ADDRESS_INFERENCE;
+    let arena = VERB_TERMS_ADDRESS_INFERENCE::<{ ADDR_INLINE_BYTES }>();
     assert!(!arena.is_empty(), "verb arena is non-empty");
     let has_nerve = arena.iter().any(|t| matches!(t, Term::Nerve { .. }));
     let has_postnikov = arena

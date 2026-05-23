@@ -18,7 +18,8 @@
 
 use prism::tensor::dtype::{
     Dtype, BF16, F16, F32, F64, I16, I32, I64, I8, IQ1_M, IQ1_S, IQ2_S, IQ2_XS, IQ2_XXS, IQ3_S,
-    IQ3_XXS, IQ4_NL, IQ4_XS, Q2_K, Q3_K, Q4_0, Q4_1, Q4_K, Q5_0, Q5_1, Q5_K, Q6_K, Q8_0, Q8_1, Q8_K,
+    IQ3_XXS, IQ4_NL, IQ4_XS, Q2_K, Q3_K, Q4_0, Q4_1, Q4_K, Q5_0, Q5_1, Q5_K, Q6_K, Q8_0, Q8_1,
+    Q8_K,
 };
 
 /// A GGUF tensor element type, identified by its `ggml_type` integer

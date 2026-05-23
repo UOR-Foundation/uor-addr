@@ -15,7 +15,7 @@ use crate::label::AddressLabel;
 use crate::xml::value::XmlValue;
 
 verb! {
-    pub fn address_inference(input: XmlValue) -> AddressLabel {
+    pub fn address_inference(input: XmlValue<'_>) -> AddressLabel {
         k_invariants(homotopy_groups(postnikov_tower(nerve(input))))
     }
 }
@@ -27,19 +27,19 @@ mod tests {
 
     #[test]
     fn verb_term_arena_is_emitted_and_nonempty() {
-        let arena = address_inference_term_arena();
+        let arena = address_inference_term_arena::<{ crate::ADDR_INLINE_BYTES }>();
         assert!(!arena.is_empty());
     }
 
     #[test]
     fn verb_arena_contains_psi_1_nerve() {
-        let arena = address_inference_term_arena();
+        let arena = address_inference_term_arena::<{ crate::ADDR_INLINE_BYTES }>();
         assert!(arena.iter().any(|t| matches!(t, Term::Nerve { .. })));
     }
 
     #[test]
     fn verb_arena_contains_psi_7_postnikov_tower() {
-        let arena = address_inference_term_arena();
+        let arena = address_inference_term_arena::<{ crate::ADDR_INLINE_BYTES }>();
         assert!(arena
             .iter()
             .any(|t| matches!(t, Term::PostnikovTower { .. })));
@@ -47,7 +47,7 @@ mod tests {
 
     #[test]
     fn verb_arena_contains_psi_8_homotopy_groups() {
-        let arena = address_inference_term_arena();
+        let arena = address_inference_term_arena::<{ crate::ADDR_INLINE_BYTES }>();
         assert!(arena
             .iter()
             .any(|t| matches!(t, Term::HomotopyGroups { .. })));
@@ -55,13 +55,13 @@ mod tests {
 
     #[test]
     fn verb_arena_contains_psi_9_k_invariants() {
-        let arena = address_inference_term_arena();
+        let arena = address_inference_term_arena::<{ crate::ADDR_INLINE_BYTES }>();
         assert!(arena.iter().any(|t| matches!(t, Term::KInvariants { .. })));
     }
 
     #[test]
     fn verb_arena_contains_no_sigma_residuals() {
-        let arena = address_inference_term_arena();
+        let arena = address_inference_term_arena::<{ crate::ADDR_INLINE_BYTES }>();
         assert!(!arena.iter().any(|t| matches!(t, Term::FirstAdmit { .. })));
         assert!(!arena
             .iter()

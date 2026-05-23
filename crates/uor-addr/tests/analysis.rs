@@ -12,7 +12,8 @@
 #![allow(non_snake_case)]
 
 use prism::vocabulary::Hasher;
-use uor_addr::{address, canonicalize, Sha256Hasher};
+use uor_addr::json::{address, canonicalize};
+use uor_addr::Sha256Hasher;
 
 /// Deterministic PRNG seed — `UOR_ADDR_ANALYSIS_SEED`. Anchored so
 /// CI failures are reproducible from the commit hash alone.

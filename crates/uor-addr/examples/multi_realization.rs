@@ -32,11 +32,10 @@ fn main() {
     println!("  ring:          {}", outcome.address);
 
     // Code-module AST
-    let body = uor_addr::codemodule::CodeModuleValue::atom("body").expect("valid");
-    let ret = uor_addr::codemodule::CodeModuleValue::atom("u32").expect("valid");
-    let f =
-        uor_addr::codemodule::CodeModuleValue::function("hello", &[], &ret, &body).expect("valid");
-    let m = uor_addr::codemodule::CodeModuleValue::module("demo", &[f]).expect("valid");
+    let body = uor_addr::codemodule::CodeModuleValue::atom("body");
+    let ret = uor_addr::codemodule::CodeModuleValue::atom("u32");
+    let f = uor_addr::codemodule::CodeModuleValue::function("hello", &[], &ret, &body);
+    let m = uor_addr::codemodule::CodeModuleValue::module("demo", &[f]);
     let outcome = uor_addr::codemodule::address(m.tagged_bytes()).expect("κ-label");
     println!("  codemodule:    {}", outcome.address);
 

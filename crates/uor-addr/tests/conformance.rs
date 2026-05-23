@@ -6,7 +6,7 @@
 
 #![allow(non_snake_case)]
 
-use uor_addr::{address, canonicalize, AddressFailure};
+use uor_addr::json::{address, canonicalize, AddressFailure};
 
 // ───────────────────────────────────────────────────────────────────────────
 // CS — Structural class (source-grep + runtime invariants)
@@ -19,10 +19,10 @@ fn cs_s01__no_unsafe_anywhere() {
         "lib.rs",
         "common.rs",
         "label.rs",
+        "resolvers.rs",
         "json/mod.rs",
         "json/model.rs",
         "json/verbs.rs",
-        "json/resolvers.rs",
         "json/pipeline.rs",
         "json/value.rs",
         "json/shapes/mod.rs",
@@ -55,7 +55,7 @@ fn cs_s01__no_unsafe_anywhere() {
 /// blocks (test scaffolding only).
 #[test]
 fn cs_s02__no_panic_paths_in_pipeline() {
-    let sources = ["json/verbs.rs", "json/resolvers.rs", "json/pipeline.rs"];
+    let sources = ["json/verbs.rs", "resolvers.rs", "json/pipeline.rs"];
     let crate_src = std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("src");
     for fname in sources {
         let path = crate_src.join(fname);
@@ -315,15 +315,13 @@ fn cl_a02__free_rank_residual_is_zero_after_psi_9() {
 // Architectural failure modes
 // ───────────────────────────────────────────────────────────────────────────
 
-/// Pipeline rejects oversize canonical forms cleanly (TooLarge variant).
+/// Pipeline admits arbitrarily large canonical forms (ADR-060 removed
+/// the input-size cap).
 #[test]
-fn pipeline_rejects_oversize_canonical_form() {
-    // Build a JSON string value that, after canonicalisation, exceeds
-    // JSON_INPUT_MAX_BYTES = 3968.
+fn pipeline_admits_large_canonical_form() {
     let payload = "a".repeat(4096);
     let raw = format!("{{\"k\":\"{payload}\"}}");
-    let err = address(raw.as_bytes()).expect_err("must reject");
-    matches!(err, AddressFailure::TooLarge);
+    assert!(address(raw.as_bytes()).is_ok());
 }
 
 /// Pipeline rejects invalid JSON cleanly (InvalidJson variant).

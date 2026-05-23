@@ -40,9 +40,12 @@
 
 use core::slice;
 
-use uor_addr::{
-    asn1, codemodule, json, ring, schema, sexp, xml, AddressOutcome, ADDRESS_LABEL_BYTES,
-};
+use uor_addr::{asn1, codemodule, ring, sexp, AddressOutcome, ADDRESS_LABEL_BYTES};
+// JSON / XML / schema canonicalization needs `alloc` (object-key /
+// attribute sorting), so their C entry points — and these imports — are
+// `alloc`-gated under ADR-060.
+#[cfg(feature = "alloc")]
+use uor_addr::{json, schema, xml};
 
 /// Wire-format κ-label byte width — `len("sha256:") + 64`.
 #[no_mangle]
@@ -118,6 +121,7 @@ unsafe fn borrow_input<'a>(input: *const u8, input_len: usize) -> Result<&'a [u8
 ///   `input_len` bytes.
 /// - `out_label` must be writable for at least `out_label_len` bytes.
 /// - `out_written` if non-null must point to a writable `size_t`.
+#[cfg(feature = "alloc")]
 #[no_mangle]
 pub unsafe extern "C" fn uor_addr_json(
     input: *const u8,
@@ -133,7 +137,6 @@ pub unsafe extern "C" fn uor_addr_json(
     match json::address(s) {
         Ok(outcome) => unsafe { write_outcome(outcome, out_label, out_label_len, out_written) },
         Err(json::AddressFailure::InvalidJson) => UOR_ADDR_ERR_INVALID_INPUT,
-        Err(json::AddressFailure::TooLarge) => UOR_ADDR_ERR_TOO_LARGE,
         Err(json::AddressFailure::PipelineFailure) => UOR_ADDR_ERR_PIPELINE,
     }
 }
@@ -160,7 +163,6 @@ pub unsafe extern "C" fn uor_addr_sexp(
     match sexp::address(s) {
         Ok(outcome) => unsafe { write_outcome(outcome, out_label, out_label_len, out_written) },
         Err(sexp::AddressFailure::InvalidSExpr) => UOR_ADDR_ERR_INVALID_INPUT,
-        Err(sexp::AddressFailure::TooLarge) => UOR_ADDR_ERR_TOO_LARGE,
         Err(sexp::AddressFailure::PipelineFailure) => UOR_ADDR_ERR_PIPELINE,
     }
 }
@@ -172,6 +174,7 @@ pub unsafe extern "C" fn uor_addr_sexp(
 /// # Safety
 ///
 /// Same pointer-validity requirements as [`uor_addr_json`].
+#[cfg(feature = "alloc")]
 #[no_mangle]
 pub unsafe extern "C" fn uor_addr_xml(
     input: *const u8,
@@ -187,7 +190,6 @@ pub unsafe extern "C" fn uor_addr_xml(
     match xml::address(s) {
         Ok(outcome) => unsafe { write_outcome(outcome, out_label, out_label_len, out_written) },
         Err(xml::AddressFailure::InvalidXml) => UOR_ADDR_ERR_INVALID_INPUT,
-        Err(xml::AddressFailure::TooLarge) => UOR_ADDR_ERR_TOO_LARGE,
         Err(xml::AddressFailure::PipelineFailure) => UOR_ADDR_ERR_PIPELINE,
     }
 }
@@ -214,7 +216,6 @@ pub unsafe extern "C" fn uor_addr_asn1(
     match asn1::address(s) {
         Ok(outcome) => unsafe { write_outcome(outcome, out_label, out_label_len, out_written) },
         Err(asn1::AddressFailure::InvalidDer) => UOR_ADDR_ERR_INVALID_INPUT,
-        Err(asn1::AddressFailure::TooLarge) => UOR_ADDR_ERR_TOO_LARGE,
         Err(asn1::AddressFailure::PipelineFailure) => UOR_ADDR_ERR_PIPELINE,
     }
 }
@@ -241,7 +242,6 @@ pub unsafe extern "C" fn uor_addr_ring(
     match ring::address(s) {
         Ok(outcome) => unsafe { write_outcome(outcome, out_label, out_label_len, out_written) },
         Err(ring::AddressFailure::InvalidRingElement) => UOR_ADDR_ERR_INVALID_INPUT,
-        Err(ring::AddressFailure::TooLarge) => UOR_ADDR_ERR_TOO_LARGE,
         Err(ring::AddressFailure::PipelineFailure) => UOR_ADDR_ERR_PIPELINE,
     }
 }
@@ -267,8 +267,7 @@ pub unsafe extern "C" fn uor_addr_codemodule(
     };
     match codemodule::address(s) {
         Ok(outcome) => unsafe { write_outcome(outcome, out_label, out_label_len, out_written) },
-        Err(codemodule::AddressFailure::InvalidCcmas) => UOR_ADDR_ERR_INVALID_INPUT,
-        Err(codemodule::AddressFailure::TooLarge) => UOR_ADDR_ERR_TOO_LARGE,
+        Err(codemodule::AddressFailure::InvalidAst) => UOR_ADDR_ERR_INVALID_INPUT,
         Err(codemodule::AddressFailure::PipelineFailure) => UOR_ADDR_ERR_PIPELINE,
     }
 }
@@ -281,6 +280,7 @@ pub unsafe extern "C" fn uor_addr_codemodule(
 /// # Safety
 ///
 /// Same pointer-validity requirements as [`uor_addr_json`].
+#[cfg(feature = "alloc")]
 #[no_mangle]
 pub unsafe extern "C" fn uor_addr_schema_photo(
     input: *const u8,
@@ -296,7 +296,6 @@ pub unsafe extern "C" fn uor_addr_schema_photo(
     match schema::photo::address(s) {
         Ok(outcome) => unsafe { write_outcome(outcome, out_label, out_label_len, out_written) },
         Err(schema::photo::AddressFailure::SchemaViolation) => UOR_ADDR_ERR_INVALID_INPUT,
-        Err(schema::photo::AddressFailure::TooLarge) => UOR_ADDR_ERR_TOO_LARGE,
         Err(schema::photo::AddressFailure::PipelineFailure) => UOR_ADDR_ERR_PIPELINE,
     }
 }
@@ -307,6 +306,7 @@ pub unsafe extern "C" fn uor_addr_schema_photo(
 /// # Safety
 ///
 /// Same pointer-validity requirements as [`uor_addr_json`].
+#[cfg(feature = "alloc")]
 #[no_mangle]
 pub unsafe extern "C" fn uor_addr_schema_document(
     input: *const u8,
@@ -322,7 +322,6 @@ pub unsafe extern "C" fn uor_addr_schema_document(
     match schema::document::address(s) {
         Ok(outcome) => unsafe { write_outcome(outcome, out_label, out_label_len, out_written) },
         Err(schema::document::AddressFailure::SchemaViolation) => UOR_ADDR_ERR_INVALID_INPUT,
-        Err(schema::document::AddressFailure::TooLarge) => UOR_ADDR_ERR_TOO_LARGE,
         Err(schema::document::AddressFailure::PipelineFailure) => UOR_ADDR_ERR_PIPELINE,
     }
 }
@@ -333,6 +332,7 @@ pub unsafe extern "C" fn uor_addr_schema_document(
 /// # Safety
 ///
 /// Same pointer-validity requirements as [`uor_addr_json`].
+#[cfg(feature = "alloc")]
 #[no_mangle]
 pub unsafe extern "C" fn uor_addr_schema_codemodule_signed(
     input: *const u8,
@@ -350,7 +350,6 @@ pub unsafe extern "C" fn uor_addr_schema_codemodule_signed(
         Err(schema::codemodule_signed::AddressFailure::SchemaViolation) => {
             UOR_ADDR_ERR_INVALID_INPUT
         }
-        Err(schema::codemodule_signed::AddressFailure::TooLarge) => UOR_ADDR_ERR_TOO_LARGE,
         Err(schema::codemodule_signed::AddressFailure::PipelineFailure) => UOR_ADDR_ERR_PIPELINE,
     }
 }
@@ -383,7 +382,6 @@ pub unsafe extern "C" fn uor_addr_gguf(
     match uor_addr::gguf::address(s) {
         Ok(outcome) => unsafe { write_outcome(outcome, out_label, out_label_len, out_written) },
         Err(uor_addr::gguf::AddressFailure::InvalidGguf) => UOR_ADDR_ERR_INVALID_INPUT,
-        Err(uor_addr::gguf::AddressFailure::TooLarge) => UOR_ADDR_ERR_TOO_LARGE,
         Err(uor_addr::gguf::AddressFailure::PipelineFailure) => UOR_ADDR_ERR_PIPELINE,
     }
 }
@@ -415,7 +413,6 @@ pub unsafe extern "C" fn uor_addr_onnx(
     match uor_addr::onnx::address(s) {
         Ok(outcome) => unsafe { write_outcome(outcome, out_label, out_label_len, out_written) },
         Err(uor_addr::onnx::AddressFailure::InvalidOnnx) => UOR_ADDR_ERR_INVALID_INPUT,
-        Err(uor_addr::onnx::AddressFailure::TooLarge) => UOR_ADDR_ERR_TOO_LARGE,
         Err(uor_addr::onnx::AddressFailure::PipelineFailure) => UOR_ADDR_ERR_PIPELINE,
     }
 }
@@ -572,8 +569,7 @@ pub unsafe extern "C" fn uor_addr_grounded_content_fingerprint(
     if out_digest_len < 32 {
         return UOR_ADDR_ERR_BUFFER_TOO_SMALL;
     }
-    let bytes = g.outcome.witness.grounded().content_fingerprint();
-    let arr = bytes.as_bytes();
+    let arr = g.outcome.witness.content_fingerprint();
     unsafe {
         core::ptr::copy_nonoverlapping(arr.as_ptr(), out_digest, 32);
         if !out_written.is_null() {
@@ -612,16 +608,14 @@ pub unsafe extern "C" fn uor_addr_grounded_verify(
     if out_label_len < ADDRESS_LABEL_BYTES {
         return UOR_ADDR_ERR_BUFFER_TOO_SMALL;
     }
-    let grounded = g.outcome.witness.grounded();
-    let trace: prism_verify::Trace<256> = grounded.derivation().replay();
-    match prism_verify::certify_from_trace(&trace) {
-        Ok(certified) => {
-            // Defensive: the replayed certificate's fingerprint must
-            // match the source `Grounded`'s. Pinned by CL-R01/CL-R02.
-            if certified.certificate().content_fingerprint() != grounded.content_fingerprint() {
-                return UOR_ADDR_ERR_PIPELINE;
-            }
-            let bytes = g.outcome.address.as_bytes();
+    // ADR-060: the witness owns its replay `Trace<256>` and σ-projection
+    // fingerprint; `verify()` re-certifies through
+    // `prism::replay::certify_from_trace` (no SHA-256 re-invocation) and
+    // confirms the re-derived fingerprint matches (QS-05; CL-R* in
+    // CONFORMANCE.md), returning the recovered κ-label.
+    match g.outcome.witness.verify() {
+        Ok(label) => {
+            let bytes = label.as_bytes();
             unsafe {
                 core::ptr::copy_nonoverlapping(bytes.as_ptr(), out_label, ADDRESS_LABEL_BYTES);
                 if !out_written.is_null() {
@@ -630,18 +624,8 @@ pub unsafe extern "C" fn uor_addr_grounded_verify(
             }
             UOR_ADDR_OK
         }
-        Err(prism_verify::ReplayError::EmptyTrace) => UOR_ADDR_ERR_VERIFY_EMPTY_TRACE,
-        Err(prism_verify::ReplayError::OutOfOrderEvent { .. }) => {
-            UOR_ADDR_ERR_VERIFY_OUT_OF_ORDER_EVENT
-        }
-        Err(prism_verify::ReplayError::ZeroTarget { .. }) => UOR_ADDR_ERR_VERIFY_ZERO_TARGET,
-        Err(prism_verify::ReplayError::NonContiguousSteps { .. }) => {
-            UOR_ADDR_ERR_VERIFY_NON_CONTIGUOUS_STEPS
-        }
-        Err(prism_verify::ReplayError::CapacityExceeded { .. }) => {
-            UOR_ADDR_ERR_VERIFY_CAPACITY_EXCEEDED
-        }
-        // `#[non_exhaustive]` upstream — defensive fallback.
+        // Both `ReplayFailed` and `FingerprintMismatch` are defensive —
+        // unreachable for a handle the C ABI itself minted.
         Err(_) => UOR_ADDR_ERR_PIPELINE,
     }
 }
@@ -675,7 +659,6 @@ pub unsafe extern "C" fn uor_addr_json_with_witness(
     match json::address(s) {
         Ok(outcome) => unsafe { write_grounded(outcome, out_handle) },
         Err(json::AddressFailure::InvalidJson) => UOR_ADDR_ERR_INVALID_INPUT,
-        Err(json::AddressFailure::TooLarge) => UOR_ADDR_ERR_TOO_LARGE,
         Err(json::AddressFailure::PipelineFailure) => UOR_ADDR_ERR_PIPELINE,
     }
 }
@@ -699,7 +682,6 @@ pub unsafe extern "C" fn uor_addr_sexp_with_witness(
     match sexp::address(s) {
         Ok(outcome) => unsafe { write_grounded(outcome, out_handle) },
         Err(sexp::AddressFailure::InvalidSExpr) => UOR_ADDR_ERR_INVALID_INPUT,
-        Err(sexp::AddressFailure::TooLarge) => UOR_ADDR_ERR_TOO_LARGE,
         Err(sexp::AddressFailure::PipelineFailure) => UOR_ADDR_ERR_PIPELINE,
     }
 }
@@ -723,7 +705,6 @@ pub unsafe extern "C" fn uor_addr_xml_with_witness(
     match xml::address(s) {
         Ok(outcome) => unsafe { write_grounded(outcome, out_handle) },
         Err(xml::AddressFailure::InvalidXml) => UOR_ADDR_ERR_INVALID_INPUT,
-        Err(xml::AddressFailure::TooLarge) => UOR_ADDR_ERR_TOO_LARGE,
         Err(xml::AddressFailure::PipelineFailure) => UOR_ADDR_ERR_PIPELINE,
     }
 }
@@ -747,7 +728,6 @@ pub unsafe extern "C" fn uor_addr_asn1_with_witness(
     match asn1::address(s) {
         Ok(outcome) => unsafe { write_grounded(outcome, out_handle) },
         Err(asn1::AddressFailure::InvalidDer) => UOR_ADDR_ERR_INVALID_INPUT,
-        Err(asn1::AddressFailure::TooLarge) => UOR_ADDR_ERR_TOO_LARGE,
         Err(asn1::AddressFailure::PipelineFailure) => UOR_ADDR_ERR_PIPELINE,
     }
 }
@@ -771,7 +751,6 @@ pub unsafe extern "C" fn uor_addr_ring_with_witness(
     match ring::address(s) {
         Ok(outcome) => unsafe { write_grounded(outcome, out_handle) },
         Err(ring::AddressFailure::InvalidRingElement) => UOR_ADDR_ERR_INVALID_INPUT,
-        Err(ring::AddressFailure::TooLarge) => UOR_ADDR_ERR_TOO_LARGE,
         Err(ring::AddressFailure::PipelineFailure) => UOR_ADDR_ERR_PIPELINE,
     }
 }
@@ -794,8 +773,7 @@ pub unsafe extern "C" fn uor_addr_codemodule_with_witness(
     };
     match codemodule::address(s) {
         Ok(outcome) => unsafe { write_grounded(outcome, out_handle) },
-        Err(codemodule::AddressFailure::InvalidCcmas) => UOR_ADDR_ERR_INVALID_INPUT,
-        Err(codemodule::AddressFailure::TooLarge) => UOR_ADDR_ERR_TOO_LARGE,
+        Err(codemodule::AddressFailure::InvalidAst) => UOR_ADDR_ERR_INVALID_INPUT,
         Err(codemodule::AddressFailure::PipelineFailure) => UOR_ADDR_ERR_PIPELINE,
     }
 }
@@ -819,7 +797,6 @@ pub unsafe extern "C" fn uor_addr_schema_photo_with_witness(
     match schema::photo::address(s) {
         Ok(outcome) => unsafe { write_grounded(outcome, out_handle) },
         Err(schema::photo::AddressFailure::SchemaViolation) => UOR_ADDR_ERR_INVALID_INPUT,
-        Err(schema::photo::AddressFailure::TooLarge) => UOR_ADDR_ERR_TOO_LARGE,
         Err(schema::photo::AddressFailure::PipelineFailure) => UOR_ADDR_ERR_PIPELINE,
     }
 }
@@ -843,7 +820,6 @@ pub unsafe extern "C" fn uor_addr_schema_document_with_witness(
     match schema::document::address(s) {
         Ok(outcome) => unsafe { write_grounded(outcome, out_handle) },
         Err(schema::document::AddressFailure::SchemaViolation) => UOR_ADDR_ERR_INVALID_INPUT,
-        Err(schema::document::AddressFailure::TooLarge) => UOR_ADDR_ERR_TOO_LARGE,
         Err(schema::document::AddressFailure::PipelineFailure) => UOR_ADDR_ERR_PIPELINE,
     }
 }
@@ -869,7 +845,6 @@ pub unsafe extern "C" fn uor_addr_schema_codemodule_signed_with_witness(
         Err(schema::codemodule_signed::AddressFailure::SchemaViolation) => {
             UOR_ADDR_ERR_INVALID_INPUT
         }
-        Err(schema::codemodule_signed::AddressFailure::TooLarge) => UOR_ADDR_ERR_TOO_LARGE,
         Err(schema::codemodule_signed::AddressFailure::PipelineFailure) => UOR_ADDR_ERR_PIPELINE,
     }
 }

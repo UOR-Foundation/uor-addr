@@ -31,6 +31,13 @@
 //! [`crate::codemodule`] CCMAS canonical AST). Well-known
 //! type-taxa are imported.
 
+// The schema-pinned descendants admit JSON-LD by walking the parsed
+// [`crate::json::JsonValue`] / [`crate::json::JsonValueRef`], which are
+// `alloc`-gated under ADR-060 (JSON canonicalization needs heap storage
+// for object-key sorting). The descendants are therefore `alloc`-gated.
+#[cfg(feature = "alloc")]
 pub mod codemodule_signed;
+#[cfg(feature = "alloc")]
 pub mod document;
+#[cfg(feature = "alloc")]
 pub mod photo;

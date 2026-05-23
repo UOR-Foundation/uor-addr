@@ -24,9 +24,9 @@ name       = "uor_addr_wasm"
 # layer. The underlying uor-addr pipeline remains no_alloc — only the
 # input/output marshalling allocates.
 uor-addr         = { workspace = true, features = ["alloc", "gguf", "onnx"] }
-# Required for the `grounded.verify()` Component Model export which
-# replays `Grounded<AddressLabel>::derivation()` through
-# `prism_verify::certify_from_trace` without re-invoking the canonical
-# hash axis (the TC-05 commitment, see CL-R* in CONFORMANCE.md).
-uor-prism-verify = { workspace = true, default-features = false }
+# The `grounded.verify()` Component Model export replays the witness's
+# owned `Trace<256>` via `uor_addr::AddressWitness::verify` (ADR-060),
+# which re-certifies through `prism::replay::certify_from_trace`
+# internally — so `uor-addr` is the only runtime dependency the binding
+# needs (the TC-05 commitment; see CL-R* in CONFORMANCE.md).
 wit-bindgen      = { version = "0.34", default-features = false, features = ["macros"] }

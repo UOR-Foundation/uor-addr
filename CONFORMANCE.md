@@ -37,8 +37,8 @@ and canonicalization byte-output discipline.
 
 ## The contract — what `uor-addr` claims (JSON realization baseline)
 
-For every well-formed JSON byte sequence `b` of length ≤ 3968 bytes
-after JCS+NFC canonicalisation:
+For every well-formed JSON byte sequence `b` (of any length — ADR-060
+removed the input-size ceiling) whose nesting depth is `≤ MAX_JSON_DEPTH`:
 
 1. **Address determinism (CD-D01).** `address(b)` produces exactly one
    ASCII byte sequence — the κ-label — and the same `b` always produces
@@ -73,12 +73,14 @@ after JCS+NFC canonicalisation:
    structurally-distinct `JsonValue` instances and therefore distinct
    κ-labels, even when the input texts look similar (`42` ≠ `"42"`,
    `null` ≠ `false`).
-9. **Typed-input bound enforcement (CT-B*).** Any input that violates a
-   typed-input bound declared in `crate::json::shapes::bounds`
-   (`MAX_JSON_DEPTH`, `MAX_STRING_BYTES`, `MAX_NUMBER_DIGITS`,
-   `MAX_OBJECT_KEYS`, `MAX_ARRAY_ELEMENTS`, `JSON_VALUE_MAX_BYTES`)
-   is rejected at `JsonValue::parse` with a `ShapeViolation` keyed to
-   the violated bound's IRI; the constructor never silently truncates.
+9. **Typed-input depth guard (CT-B*).** Under ADR-060 inputs are
+   unbounded — the byte / count caps are gone. The single remaining
+   typed-input bound is the recursive parser's native stack-safety depth
+   guard `MAX_JSON_DEPTH = 1024` (`crate::json::shapes::bounds`): an
+   input nested deeper than the guard is rejected at `JsonValue::parse`
+   with `InvalidJson`; everything else (over-wide strings, many keys,
+   long numbers) is admitted and yields a valid κ-label. The constructor
+   never silently truncates.
 10. **Cost-model selection (CT-C01).** The PrismModel's 5th parameter
     `C` is explicitly bound to `prism::pipeline::EmptyCommitment`
     (wiki ADR-048). The JSON realization carries no auxiliary cost
@@ -100,8 +102,8 @@ Verified by **source-grep + compile-time invariants + unit tests** under
 | CS-T01   | `AddressLabel::SITE_COUNT = 71`                                                          | `model::tests::address_label_site_count_matches_wire_format_width`                              |
 | CS-T02   | `AddressLabel::CONSTRAINTS` is exactly 71 disjoint `ConstraintRef::Site` instances        | `model::tests::address_label_carries_seventy_one_disjoint_site_constraints` + `const _` in `resolvers.rs` |
 | CS-T03   | `AddressLabel::CONSTRAINTS[i]` pins position `i` for `i ∈ [0, 71)`                        | `model::tests::address_label_constraints_pin_every_wire_format_site` + `const _` in `resolvers.rs` |
-| CS-B01   | `AddrBounds::NERVE_SITES_MAX = 71`, `FINGERPRINT_*_BYTES = 32`, `WITT_LEVEL_MAX_BITS = 32`| `shapes::bounds::tests::bounds_constants_match_addr_label_width`                                |
-| CS-B02   | All 8 per-ψ-stage `*_OUTPUT_BYTES_MAX` ceilings equal `TERM_VALUE_MAX_BYTES = 4096`       | `shapes::bounds::tests::psi_stage_output_ceilings_uniform`                                      |
+| CS-B01   | The single shared `AddrBounds`: `NERVE_SITES_MAX = 71`, `FINGERPRINT_*_BYTES = 32`, `WITT_LEVEL_MAX_BITS = 32` | `crates/uor-addr/src/bounds.rs` (`impl HostBounds for AddrBounds`) |
+| CS-B02   | ADR-060: there is no input-size ceiling and no per-ψ-stage byte-width cap; the canonical form flows as a `TermValue` carrier (`Inline` / `Borrowed` / `Stream`). `ADDR_INLINE_BYTES` is the foundation-derived κ-label inline width, not an input cap | `crates/uor-addr/src/bounds.rs` (`ADDR_INLINE_BYTES`) + `tests::common_surface` |
 | CS-V01   | The verb arena contains no `Term::FirstAdmit` / `Term::AxisInvocation` / `Le`/`Lt`/`Ge`/`Gt`/`Concat` | `verbs::tests::verb_arena_contains_no_sigma_residuals`                              |
 | CS-V02   | The verb arena contains each of ψ_1, ψ_7, ψ_8, ψ_9                                       | `verbs::tests::verb_arena_contains_psi_{1,7,8,9}_*`                                             |
 | CS-S01   | `unsafe` blocks: zero                                                                     | `#![forbid(unsafe_code)]` at lib root + `tests::conformance::no_unsafe_anywhere`                |
@@ -127,7 +129,7 @@ Verified by **runtime tests over a fixed fixture set** under
 | CD-S01a  | Single-byte mutation changes the κ-label                                                  | `tests::byte_identity::pipeline_distinct_inputs_yield_distinct_addresses`  |
 | CD-S01b  | Avalanche: mutating one byte of the canonical form changes ≥ 100 of the 256 digest bits   | `tests::conformance::single_byte_avalanche_balanced`                       |
 | CD-W01   | Every emitted κ-label is 71 ASCII bytes, begins `"sha256:"`, hex is lowercase             | `tests::byte_identity::pipeline_address_is_seventy_one_ascii_bytes`        |
-| CD-G01   | `AddressOutcome::witness.grounded().output_bytes()` matches `outcome.address.as_bytes()`  | `tests::byte_identity::pipeline_witness_borrows_grounded`                  |
+| CD-G01   | The owned `AddressOutcome::witness` recovers the κ-label: `witness.kappa_label()` equals `outcome.address`, and `witness.verify()` re-certifies to the same label | `tests::byte_identity::pipeline_witness_recovers_kappa_label`              |
 
 ### CP — Probabilistic class — empirical scaling
 
@@ -166,9 +168,9 @@ to one κ-label.
 | CT-E02   | Whitespace invariance (structural equivalence; restatement of CD-I01b)                            | `tests::typed_input::ct_e02__whitespace_invariance`                    |
 | CT-E03   | NFC invariance (composed `caf\u{E9}` ≡ decomposed `cafe\u{301}`; restatement of CD-I01c)         | `tests::typed_input::ct_e03__nfc_invariance`                           |
 | CT-E04   | Nested key-order invariance through depth 3                                                       | `tests::typed_input::ct_e04__nested_key_ordering_invariance`           |
-| CT-B01   | Over-deep nesting (> `MAX_JSON_DEPTH`) is rejected at parse with `TooLarge`                       | `tests::typed_input::ct_b01__over_deep_nesting_rejected_at_parse`      |
-| CT-B02   | Over-wide string (> `MAX_STRING_BYTES`) is rejected at parse with `TooLarge`                      | `tests::typed_input::ct_b02__over_wide_string_rejected_at_parse`       |
-| CT-B03   | Exactly-at-bound depth is accepted (the bound is `≤`, not `<`)                                    | `tests::typed_input::ct_b03__exactly_at_depth_bound_accepted`          |
+| CT-B01   | Over-deep nesting (> `MAX_JSON_DEPTH`) is rejected at parse with `InvalidJson` (native stack-safety depth guard) | `tests::typed_input::ct_b01__over_deep_nesting_rejected_at_parse`      |
+| CT-B02   | An over-wide string (any width) is **admitted** and yields a valid κ-label — ADR-060 removed the width cap | `tests::typed_input::ct_b02__wide_string_admitted`                    |
+| CT-B03   | Exactly-at-bound depth is accepted (the guard is `≤`, not `<`)                                    | `tests::typed_input::ct_b03__exactly_at_depth_bound_accepted`          |
 | CT-B04   | Invalid JSON syntax is rejected with `InvalidJson` (distinct from typed-input size violations)    | `tests::typed_input::ct_b04__invalid_json_rejected_distinct_from_size_bound` |
 | CT-C01   | The PrismModel's `TypedCommitment` is `EmptyCommitment` (wiki ADR-048; no auxiliary cost surface) | `tests::typed_input::ct_c01__cost_model_is_empty_commitment`           |
 | CT-P01   | `JsonValue::parse` returns Ok with non-empty tagged bytes for a valid input                       | `tests::typed_input::ct_p01__parse_returns_tagged_bytes`               |

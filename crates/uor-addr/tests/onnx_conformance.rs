@@ -126,12 +126,18 @@ fn sample_model() -> Vec<u8> {
 }
 
 fn label(bytes: &[u8]) -> String {
-    onnx::address(bytes).expect("valid onnx").address.as_str().to_string()
+    onnx::address(bytes)
+        .expect("valid onnx")
+        .address
+        .as_str()
+        .to_string()
 }
 fn is_kappa(s: &str) -> bool {
     s.len() == 71
         && s.starts_with("sha256:")
-        && s[7..].bytes().all(|b| b.is_ascii_hexdigit() && !b.is_ascii_uppercase())
+        && s[7..]
+            .bytes()
+            .all(|b| b.is_ascii_hexdigit() && !b.is_ascii_uppercase())
 }
 
 #[test]
@@ -152,7 +158,11 @@ fn invariant_under_node_reorder() {
     let w = init_raw("w", &[1.0, 2.0]);
     let forward = model_with(13, &graph(&[&a, &b], &[&w]));
     let reversed = model_with(13, &graph(&[&b, &a], &[&w]));
-    assert_eq!(label(&forward), label(&reversed), "node order must not affect κ");
+    assert_eq!(
+        label(&forward),
+        label(&reversed),
+        "node order must not affect κ"
+    );
 }
 
 #[test]

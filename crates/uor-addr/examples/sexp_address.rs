@@ -32,7 +32,6 @@ fn main() {
                 println!("  κ-label:    {address}\n");
             }
             Err(AddressFailure::InvalidSExpr) => panic!("example input must be valid S-expression"),
-            Err(AddressFailure::TooLarge) => panic!("example input must fit typed bounds"),
             Err(AddressFailure::PipelineFailure) => {
                 panic!("substrate-level shape violation — unreachable")
             }

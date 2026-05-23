@@ -1,24 +1,21 @@
-//! `RingElement` — typed ring-element carrier per UOR-Framework
-//! Amendment 43 §2's `Element::canonical_bytes` layout.
+//! `RingElement` — the ring-element typed input handle (UOR-Framework
+//! Amendment 43 §2 `Element::canonical_bytes`).
 //!
 //! Runtime bytes are
 //!
 //! ```text
-//! tagged_bytes(e) := [witt_level: u8] || [coefficient: u8; witt_level + 1]
+//! canonical_bytes(e) := [witt_level: u8] || [coefficient: u8; witt_level + 1]
 //! ```
 //!
-//! identical to the canonical-bytes layout — the structurally-tagged
-//! byte form **is** the canonical form for this realization, so the
-//! canonicalizer is the identity function.
-//!
-//! # `no_std` + `no_alloc`
-//!
-//! [`RingElement`] is a fixed-size stack carrier. Construction and
-//! parse paths write into / read from the inline buffer; no allocator
-//! is touched.
+//! which is already the canonical form, so under ADR-060 the handle's
+//! `as_binding_value` returns the tagged bytes directly as an `Inline`
+//! [`TermValue`] carrier (the form is ≤ 5 bytes, well within the
+//! foundation-derived inline width). ψ₉ folds that carrier through the
+//! σ-axis to mint the κ-label.
 
+use prism::operation::TermValue;
 use prism::pipeline::{
-    register_shape, ConstrainedTypeShape, ConstraintRef, IntoBindingValue, ShapeViolation,
+    ConstrainedTypeShape, ConstraintRef, IntoBindingValue, PartitionProductFields, ShapeViolation,
     ViolationKind,
 };
 
@@ -56,9 +53,9 @@ const TOTAL_WIDTH_VIOLATION: ShapeViolation = ShapeViolation {
     kind: ViolationKind::CardinalityViolation,
 };
 
-// ─── RingElement — the typed input carrier ──────────────────────────────
+// ─── RingElement — the typed input handle ────────────────────────────────
 
-/// Typed ring-element input shape. Runtime bytes follow Amendment 43
+/// Typed ring-element input handle. Runtime bytes follow Amendment 43
 /// §2's canonical-bytes layout, stored in a fixed-size stack buffer.
 #[derive(Clone)]
 pub struct RingElement {
@@ -79,7 +76,6 @@ impl PartialEq for RingElement {
         self.tagged_bytes() == other.tagged_bytes()
     }
 }
-
 impl Eq for RingElement {}
 
 impl RingElement {
@@ -137,62 +133,28 @@ impl RingElement {
     }
 }
 
-/// **Available only under the `alloc` feature.** Canonical-bytes
-/// accessor — identity transform on the canonical Amendment 43 §2
-/// bytes.
-#[cfg(feature = "alloc")]
-pub fn canonicalize(raw: &[u8]) -> Result<alloc::vec::Vec<u8>, ShapeViolation> {
-    extern crate alloc;
-    let element = RingElement::parse(raw)?;
-    Ok(element.tagged_bytes().to_vec())
-}
-
-/// Slice-output canonicalizer.
-pub fn canonicalize_into_slice(tagged: &[u8], out: &mut [u8]) -> Result<usize, ShapeViolation> {
-    if tagged.len() > out.len() {
-        return Err(TOTAL_WIDTH_VIOLATION);
-    }
-    out[..tagged.len()].copy_from_slice(tagged);
-    Ok(tagged.len())
-}
-
-// ─── ConstrainedTypeShape + IntoBindingValue + AddressInput ──────────────
+// ─── ConstrainedTypeShape + IntoBindingValue + PartitionProductFields ─────
 
 impl ConstrainedTypeShape for RingElement {
     const IRI: &'static str = "https://uor.foundation/addr/RingElement";
-    const SITE_COUNT: usize = RING_VALUE_MAX_BYTES;
+    const SITE_COUNT: usize = 1;
     const CONSTRAINTS: &'static [ConstraintRef] = &[];
     const CYCLE_SIZE: u64 = u64::MAX;
 }
 
 impl prism::uor_foundation::pipeline::__sdk_seal::Sealed for RingElement {}
 
-impl IntoBindingValue for RingElement {
-    const MAX_BYTES: usize = RING_VALUE_MAX_BYTES;
-    fn into_binding_bytes(&self, out: &mut [u8]) -> Result<usize, ShapeViolation> {
-        let n = self.len as usize;
-        if n > out.len() {
-            return Err(TOTAL_WIDTH_VIOLATION);
-        }
-        out[..n].copy_from_slice(&self.bytes[..n]);
-        Ok(n)
+impl<'a> IntoBindingValue<'a> for RingElement {
+    fn as_binding_value<const INLINE_BYTES: usize>(&self) -> TermValue<'a, INLINE_BYTES> {
+        // Amendment 43 §2 canonical bytes are the canonical form; emit them
+        // as an `Inline` carrier (owned, valid for any `'a`).
+        TermValue::inline_from_slice(self.tagged_bytes())
     }
 }
 
-register_shape!(RingElementRegistry, RingElement);
-
-impl crate::common::AddressInput for RingElement {
-    type Registry = RingElementRegistry;
-
-    #[inline]
-    fn canonicalize_into(parser_emitted: &[u8], out: &mut [u8]) -> Result<usize, ShapeViolation> {
-        canonicalize_into_slice(parser_emitted, out)
-    }
-
-    #[inline]
-    fn parse(input: &[u8]) -> Result<Self, ShapeViolation> {
-        Self::parse(input)
-    }
+impl PartitionProductFields for RingElement {
+    const FIELDS: &'static [(u32, u32)] = &[];
+    const FIELD_NAMES: &'static [&'static str] = &[];
 }
 
 #[cfg(test)]
@@ -225,13 +187,5 @@ mod tests {
     fn rejects_truncated_bytes() {
         let err = RingElement::parse(&[2, 0, 0]).expect_err("must reject");
         assert_eq!(err.constraint_iri, INVALID_RING_VIOLATION.constraint_iri);
-    }
-
-    #[cfg(feature = "alloc")]
-    #[test]
-    fn canonicalize_is_identity_on_canonical_form() {
-        let bytes = &[0u8, 0x42];
-        let canon = canonicalize(bytes).expect("valid");
-        assert_eq!(canon, bytes);
     }
 }
