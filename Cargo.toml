@@ -16,7 +16,7 @@ members = ["crates/uor-addr", "crates/uor-addr-c", "crates/uor-addr-wasm"]
 # then `python3 tools/sync-versions.py`, then commit. Tag and push;
 # the release workflow validates that the pushed tag matches.
 [workspace.package]
-version       = "0.1.0"
+version       = "0.1.1"
 edition       = "2021"
 authors       = ["The UOR Foundation <https://uor.foundation>"]
 license       = "Apache-2.0"
@@ -35,9 +35,9 @@ rust-version  = "1.83"
 # silently ignore consumers' `default-features = false` declarations).
 # Each downstream crate opts into the features it needs through its
 # own `features = […]` clause or via its own feature graph.
-uor-addr      = { path = "crates/uor-addr",      version = "0.1.0", default-features = false }
-uor-addr-c    = { path = "crates/uor-addr-c",    version = "0.1.0", default-features = false }
-uor-addr-wasm = { path = "crates/uor-addr-wasm", version = "0.1.0", default-features = false }
+uor-addr      = { path = "crates/uor-addr",      version = "0.1.1", default-features = false }
+uor-addr-c    = { path = "crates/uor-addr-c",    version = "0.1.1", default-features = false }
+uor-addr-wasm = { path = "crates/uor-addr-wasm", version = "0.1.1", default-features = false }
 
 # External UOR-Foundation crates.
 # Façade — re-exports the foundation substrate plus the four Layer-3
