@@ -1,4 +1,4 @@
-//! Closed-loop (CL-ONNX) conformance for the ONNX realization (IR &le; v13).
+//! Closed-loop (CL-ONNX) conformance for the ONNX realization (IR ≤ v13).
 //!
 //! Synthesizes minimal `ModelProto` wire buffers in-process and asserts
 //! the canonical-form invariants: a 71-byte κ-label, determinism,

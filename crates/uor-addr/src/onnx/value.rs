@@ -1,4 +1,4 @@
-//! ONNX typed input (IR &le; v13) (ADR-023 amended by ADR-060).
+//! ONNX typed input (IR ≤ v13) (ADR-023 amended by ADR-060).
 //!
 //! Protobuf v3 admits many byte-representations of the same logical
 //! message; this realization defines a canonical form — a **flat
