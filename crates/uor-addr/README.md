@@ -60,15 +60,20 @@ Key commitments every realization upholds:
 - **ADR-035 canonical k-invariants branch** — the `address_inference`
   verb body composes ψ_1 + ψ_7 + ψ_8 + ψ_9; ψ_2..ψ_6 are off-path
   with identity-emitting resolver bodies.
-- **ADR-046 resolver-body discipline** — the format's canonicalization
-  lives inside `AddressKInvariantResolver`'s body, dispatched through
-  `V::canonicalize_into` per the [`AddressInput`] trait.
+- **ADR-046 canonicalization at carrier production** — the format's
+  canonicalization happens at the host boundary in the input handle's
+  `as_binding_value` (which yields the ADR-060 `TermValue` carrier), so
+  the shared ψ-tower is format-independent and ψ_9 only folds the carrier.
 - **ADR-047 σ-projection Hardening Principle** — every realization
   binds `prism::crypto::Sha256Hasher` as the canonical hash axis.
 - **ADR-048 typed-commitment surface** — default `C = EmptyCommitment`;
   cost-model variants bind non-default `C` selections.
-- **ADR-057 application shape registry** — every realization emits its
-  registry via `register_shape!`.
+- **ADR-057 bounded recursive structural typing** — enforced by the
+  recursive parsers' native-stack depth guards (`MAX_*_DEPTH`); inputs
+  are otherwise unbounded (no width / count caps).
+- **ADR-060 source-polymorphic value carrier** — each input handle yields
+  `Inline` / `Borrowed` / `Stream` `TermValue` bytes; there is no fixed
+  input buffer or size ceiling.
 
 ## Build + V&V
 

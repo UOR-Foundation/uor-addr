@@ -46,7 +46,6 @@ uor-addr-wasm = { path = "crates/uor-addr-wasm", version = "0.1.0", default-feat
 # `prism::seal`). Per ADR-031, downstream Prism applications consume
 # this façade rather than the substrate directly.
 uor-prism          = { version = "0.3.1", default-features = false }
-uor-prism-verify   = { version = "0.3.1", default-features = false }
 # Explicit dep for the GGUF / ONNX realizations' tensor element-type
 # alphabet (`prism::tensor::dtype::TensorDtypeRegistry` + the per-dtype
 # `BLOCK_BYTES` / `BLOCK_ELEMS` metadata). Pulled in only when the

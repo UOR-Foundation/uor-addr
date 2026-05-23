@@ -26,16 +26,21 @@
 // Input failed the realization's host-boundary parser.
 #define UOR_ADDR_ERR_INVALID_INPUT -3
 
-// Input exceeded a typed-input ceiling.
+// **Reserved** — never returned under ADR-060 (inputs are unbounded;
+// the per-realization size/count caps were removed). Retained so
+// existing `-4` handlers in downstream C consumers keep compiling.
 #define UOR_ADDR_ERR_TOO_LARGE -4
 
 // Defensive — substrate-level pipeline failure.
 #define UOR_ADDR_ERR_PIPELINE -5
 
-// Verify-error codes — 1:1 with WIT `verify-error` variants. Returned
-// by [`uor_addr_grounded_verify`]. All five are *defensive* against
-// substrate corruption; unreachable for a handle the C ABI itself
-// minted.
+// Verify-error codes — 1:1 with WIT `verify-error` variants. **Reserved
+// forward-compat vocabulary**: under ADR-060 [`uor_addr_grounded_verify`]
+// re-certifies through the owned witness ([`uor_addr::AddressWitness::verify`])
+// and returns `UOR_ADDR_OK` or `UOR_ADDR_ERR_PIPELINE` only — the
+// granular replay-failure codes below are retained for error-code
+// stability and a future stricter verifier, and are unreachable for a
+// handle the C ABI itself minted.
 #define UOR_ADDR_ERR_VERIFY_EMPTY_TRACE -10
 
 #define UOR_ADDR_ERR_VERIFY_OUT_OF_ORDER_EVENT -11
@@ -173,12 +178,12 @@ int32_t uor_addr_schema_codemodule_signed(const uint8_t *input,
                                           uintptr_t out_label_len,
                                           uintptr_t *out_written);
 
-// GGUF v3 realization (spec-canonical structural commitment + SHA-256).
+// GGUF v3 realization (spec-canonical flat Merkle skeleton + SHA-256).
 //
 // The κ-label binds every metadata byte and every tensor weight (the
-// latter via streamed per-tensor digests). Uses the crate's
-// `GgufAddrBounds` encoding profile; applications needing different
-// ceilings use the Rust crate directly with their own `GgufHostBounds`.
+// latter via streamed per-tensor digests). Under ADR-060 the canonical
+// form is the full flat skeleton (no two-level commitment); KV / tensor
+// counts and value widths are unbounded.
 //
 // # Safety
 //
@@ -241,8 +246,9 @@ int32_t uor_addr_grounded_content_fingerprint(const struct UorAddrGrounded *hand
                                               uintptr_t out_digest_len,
                                               uintptr_t *out_written);
 
-// Verify the witness by replaying its derivation through
-// `prism_verify::certify_from_trace` and writing the recovered
+// Verify the witness by re-certifying its owned replay trace through
+// `prism::replay::certify_from_trace` (via
+// [`uor_addr::AddressWitness::verify`]) and writing the recovered
 // κ-label into `out_label`. SHA-256 is **not** re-invoked.
 //
 // On `UOR_ADDR_OK` the bytes in `out_label[..71]` are byte-identical

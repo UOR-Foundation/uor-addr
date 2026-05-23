@@ -54,9 +54,6 @@ gguf  = ["alloc", "dep:uor-prism-tensor"]
 onnx  = ["alloc", "dep:uor-prism-tensor"]
 
 [dev-dependencies]
-# TC-05 replay surface — exercises the `Grounded<AddressLabel>` round-trip
-# through `prism::replay::certify_from_trace` (CL-R01 — see CONFORMANCE.md).
-uor-prism-verify = { workspace = true, features = ["std"] }
 # Live HTTP cross-validation against `mcp.uor.foundation/tools/encode_address`
 # (CN class — see CONFORMANCE.md). Gated behind `#[ignore]`; runs only under
 # `just cn` with UOR_ADDR_LIVE=1.

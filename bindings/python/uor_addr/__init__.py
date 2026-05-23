@@ -53,12 +53,12 @@ _OK = 0
 _ERR_NULL_POINTER = -1
 _ERR_BUFFER_TOO_SMALL = -2
 _ERR_INVALID_INPUT = -3
-_ERR_TOO_LARGE = -4
+_ERR_TOO_LARGE = -4  # reserved; never returned under ADR-060 (unbounded inputs)
 _ERR_PIPELINE = -5
 
 _ERR_KIND: Final[dict[int, str]] = {
     _ERR_INVALID_INPUT: "invalid-input",
-    _ERR_TOO_LARGE: "too-large",
+    _ERR_TOO_LARGE: "too-large",  # reserved (see above) — kept for forward-compat
     _ERR_PIPELINE: "pipeline-failure",
     _ERR_NULL_POINTER: "pipeline-failure",
     _ERR_BUFFER_TOO_SMALL: "pipeline-failure",

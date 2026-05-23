@@ -22,13 +22,11 @@ name       = "uor_addr_c"
 # declaration; this crate activates `uor-addr`'s `std` / `alloc`
 # features through its own feature graph (see `[features]` below).
 uor-addr = { workspace = true }
-# Required for the `uor_addr_grounded_verify` C ABI export — replays a
-# `Grounded<AddressLabel>::derivation()` through
-# `prism_verify::certify_from_trace` without re-invoking SHA-256.
-# Mirrors the WASM `grounded.verify()` Component Model export and
-# enables Python (via ctypes) + any other C-FFI language to consume
-# the TC-05 round-trip surface (CL-R* in CONFORMANCE.md).
-uor-prism-verify = { workspace = true, default-features = false }
+# The `uor_addr_grounded_verify` C ABI export delegates to the owned
+# `uor_addr::AddressWitness::verify` (ADR-060), which re-certifies through
+# `prism::replay::certify_from_trace` internally — so `uor-addr` is the
+# only runtime dependency the binding needs (the TC-05 round-trip surface,
+# CL-R* in CONFORMANCE.md).
 
 [features]
 # Hosted targets (linux / macos / windows) default to `std` so the
