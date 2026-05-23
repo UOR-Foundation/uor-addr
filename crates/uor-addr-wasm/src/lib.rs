@@ -103,6 +103,7 @@ mod component {
         W71(uor_addr::AddressOutcome<71>),
         W73(uor_addr::AddressOutcome<73>),
         W74(uor_addr::AddressOutcome<74>),
+        W512(uor_addr::AddressOutcome<135, 64>),
     }
 
     impl From<uor_addr::AddressOutcome<71>> for AnyOutcome {
@@ -120,6 +121,11 @@ mod component {
             Self::W74(o)
         }
     }
+    impl From<uor_addr::AddressOutcome<135, 64>> for AnyOutcome {
+        fn from(o: uor_addr::AddressOutcome<135, 64>) -> Self {
+            Self::W512(o)
+        }
+    }
 
     impl AnyOutcome {
         fn label(&self) -> String {
@@ -127,6 +133,7 @@ mod component {
                 Self::W71(o) => o.address.as_str().to_string(),
                 Self::W73(o) => o.address.as_str().to_string(),
                 Self::W74(o) => o.address.as_str().to_string(),
+                Self::W512(o) => o.address.as_str().to_string(),
             }
         }
         fn fingerprint(&self) -> Vec<u8> {
@@ -134,6 +141,7 @@ mod component {
                 Self::W71(o) => o.witness.content_fingerprint().to_vec(),
                 Self::W73(o) => o.witness.content_fingerprint().to_vec(),
                 Self::W74(o) => o.witness.content_fingerprint().to_vec(),
+                Self::W512(o) => o.witness.content_fingerprint().to_vec(),
             }
         }
         fn verify(&self) -> Result<String, uor_addr::VerifyError> {
@@ -141,6 +149,7 @@ mod component {
                 Self::W71(o) => o.witness.verify().map(|l| l.as_str().to_string()),
                 Self::W73(o) => o.witness.verify().map(|l| l.as_str().to_string()),
                 Self::W74(o) => o.witness.verify().map(|l| l.as_str().to_string()),
+                Self::W512(o) => o.witness.verify().map(|l| l.as_str().to_string()),
             }
         }
     }
@@ -438,6 +447,11 @@ mod component {
                     uor_addr::json::AddressFailure,
                     uor_addr::json::AddressFailure::InvalidJson
                 ),
+                HashAlgorithm::Sha512 => map_addr!(
+                    uor_addr::json::address_sha512(&input),
+                    uor_addr::json::AddressFailure,
+                    uor_addr::json::AddressFailure::InvalidJson
+                ),
             }
         }
 
@@ -463,6 +477,11 @@ mod component {
                 ),
                 HashAlgorithm::Keccak256 => map_witness!(
                     uor_addr::json::address_keccak256(&input),
+                    uor_addr::json::AddressFailure,
+                    uor_addr::json::AddressFailure::InvalidJson
+                ),
+                HashAlgorithm::Sha512 => map_witness!(
+                    uor_addr::json::address_sha512(&input),
                     uor_addr::json::AddressFailure,
                     uor_addr::json::AddressFailure::InvalidJson
                 ),
@@ -494,6 +513,11 @@ mod component {
                     uor_addr::sexp::AddressFailure,
                     uor_addr::sexp::AddressFailure::InvalidSExpr
                 ),
+                HashAlgorithm::Sha512 => map_addr!(
+                    uor_addr::sexp::address_sha512(&input),
+                    uor_addr::sexp::AddressFailure,
+                    uor_addr::sexp::AddressFailure::InvalidSExpr
+                ),
             }
         }
 
@@ -519,6 +543,11 @@ mod component {
                 ),
                 HashAlgorithm::Keccak256 => map_witness!(
                     uor_addr::sexp::address_keccak256(&input),
+                    uor_addr::sexp::AddressFailure,
+                    uor_addr::sexp::AddressFailure::InvalidSExpr
+                ),
+                HashAlgorithm::Sha512 => map_witness!(
+                    uor_addr::sexp::address_sha512(&input),
                     uor_addr::sexp::AddressFailure,
                     uor_addr::sexp::AddressFailure::InvalidSExpr
                 ),
@@ -550,6 +579,11 @@ mod component {
                     uor_addr::xml::AddressFailure,
                     uor_addr::xml::AddressFailure::InvalidXml
                 ),
+                HashAlgorithm::Sha512 => map_addr!(
+                    uor_addr::xml::address_sha512(&input),
+                    uor_addr::xml::AddressFailure,
+                    uor_addr::xml::AddressFailure::InvalidXml
+                ),
             }
         }
 
@@ -575,6 +609,11 @@ mod component {
                 ),
                 HashAlgorithm::Keccak256 => map_witness!(
                     uor_addr::xml::address_keccak256(&input),
+                    uor_addr::xml::AddressFailure,
+                    uor_addr::xml::AddressFailure::InvalidXml
+                ),
+                HashAlgorithm::Sha512 => map_witness!(
+                    uor_addr::xml::address_sha512(&input),
                     uor_addr::xml::AddressFailure,
                     uor_addr::xml::AddressFailure::InvalidXml
                 ),
@@ -606,6 +645,11 @@ mod component {
                     uor_addr::asn1::AddressFailure,
                     uor_addr::asn1::AddressFailure::InvalidDer
                 ),
+                HashAlgorithm::Sha512 => map_addr!(
+                    uor_addr::asn1::address_sha512(&input),
+                    uor_addr::asn1::AddressFailure,
+                    uor_addr::asn1::AddressFailure::InvalidDer
+                ),
             }
         }
 
@@ -631,6 +675,11 @@ mod component {
                 ),
                 HashAlgorithm::Keccak256 => map_witness!(
                     uor_addr::asn1::address_keccak256(&input),
+                    uor_addr::asn1::AddressFailure,
+                    uor_addr::asn1::AddressFailure::InvalidDer
+                ),
+                HashAlgorithm::Sha512 => map_witness!(
+                    uor_addr::asn1::address_sha512(&input),
                     uor_addr::asn1::AddressFailure,
                     uor_addr::asn1::AddressFailure::InvalidDer
                 ),
@@ -662,6 +711,11 @@ mod component {
                     uor_addr::ring::AddressFailure,
                     uor_addr::ring::AddressFailure::InvalidRingElement
                 ),
+                HashAlgorithm::Sha512 => map_addr!(
+                    uor_addr::ring::address_sha512(&input),
+                    uor_addr::ring::AddressFailure,
+                    uor_addr::ring::AddressFailure::InvalidRingElement
+                ),
             }
         }
 
@@ -687,6 +741,11 @@ mod component {
                 ),
                 HashAlgorithm::Keccak256 => map_witness!(
                     uor_addr::ring::address_keccak256(&input),
+                    uor_addr::ring::AddressFailure,
+                    uor_addr::ring::AddressFailure::InvalidRingElement
+                ),
+                HashAlgorithm::Sha512 => map_witness!(
+                    uor_addr::ring::address_sha512(&input),
                     uor_addr::ring::AddressFailure,
                     uor_addr::ring::AddressFailure::InvalidRingElement
                 ),
@@ -718,6 +777,11 @@ mod component {
                     uor_addr::codemodule::AddressFailure,
                     uor_addr::codemodule::AddressFailure::InvalidAst
                 ),
+                HashAlgorithm::Sha512 => map_addr!(
+                    uor_addr::codemodule::address_sha512(&input),
+                    uor_addr::codemodule::AddressFailure,
+                    uor_addr::codemodule::AddressFailure::InvalidAst
+                ),
             }
         }
 
@@ -743,6 +807,11 @@ mod component {
                 ),
                 HashAlgorithm::Keccak256 => map_witness!(
                     uor_addr::codemodule::address_keccak256(&input),
+                    uor_addr::codemodule::AddressFailure,
+                    uor_addr::codemodule::AddressFailure::InvalidAst
+                ),
+                HashAlgorithm::Sha512 => map_witness!(
+                    uor_addr::codemodule::address_sha512(&input),
                     uor_addr::codemodule::AddressFailure,
                     uor_addr::codemodule::AddressFailure::InvalidAst
                 ),
@@ -774,6 +843,11 @@ mod component {
                     uor_addr::cbor::AddressFailure,
                     uor_addr::cbor::AddressFailure::InvalidCbor
                 ),
+                HashAlgorithm::Sha512 => map_addr!(
+                    uor_addr::cbor::address_sha512(&input),
+                    uor_addr::cbor::AddressFailure,
+                    uor_addr::cbor::AddressFailure::InvalidCbor
+                ),
             }
         }
 
@@ -799,6 +873,11 @@ mod component {
                 ),
                 HashAlgorithm::Keccak256 => map_witness!(
                     uor_addr::cbor::address_keccak256(&input),
+                    uor_addr::cbor::AddressFailure,
+                    uor_addr::cbor::AddressFailure::InvalidCbor
+                ),
+                HashAlgorithm::Sha512 => map_witness!(
+                    uor_addr::cbor::address_sha512(&input),
                     uor_addr::cbor::AddressFailure,
                     uor_addr::cbor::AddressFailure::InvalidCbor
                 ),
@@ -830,6 +909,11 @@ mod component {
                     uor_addr::schema::photo::AddressFailure,
                     uor_addr::schema::photo::AddressFailure::SchemaViolation
                 ),
+                HashAlgorithm::Sha512 => map_addr!(
+                    uor_addr::schema::photo::address_sha512(&input),
+                    uor_addr::schema::photo::AddressFailure,
+                    uor_addr::schema::photo::AddressFailure::SchemaViolation
+                ),
             }
         }
 
@@ -855,6 +939,11 @@ mod component {
                 ),
                 HashAlgorithm::Keccak256 => map_witness!(
                     uor_addr::schema::photo::address_keccak256(&input),
+                    uor_addr::schema::photo::AddressFailure,
+                    uor_addr::schema::photo::AddressFailure::SchemaViolation
+                ),
+                HashAlgorithm::Sha512 => map_witness!(
+                    uor_addr::schema::photo::address_sha512(&input),
                     uor_addr::schema::photo::AddressFailure,
                     uor_addr::schema::photo::AddressFailure::SchemaViolation
                 ),
@@ -886,6 +975,11 @@ mod component {
                     uor_addr::schema::document::AddressFailure,
                     uor_addr::schema::document::AddressFailure::SchemaViolation
                 ),
+                HashAlgorithm::Sha512 => map_addr!(
+                    uor_addr::schema::document::address_sha512(&input),
+                    uor_addr::schema::document::AddressFailure,
+                    uor_addr::schema::document::AddressFailure::SchemaViolation
+                ),
             }
         }
 
@@ -911,6 +1005,11 @@ mod component {
                 ),
                 HashAlgorithm::Keccak256 => map_witness!(
                     uor_addr::schema::document::address_keccak256(&input),
+                    uor_addr::schema::document::AddressFailure,
+                    uor_addr::schema::document::AddressFailure::SchemaViolation
+                ),
+                HashAlgorithm::Sha512 => map_witness!(
+                    uor_addr::schema::document::address_sha512(&input),
                     uor_addr::schema::document::AddressFailure,
                     uor_addr::schema::document::AddressFailure::SchemaViolation
                 ),
@@ -942,6 +1041,11 @@ mod component {
                     uor_addr::schema::codemodule_signed::AddressFailure,
                     uor_addr::schema::codemodule_signed::AddressFailure::SchemaViolation
                 ),
+                HashAlgorithm::Sha512 => map_addr!(
+                    uor_addr::schema::codemodule_signed::address_sha512(&input),
+                    uor_addr::schema::codemodule_signed::AddressFailure,
+                    uor_addr::schema::codemodule_signed::AddressFailure::SchemaViolation
+                ),
             }
         }
 
@@ -967,6 +1071,11 @@ mod component {
                 ),
                 HashAlgorithm::Keccak256 => map_witness!(
                     uor_addr::schema::codemodule_signed::address_keccak256(&input),
+                    uor_addr::schema::codemodule_signed::AddressFailure,
+                    uor_addr::schema::codemodule_signed::AddressFailure::SchemaViolation
+                ),
+                HashAlgorithm::Sha512 => map_witness!(
+                    uor_addr::schema::codemodule_signed::address_sha512(&input),
                     uor_addr::schema::codemodule_signed::AddressFailure,
                     uor_addr::schema::codemodule_signed::AddressFailure::SchemaViolation
                 ),
@@ -998,6 +1107,11 @@ mod component {
                     uor_addr::gguf::AddressFailure,
                     uor_addr::gguf::AddressFailure::InvalidGguf
                 ),
+                HashAlgorithm::Sha512 => map_addr!(
+                    uor_addr::gguf::address_sha512(&input),
+                    uor_addr::gguf::AddressFailure,
+                    uor_addr::gguf::AddressFailure::InvalidGguf
+                ),
             }
         }
 
@@ -1023,6 +1137,11 @@ mod component {
                 ),
                 HashAlgorithm::Keccak256 => map_witness!(
                     uor_addr::gguf::address_keccak256(&input),
+                    uor_addr::gguf::AddressFailure,
+                    uor_addr::gguf::AddressFailure::InvalidGguf
+                ),
+                HashAlgorithm::Sha512 => map_witness!(
+                    uor_addr::gguf::address_sha512(&input),
                     uor_addr::gguf::AddressFailure,
                     uor_addr::gguf::AddressFailure::InvalidGguf
                 ),
@@ -1054,6 +1173,11 @@ mod component {
                     uor_addr::onnx::AddressFailure,
                     uor_addr::onnx::AddressFailure::InvalidOnnx
                 ),
+                HashAlgorithm::Sha512 => map_addr!(
+                    uor_addr::onnx::address_sha512(&input),
+                    uor_addr::onnx::AddressFailure,
+                    uor_addr::onnx::AddressFailure::InvalidOnnx
+                ),
             }
         }
 
@@ -1079,6 +1203,11 @@ mod component {
                 ),
                 HashAlgorithm::Keccak256 => map_witness!(
                     uor_addr::onnx::address_keccak256(&input),
+                    uor_addr::onnx::AddressFailure,
+                    uor_addr::onnx::AddressFailure::InvalidOnnx
+                ),
+                HashAlgorithm::Sha512 => map_witness!(
+                    uor_addr::onnx::address_sha512(&input),
                     uor_addr::onnx::AddressFailure,
                     uor_addr::onnx::AddressFailure::InvalidOnnx
                 ),

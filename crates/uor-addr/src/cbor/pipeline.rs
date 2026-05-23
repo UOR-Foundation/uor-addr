@@ -33,6 +33,7 @@ pub enum AddressFailure {
 #[cfg(feature = "alloc")]
 use crate::cbor::model::{
     AddressModel, AddressModelBlake3, AddressModelKeccak256, AddressModelSha3_256,
+    AddressModelSha512,
 };
 #[cfg(feature = "alloc")]
 use crate::cbor::value::{canonicalize, CborCarrier};
@@ -95,4 +96,19 @@ pub fn address_keccak256(input_bytes: &[u8]) -> Result<AddressOutcome<74>, Addre
     let grounded = AddressModelKeccak256::forward(CborCarrier::new(&canonical))
         .map_err(|_| AddressFailure::PipelineFailure)?;
     AddressOutcome::<74>::from_grounded(&grounded).map_err(|_| AddressFailure::PipelineFailure)
+}
+
+/// The cbor entry point under σ-axis `Sha512Hasher` — yields a
+/// `sha512:<128hex>` κ-label (135 bytes, 64-byte fingerprint). See
+/// [`address`] for the error contract.
+///
+/// # Errors
+///
+/// As [`address`].
+#[cfg(feature = "alloc")]
+pub fn address_sha512(input_bytes: &[u8]) -> Result<AddressOutcome<135, 64>, AddressFailure> {
+    let canonical = canonicalize(input_bytes).map_err(|_| AddressFailure::InvalidCbor)?;
+    let grounded = AddressModelSha512::forward(CborCarrier::new(&canonical))
+        .map_err(|_| AddressFailure::PipelineFailure)?;
+    AddressOutcome::<135, 64>::from_grounded(&grounded).map_err(|_| AddressFailure::PipelineFailure)
 }

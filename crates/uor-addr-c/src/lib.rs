@@ -67,6 +67,8 @@ pub const UOR_ADDR_HASH_BLAKE3: u8 = 1;
 pub const UOR_ADDR_HASH_SHA3_256: u8 = 2;
 /// σ-axis selector: Keccak-256 (pre-FIPS padding).
 pub const UOR_ADDR_HASH_KECCAK256: u8 = 3;
+/// σ-axis selector: SHA-512 (FIPS 180-4; 64-byte digest → 135-byte label).
+pub const UOR_ADDR_HASH_SHA512: u8 = 4;
 
 /// Success.
 pub const UOR_ADDR_OK: i32 = 0;
@@ -94,8 +96,8 @@ pub const UOR_ADDR_ERR_UNKNOWN_HASH: i32 = -6;
 ///
 /// `out_label` must be writable for at least `out_label_len` bytes;
 /// `out_written` if non-null must point to a writable `usize`.
-unsafe fn write_outcome<const N: usize>(
-    outcome: AddressOutcome<N>,
+unsafe fn write_outcome<const N: usize, const FP: usize>(
+    outcome: AddressOutcome<N, FP>,
     out_label: *mut u8,
     out_label_len: usize,
     out_written: *mut usize,
@@ -133,10 +135,6 @@ unsafe fn borrow_input<'a>(input: *const u8, input_len: usize) -> Result<&'a [u8
 }
 
 // ═══ Per-realization C entry points (generated uniformly) ═══════════
-//
-// Each format exposes four entry points: a default-σ-axis (SHA-256) label
-// fn, a `*_with_hash(algo, …)` label fn over any `UOR_ADDR_HASH_*` axis, a
-// SHA-256 witness fn, and a `*_with_witness_hash(algo, …)` witness fn.
 
 /// Map a realization's `AddressFailure` to a C status code.
 trait CErr {
@@ -324,6 +322,10 @@ pub unsafe extern "C" fn uor_addr_json_with_hash(
             Ok(o) => unsafe { write_outcome(o, out_label, out_label_len, out_written) },
             Err(e) => e.c_code(),
         },
+        UOR_ADDR_HASH_SHA512 => match json::address_sha512(s) {
+            Ok(o) => unsafe { write_outcome(o, out_label, out_label_len, out_written) },
+            Err(e) => e.c_code(),
+        },
         _ => UOR_ADDR_ERR_UNKNOWN_HASH,
     }
 }
@@ -386,6 +388,10 @@ pub unsafe extern "C" fn uor_addr_sexp_with_hash(
             Err(e) => e.c_code(),
         },
         UOR_ADDR_HASH_KECCAK256 => match sexp::address_keccak256(s) {
+            Ok(o) => unsafe { write_outcome(o, out_label, out_label_len, out_written) },
+            Err(e) => e.c_code(),
+        },
+        UOR_ADDR_HASH_SHA512 => match sexp::address_sha512(s) {
             Ok(o) => unsafe { write_outcome(o, out_label, out_label_len, out_written) },
             Err(e) => e.c_code(),
         },
@@ -456,6 +462,10 @@ pub unsafe extern "C" fn uor_addr_xml_with_hash(
             Ok(o) => unsafe { write_outcome(o, out_label, out_label_len, out_written) },
             Err(e) => e.c_code(),
         },
+        UOR_ADDR_HASH_SHA512 => match xml::address_sha512(s) {
+            Ok(o) => unsafe { write_outcome(o, out_label, out_label_len, out_written) },
+            Err(e) => e.c_code(),
+        },
         _ => UOR_ADDR_ERR_UNKNOWN_HASH,
     }
 }
@@ -518,6 +528,10 @@ pub unsafe extern "C" fn uor_addr_asn1_with_hash(
             Err(e) => e.c_code(),
         },
         UOR_ADDR_HASH_KECCAK256 => match asn1::address_keccak256(s) {
+            Ok(o) => unsafe { write_outcome(o, out_label, out_label_len, out_written) },
+            Err(e) => e.c_code(),
+        },
+        UOR_ADDR_HASH_SHA512 => match asn1::address_sha512(s) {
             Ok(o) => unsafe { write_outcome(o, out_label, out_label_len, out_written) },
             Err(e) => e.c_code(),
         },
@@ -586,6 +600,10 @@ pub unsafe extern "C" fn uor_addr_ring_with_hash(
             Ok(o) => unsafe { write_outcome(o, out_label, out_label_len, out_written) },
             Err(e) => e.c_code(),
         },
+        UOR_ADDR_HASH_SHA512 => match ring::address_sha512(s) {
+            Ok(o) => unsafe { write_outcome(o, out_label, out_label_len, out_written) },
+            Err(e) => e.c_code(),
+        },
         _ => UOR_ADDR_ERR_UNKNOWN_HASH,
     }
 }
@@ -648,6 +666,10 @@ pub unsafe extern "C" fn uor_addr_codemodule_with_hash(
             Err(e) => e.c_code(),
         },
         UOR_ADDR_HASH_KECCAK256 => match codemodule::address_keccak256(s) {
+            Ok(o) => unsafe { write_outcome(o, out_label, out_label_len, out_written) },
+            Err(e) => e.c_code(),
+        },
+        UOR_ADDR_HASH_SHA512 => match codemodule::address_sha512(s) {
             Ok(o) => unsafe { write_outcome(o, out_label, out_label_len, out_written) },
             Err(e) => e.c_code(),
         },
@@ -718,6 +740,10 @@ pub unsafe extern "C" fn uor_addr_cbor_with_hash(
             Ok(o) => unsafe { write_outcome(o, out_label, out_label_len, out_written) },
             Err(e) => e.c_code(),
         },
+        UOR_ADDR_HASH_SHA512 => match cbor::address_sha512(s) {
+            Ok(o) => unsafe { write_outcome(o, out_label, out_label_len, out_written) },
+            Err(e) => e.c_code(),
+        },
         _ => UOR_ADDR_ERR_UNKNOWN_HASH,
     }
 }
@@ -782,6 +808,10 @@ pub unsafe extern "C" fn uor_addr_schema_photo_with_hash(
             Err(e) => e.c_code(),
         },
         UOR_ADDR_HASH_KECCAK256 => match schema::photo::address_keccak256(s) {
+            Ok(o) => unsafe { write_outcome(o, out_label, out_label_len, out_written) },
+            Err(e) => e.c_code(),
+        },
+        UOR_ADDR_HASH_SHA512 => match schema::photo::address_sha512(s) {
             Ok(o) => unsafe { write_outcome(o, out_label, out_label_len, out_written) },
             Err(e) => e.c_code(),
         },
@@ -852,6 +882,10 @@ pub unsafe extern "C" fn uor_addr_schema_document_with_hash(
             Ok(o) => unsafe { write_outcome(o, out_label, out_label_len, out_written) },
             Err(e) => e.c_code(),
         },
+        UOR_ADDR_HASH_SHA512 => match schema::document::address_sha512(s) {
+            Ok(o) => unsafe { write_outcome(o, out_label, out_label_len, out_written) },
+            Err(e) => e.c_code(),
+        },
         _ => UOR_ADDR_ERR_UNKNOWN_HASH,
     }
 }
@@ -916,6 +950,10 @@ pub unsafe extern "C" fn uor_addr_schema_codemodule_signed_with_hash(
             Err(e) => e.c_code(),
         },
         UOR_ADDR_HASH_KECCAK256 => match schema::codemodule_signed::address_keccak256(s) {
+            Ok(o) => unsafe { write_outcome(o, out_label, out_label_len, out_written) },
+            Err(e) => e.c_code(),
+        },
+        UOR_ADDR_HASH_SHA512 => match schema::codemodule_signed::address_sha512(s) {
             Ok(o) => unsafe { write_outcome(o, out_label, out_label_len, out_written) },
             Err(e) => e.c_code(),
         },
@@ -986,6 +1024,10 @@ pub unsafe extern "C" fn uor_addr_gguf_with_hash(
             Ok(o) => unsafe { write_outcome(o, out_label, out_label_len, out_written) },
             Err(e) => e.c_code(),
         },
+        UOR_ADDR_HASH_SHA512 => match uor_addr::gguf::address_sha512(s) {
+            Ok(o) => unsafe { write_outcome(o, out_label, out_label_len, out_written) },
+            Err(e) => e.c_code(),
+        },
         _ => UOR_ADDR_ERR_UNKNOWN_HASH,
     }
 }
@@ -1053,23 +1095,26 @@ pub unsafe extern "C" fn uor_addr_onnx_with_hash(
             Ok(o) => unsafe { write_outcome(o, out_label, out_label_len, out_written) },
             Err(e) => e.c_code(),
         },
+        UOR_ADDR_HASH_SHA512 => match uor_addr::onnx::address_sha512(s) {
+            Ok(o) => unsafe { write_outcome(o, out_label, out_label_len, out_written) },
+            Err(e) => e.c_code(),
+        },
         _ => UOR_ADDR_ERR_UNKNOWN_HASH,
     }
 }
 
 // ─── Grounded witness (TC-05 cross-language replay) ────────────────
 
-/// `verify()` failed: the trace was empty. **Reserved** — the live verify
-/// path maps every failure to `UOR_ADDR_ERR_PIPELINE`; these are retained
-/// for ABI stability with downstream `-10..-14` handlers.
+/// `verify()` failed: empty trace. **Reserved** — the live verify path maps
+/// every failure to `UOR_ADDR_ERR_PIPELINE`; retained for ABI stability.
 pub const UOR_ADDR_ERR_VERIFY_EMPTY_TRACE: i32 = -10;
-/// `verify()` failed: out-of-order trace event. **Reserved** (see above).
+/// **Reserved** (see above).
 pub const UOR_ADDR_ERR_VERIFY_OUT_OF_ORDER_EVENT: i32 = -11;
-/// `verify()` failed: zero target. **Reserved** (see above).
+/// **Reserved** (see above).
 pub const UOR_ADDR_ERR_VERIFY_ZERO_TARGET: i32 = -12;
-/// `verify()` failed: non-contiguous steps. **Reserved** (see above).
+/// **Reserved** (see above).
 pub const UOR_ADDR_ERR_VERIFY_NON_CONTIGUOUS_STEPS: i32 = -13;
-/// `verify()` failed: trace capacity exceeded. **Reserved** (see above).
+/// **Reserved** (see above).
 pub const UOR_ADDR_ERR_VERIFY_CAPACITY_EXCEEDED: i32 = -14;
 
 #[cfg(feature = "alloc")]
@@ -1077,13 +1122,15 @@ extern crate alloc;
 #[cfg(feature = "alloc")]
 use alloc::boxed::Box;
 
-/// Width-erased owned outcome — lets one opaque `UorAddrGrounded` handle
-/// carry a κ-label of any admissible σ-axis width (71 / 73 / 74).
+/// Width-erased owned outcome — one opaque `UorAddrGrounded` handle carries
+/// a κ-label of any admissible σ-axis width (71 / 73 / 74 for the 32-byte
+/// fingerprint axes, 135 for sha512's 64-byte fingerprint).
 #[cfg(feature = "alloc")]
 pub(crate) enum AnyOutcome {
     W71(AddressOutcome<71>),
     W73(AddressOutcome<73>),
     W74(AddressOutcome<74>),
+    W512(AddressOutcome<135, 64>),
 }
 
 #[cfg(feature = "alloc")]
@@ -1093,13 +1140,15 @@ impl AnyOutcome {
             Self::W71(o) => o.address.as_bytes(),
             Self::W73(o) => o.address.as_bytes(),
             Self::W74(o) => o.address.as_bytes(),
+            Self::W512(o) => o.address.as_bytes(),
         }
     }
-    fn fingerprint(&self) -> &[u8; 32] {
+    fn fingerprint(&self) -> &[u8] {
         match self {
             Self::W71(o) => o.witness.content_fingerprint(),
             Self::W73(o) => o.witness.content_fingerprint(),
             Self::W74(o) => o.witness.content_fingerprint(),
+            Self::W512(o) => o.witness.content_fingerprint(),
         }
     }
     fn verify(&self) -> Result<(), uor_addr::VerifyError> {
@@ -1107,13 +1156,14 @@ impl AnyOutcome {
             Self::W71(o) => o.witness.verify().map(|_| ()),
             Self::W73(o) => o.witness.verify().map(|_| ()),
             Self::W74(o) => o.witness.verify().map(|_| ()),
+            Self::W512(o) => o.witness.verify().map(|_| ()),
         }
     }
 }
 
 /// Opaque, foreign-managed witness handle. Construct via any
 /// `uor_addr_*_with_witness[_hash]` function; release with
-/// `uor_addr_grounded_free`. Strictly opaque from C.
+/// `uor_addr_grounded_free`.
 #[cfg(feature = "alloc")]
 #[repr(C)]
 pub struct UorAddrGrounded {
@@ -1186,11 +1236,12 @@ pub unsafe extern "C" fn uor_addr_grounded_kappa_label(
     UOR_ADDR_OK
 }
 
-/// Read the 32-byte σ-projection content fingerprint into `out_digest`.
+/// Read the σ-projection content fingerprint into `out_digest` (32 bytes
+/// for the `Hasher<32>` axes, 64 for sha512). Size `out_digest` to 64.
 ///
 /// # Safety
 ///
-/// As [`uor_addr_grounded_kappa_label`], `out_digest` writable for ≥ 32 bytes.
+/// As [`uor_addr_grounded_kappa_label`].
 #[cfg(feature = "alloc")]
 #[no_mangle]
 pub unsafe extern "C" fn uor_addr_grounded_content_fingerprint(
@@ -1203,14 +1254,14 @@ pub unsafe extern "C" fn uor_addr_grounded_content_fingerprint(
         return UOR_ADDR_ERR_NULL_POINTER;
     }
     let g = unsafe { &*handle };
-    if out_digest_len < 32 {
+    let fp = g.outcome.fingerprint();
+    if out_digest_len < fp.len() {
         return UOR_ADDR_ERR_BUFFER_TOO_SMALL;
     }
-    let arr = g.outcome.fingerprint();
     unsafe {
-        core::ptr::copy_nonoverlapping(arr.as_ptr(), out_digest, 32);
+        core::ptr::copy_nonoverlapping(fp.as_ptr(), out_digest, fp.len());
         if !out_written.is_null() {
-            *out_written = 32;
+            *out_written = fp.len();
         }
     }
     UOR_ADDR_OK
@@ -1246,7 +1297,6 @@ pub unsafe extern "C" fn uor_addr_grounded_verify(
             }
             UOR_ADDR_OK
         },
-        // Defensive — unreachable for a handle this ABI minted.
         Err(_) => UOR_ADDR_ERR_PIPELINE,
     }
 }
@@ -1307,6 +1357,10 @@ pub unsafe extern "C" fn uor_addr_json_with_witness_hash(
         },
         UOR_ADDR_HASH_KECCAK256 => match json::address_keccak256(s) {
             Ok(o) => unsafe { write_grounded_any(AnyOutcome::W74(o), out_handle) },
+            Err(e) => e.c_code(),
+        },
+        UOR_ADDR_HASH_SHA512 => match json::address_sha512(s) {
+            Ok(o) => unsafe { write_grounded_any(AnyOutcome::W512(o), out_handle) },
             Err(e) => e.c_code(),
         },
         _ => UOR_ADDR_ERR_UNKNOWN_HASH,
@@ -1371,6 +1425,10 @@ pub unsafe extern "C" fn uor_addr_sexp_with_witness_hash(
             Ok(o) => unsafe { write_grounded_any(AnyOutcome::W74(o), out_handle) },
             Err(e) => e.c_code(),
         },
+        UOR_ADDR_HASH_SHA512 => match sexp::address_sha512(s) {
+            Ok(o) => unsafe { write_grounded_any(AnyOutcome::W512(o), out_handle) },
+            Err(e) => e.c_code(),
+        },
         _ => UOR_ADDR_ERR_UNKNOWN_HASH,
     }
 }
@@ -1431,6 +1489,10 @@ pub unsafe extern "C" fn uor_addr_xml_with_witness_hash(
         },
         UOR_ADDR_HASH_KECCAK256 => match xml::address_keccak256(s) {
             Ok(o) => unsafe { write_grounded_any(AnyOutcome::W74(o), out_handle) },
+            Err(e) => e.c_code(),
+        },
+        UOR_ADDR_HASH_SHA512 => match xml::address_sha512(s) {
+            Ok(o) => unsafe { write_grounded_any(AnyOutcome::W512(o), out_handle) },
             Err(e) => e.c_code(),
         },
         _ => UOR_ADDR_ERR_UNKNOWN_HASH,
@@ -1495,6 +1557,10 @@ pub unsafe extern "C" fn uor_addr_asn1_with_witness_hash(
             Ok(o) => unsafe { write_grounded_any(AnyOutcome::W74(o), out_handle) },
             Err(e) => e.c_code(),
         },
+        UOR_ADDR_HASH_SHA512 => match asn1::address_sha512(s) {
+            Ok(o) => unsafe { write_grounded_any(AnyOutcome::W512(o), out_handle) },
+            Err(e) => e.c_code(),
+        },
         _ => UOR_ADDR_ERR_UNKNOWN_HASH,
     }
 }
@@ -1555,6 +1621,10 @@ pub unsafe extern "C" fn uor_addr_ring_with_witness_hash(
         },
         UOR_ADDR_HASH_KECCAK256 => match ring::address_keccak256(s) {
             Ok(o) => unsafe { write_grounded_any(AnyOutcome::W74(o), out_handle) },
+            Err(e) => e.c_code(),
+        },
+        UOR_ADDR_HASH_SHA512 => match ring::address_sha512(s) {
+            Ok(o) => unsafe { write_grounded_any(AnyOutcome::W512(o), out_handle) },
             Err(e) => e.c_code(),
         },
         _ => UOR_ADDR_ERR_UNKNOWN_HASH,
@@ -1619,6 +1689,10 @@ pub unsafe extern "C" fn uor_addr_codemodule_with_witness_hash(
             Ok(o) => unsafe { write_grounded_any(AnyOutcome::W74(o), out_handle) },
             Err(e) => e.c_code(),
         },
+        UOR_ADDR_HASH_SHA512 => match codemodule::address_sha512(s) {
+            Ok(o) => unsafe { write_grounded_any(AnyOutcome::W512(o), out_handle) },
+            Err(e) => e.c_code(),
+        },
         _ => UOR_ADDR_ERR_UNKNOWN_HASH,
     }
 }
@@ -1679,6 +1753,10 @@ pub unsafe extern "C" fn uor_addr_cbor_with_witness_hash(
         },
         UOR_ADDR_HASH_KECCAK256 => match cbor::address_keccak256(s) {
             Ok(o) => unsafe { write_grounded_any(AnyOutcome::W74(o), out_handle) },
+            Err(e) => e.c_code(),
+        },
+        UOR_ADDR_HASH_SHA512 => match cbor::address_sha512(s) {
+            Ok(o) => unsafe { write_grounded_any(AnyOutcome::W512(o), out_handle) },
             Err(e) => e.c_code(),
         },
         _ => UOR_ADDR_ERR_UNKNOWN_HASH,
@@ -1743,6 +1821,10 @@ pub unsafe extern "C" fn uor_addr_schema_photo_with_witness_hash(
             Ok(o) => unsafe { write_grounded_any(AnyOutcome::W74(o), out_handle) },
             Err(e) => e.c_code(),
         },
+        UOR_ADDR_HASH_SHA512 => match schema::photo::address_sha512(s) {
+            Ok(o) => unsafe { write_grounded_any(AnyOutcome::W512(o), out_handle) },
+            Err(e) => e.c_code(),
+        },
         _ => UOR_ADDR_ERR_UNKNOWN_HASH,
     }
 }
@@ -1803,6 +1885,10 @@ pub unsafe extern "C" fn uor_addr_schema_document_with_witness_hash(
         },
         UOR_ADDR_HASH_KECCAK256 => match schema::document::address_keccak256(s) {
             Ok(o) => unsafe { write_grounded_any(AnyOutcome::W74(o), out_handle) },
+            Err(e) => e.c_code(),
+        },
+        UOR_ADDR_HASH_SHA512 => match schema::document::address_sha512(s) {
+            Ok(o) => unsafe { write_grounded_any(AnyOutcome::W512(o), out_handle) },
             Err(e) => e.c_code(),
         },
         _ => UOR_ADDR_ERR_UNKNOWN_HASH,
@@ -1867,6 +1953,10 @@ pub unsafe extern "C" fn uor_addr_schema_codemodule_signed_with_witness_hash(
             Ok(o) => unsafe { write_grounded_any(AnyOutcome::W74(o), out_handle) },
             Err(e) => e.c_code(),
         },
+        UOR_ADDR_HASH_SHA512 => match schema::codemodule_signed::address_sha512(s) {
+            Ok(o) => unsafe { write_grounded_any(AnyOutcome::W512(o), out_handle) },
+            Err(e) => e.c_code(),
+        },
         _ => UOR_ADDR_ERR_UNKNOWN_HASH,
     }
 }
@@ -1929,6 +2019,10 @@ pub unsafe extern "C" fn uor_addr_gguf_with_witness_hash(
             Ok(o) => unsafe { write_grounded_any(AnyOutcome::W74(o), out_handle) },
             Err(e) => e.c_code(),
         },
+        UOR_ADDR_HASH_SHA512 => match uor_addr::gguf::address_sha512(s) {
+            Ok(o) => unsafe { write_grounded_any(AnyOutcome::W512(o), out_handle) },
+            Err(e) => e.c_code(),
+        },
         _ => UOR_ADDR_ERR_UNKNOWN_HASH,
     }
 }
@@ -1989,6 +2083,10 @@ pub unsafe extern "C" fn uor_addr_onnx_with_witness_hash(
         },
         UOR_ADDR_HASH_KECCAK256 => match uor_addr::onnx::address_keccak256(s) {
             Ok(o) => unsafe { write_grounded_any(AnyOutcome::W74(o), out_handle) },
+            Err(e) => e.c_code(),
+        },
+        UOR_ADDR_HASH_SHA512 => match uor_addr::onnx::address_sha512(s) {
+            Ok(o) => unsafe { write_grounded_any(AnyOutcome::W512(o), out_handle) },
             Err(e) => e.c_code(),
         },
         _ => UOR_ADDR_ERR_UNKNOWN_HASH,

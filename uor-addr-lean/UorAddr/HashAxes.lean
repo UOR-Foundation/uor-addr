@@ -2,14 +2,15 @@
 # Per-σ-axis κ-label widths + the CBOR depth bound.
 
 UOR-ADDR's κ-label is `<algorithm>:<lowercase-hex(digest)>`; its byte width
-is `len(prefix) + 1 (':') + 2 * digestBytes`. Every admissible σ-axis is a
-`Hasher<32>` (32-byte digest — foundation 0.5.1 pins the resolver tower to
-`Hasher<32>`), so only the prefix length varies.
+is `len(prefix) + 1 (':') + 2 * digestBytes`. The four 32-byte axes vary
+only in prefix length; sha512 (foundation 0.5.2 generalized the resolver
+tower over the fingerprint-width const generic) is a 64-byte digest.
 
 Mirrors `crate::hash` (`AddrHash::LABEL_BYTES`), the per-axis
-`AddressLabel{Sha256,Blake3,Sha3_256,Keccak256}` output shapes
-(`SITE_COUNT` = 71 / 71 / 73 / 74), the bumped `AddrBounds` site ceiling
-(`NERVE_SITES_MAX = 74`), and `crate::cbor::shapes::bounds::MAX_CBOR_DEPTH`.
+`AddressLabel{Sha256,Blake3,Sha3_256,Keccak256,Sha512}` output shapes
+(`SITE_COUNT` = 71 / 71 / 73 / 74 / 135), the `AddrBounds` /
+`AddrBounds64` site ceilings (74 / 135), and
+`crate::cbor::shapes::bounds::MAX_CBOR_DEPTH`.
 
 No mathlib — every identity is `rfl` / `decide`.
 -/
@@ -19,8 +20,10 @@ namespace UorAddr.HashAxes
 def labelWidth (prefixLen digestBytes : Nat) : Nat :=
   prefixLen + 1 + 2 * digestBytes
 
-/-- Every admissible σ-axis emits a 32-byte digest. -/
+/-- The four `Hasher<32>` axes emit a 32-byte digest. -/
 def digestBytes : Nat := 32
+/-- The sha512 axis emits a 64-byte digest (`Hasher<64>`). -/
+def digestBytes64 : Nat := 64
 
 /-- `len("sha256")`. -/
 def sha256PrefixLen : Nat := 6
@@ -30,22 +33,28 @@ def blake3PrefixLen : Nat := 6
 def sha3_256PrefixLen : Nat := 8
 /-- `len("keccak256")`. -/
 def keccak256PrefixLen : Nat := 9
+/-- `len("sha512")`. -/
+def sha512PrefixLen : Nat := 6
 
 theorem sha256_label_width : labelWidth sha256PrefixLen digestBytes = 71 := rfl
 theorem blake3_label_width : labelWidth blake3PrefixLen digestBytes = 71 := rfl
 theorem sha3_256_label_width : labelWidth sha3_256PrefixLen digestBytes = 73 := rfl
 theorem keccak256_label_width : labelWidth keccak256PrefixLen digestBytes = 74 := rfl
+theorem sha512_label_width : labelWidth sha512PrefixLen digestBytes64 = 135 := rfl
 
-/-- The shared `AddrBounds` site ceiling (`NERVE_SITES_MAX`). -/
+/-- The `AddrBounds` site ceiling (`NERVE_SITES_MAX`) for the 32-byte axes. -/
 def nerveSitesMax : Nat := 74
+/-- The `AddrBounds64` site ceiling for the sha512 axis. -/
+def nerveSitesMax64 : Nat := 135
 
-/-- Every admissible axis's κ-label fits within the shared site ceiling
-(keccak256, the widest at 74, is exactly at the bound). -/
+/-- Every 32-byte axis's κ-label fits the `AddrBounds` ceiling (keccak256,
+the widest at 74, is exactly at the bound); sha512 fits `AddrBounds64`. -/
 theorem every_axis_fits_site_ceiling :
     labelWidth sha256PrefixLen digestBytes ≤ nerveSitesMax ∧
     labelWidth blake3PrefixLen digestBytes ≤ nerveSitesMax ∧
     labelWidth sha3_256PrefixLen digestBytes ≤ nerveSitesMax ∧
-    labelWidth keccak256PrefixLen digestBytes ≤ nerveSitesMax := by
+    labelWidth keccak256PrefixLen digestBytes ≤ nerveSitesMax ∧
+    labelWidth sha512PrefixLen digestBytes64 ≤ nerveSitesMax64 := by
   decide
 
 -- ── CBOR realization depth bound (RFC 8949 §4.2 recursive canonicalizer) ──

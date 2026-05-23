@@ -24,6 +24,7 @@ pub enum AddressFailure {
 
 use crate::sexp::model::{
     AddressModel, AddressModelBlake3, AddressModelKeccak256, AddressModelSha3_256,
+    AddressModelSha512,
 };
 use crate::sexp::value::{SExprCanon, SExprValue};
 use prism::pipeline::PrismModel;
@@ -84,4 +85,19 @@ pub fn address_keccak256(input_bytes: &[u8]) -> Result<AddressOutcome<74>, Addre
     let grounded = AddressModelKeccak256::forward(SExprValue::new(&canon))
         .map_err(|_| AddressFailure::PipelineFailure)?;
     AddressOutcome::<74>::from_grounded(&grounded).map_err(|_| AddressFailure::PipelineFailure)
+}
+
+/// The sexp entry point under σ-axis `Sha512Hasher` — yields a
+/// `sha512:<128hex>` κ-label (135 bytes, 64-byte fingerprint). See
+/// [`address`] for the error contract.
+///
+/// # Errors
+///
+/// As [`address`].
+pub fn address_sha512(input_bytes: &[u8]) -> Result<AddressOutcome<135, 64>, AddressFailure> {
+    SExprCanon::validate(input_bytes).map_err(|_| AddressFailure::InvalidSExpr)?;
+    let canon = SExprCanon::new(input_bytes);
+    let grounded = AddressModelSha512::forward(SExprValue::new(&canon))
+        .map_err(|_| AddressFailure::PipelineFailure)?;
+    AddressOutcome::<135, 64>::from_grounded(&grounded).map_err(|_| AddressFailure::PipelineFailure)
 }

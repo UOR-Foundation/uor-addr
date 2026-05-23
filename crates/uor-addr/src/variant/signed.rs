@@ -135,6 +135,7 @@ mod tests {
                 crate::AddrBounds,
                 crate::Sha256Hasher,
                 { crate::ADDR_INLINE_BYTES },
+                32,
                 crate::AddressResolverTuple<crate::Sha256Hasher>,
                 SignedCommitment,
                 Route = AddressSignedRoute,

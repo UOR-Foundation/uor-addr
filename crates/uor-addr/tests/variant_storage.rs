@@ -79,6 +79,7 @@ fn storage_model_compiles_as_a_distinct_prism_model() {
             uor_addr::AddrBounds,
             uor_addr::Sha256Hasher,
             { uor_addr::ADDR_INLINE_BYTES },
+            32,
             uor_addr::AddressResolverTuple<uor_addr::Sha256Hasher>,
             StorageCommitment,
             Route = AddressStorageRoute,

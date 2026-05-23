@@ -10,62 +10,63 @@
 //! emits the `H::LABEL_BYTES`-wide ASCII κ-label `<algorithm>:<hex>` as an
 //! `Inline` carrier (see [`crate::hash`] for the admissible axes).
 //!
-//! Because canonicalization happens at carrier production (the input
-//! streams its canonical bytes), no resolver holds format state and there
-//! is no per-realization resolver code.
+//! ## Why this is hand-written (not `resolver!`-emitted)
+//!
+//! foundation 0.5.2 generalized the resolver traits to an unbounded `H`
+//! (so a 64-byte `Sha512Hasher` σ-axis composes), but the SDK 0.5.2
+//! `resolver!` macro still emits `H: Hasher` (= `Hasher<32>`) bounds on the
+//! generated tuple impls — which would exclude `Sha512Hasher`. The tower is
+//! therefore written out by hand, bound on the fingerprint-width-erased
+//! [`AddrHash`] façade ([`crate::hash`]) so the single tuple carries every
+//! admissible axis (32- and 64-byte) without a free `FP_MAX` parameter.
 
 use core::marker::PhantomData;
 
 use prism::operation::TermValue;
 use prism::pipeline::{
-    resolver, ChainComplexResolver, CochainComplexResolver, CohomologyGroupResolver,
+    ChainComplexResolver, CochainComplexResolver, CohomologyGroupResolver, HasChainComplexResolver,
+    HasCochainComplexResolver, HasCohomologyGroupResolver, HasHomologyGroupResolver,
+    HasHomotopyGroupResolver, HasKInvariantResolver, HasNerveResolver, HasPostnikovResolver,
     HomologyGroupResolver, HomotopyGroupResolver, KInvariantResolver, NerveResolver,
-    PostnikovResolver,
+    PostnikovResolver, ResolverCategory, ResolverTuple, ShapeViolation,
 };
-use prism::vocabulary::Hasher;
+use prism::uor_foundation::pipeline::__sdk_seal::Sealed;
+use prism::uor_foundation::pipeline::shape_iri_registry::EmptyShapeRegistry;
 
 use crate::hash::{AddrHash, MAX_LABEL_BYTES};
 
 const HEX_LOWER: [u8; 16] = *b"0123456789abcdef";
 
-/// Fold `bytes` into the hasher behind a `&mut` (the consuming
-/// `fold_bytes` API is awkward inside the `for_each_chunk` `FnMut`).
-#[inline]
-fn fold_into<H: Hasher>(h: &mut H, bytes: &[u8]) {
-    let cur = core::mem::replace(h, H::initial());
-    *h = cur.fold_bytes(bytes);
-}
-
 /// Fold the carrier through the σ-axis `H` (streaming, bounded memory) and
 /// format the `H::LABEL_BYTES`-wide κ-label `<prefix>:<hex>` into an
 /// `Inline` carrier. The stack scratch is sized to the widest admissible
-/// axis ([`MAX_LABEL_BYTES`]); only the active axis's prefix length is
-/// emitted.
+/// axis ([`MAX_LABEL_BYTES`]); only the active axis's bytes are emitted.
 fn kappa_label_carrier<const N: usize, H: AddrHash>(
     input: &TermValue<'_, N>,
 ) -> TermValue<'static, N> {
-    let mut h = H::initial();
-    input.for_each_chunk(&mut |chunk| fold_into(&mut h, chunk));
-    let digest = h.finalize();
-
+    let digest = H::digest_carrier(input);
     let prefix = H::LABEL_PREFIX.as_bytes();
     let p = prefix.len();
     let mut out = [0u8; MAX_LABEL_BYTES];
     out[..p].copy_from_slice(prefix);
     out[p] = b':';
-    for (i, byte) in digest.iter().enumerate().take(<H as Hasher>::OUTPUT_BYTES) {
+    for (i, byte) in digest.iter().enumerate().take(H::OUTPUT_BYTES) {
         out[p + 1 + 2 * i] = HEX_LOWER[(byte >> 4) as usize];
         out[p + 1 + 2 * i + 1] = HEX_LOWER[(byte & 0x0F) as usize];
     }
     TermValue::inline_from_slice(&out[..H::LABEL_BYTES])
 }
 
-macro_rules! sealed_resolver {
+// ── The eight per-category resolver structs. ψ₁–ψ₈ are pass-throughs;
+//    only ψ₉ (k-invariants) folds the σ-axis. All are generic over an
+//    unbounded `H` (the foundation resolver traits no longer bind it). ──
+
+macro_rules! address_resolver {
     ($name:ident) => {
         #[derive(Debug)]
         pub struct $name<H>(PhantomData<H>);
-        impl<H: Hasher> prism::uor_foundation::pipeline::__sdk_seal::Sealed for $name<H> {}
-        impl<H: Hasher> Default for $name<H> {
+        impl<H> Sealed for $name<H> {}
+        impl<H> Default for $name<H> {
             #[inline]
             fn default() -> Self {
                 Self(PhantomData)
@@ -74,39 +75,30 @@ macro_rules! sealed_resolver {
     };
 }
 
-sealed_resolver!(AddressNerveResolver);
-sealed_resolver!(AddressChainComplexResolver);
-sealed_resolver!(AddressHomologyGroupResolver);
-sealed_resolver!(AddressCochainComplexResolver);
-sealed_resolver!(AddressCohomologyGroupResolver);
-sealed_resolver!(AddressPostnikovResolver);
-sealed_resolver!(AddressHomotopyGroupResolver);
-sealed_resolver!(AddressKInvariantResolver);
-
-impl<const N: usize, H: Hasher> NerveResolver<N, H> for AddressNerveResolver<H> {
-    #[inline]
-    fn resolve<'a>(
-        &self,
-        input: TermValue<'a, N>,
-    ) -> Result<TermValue<'a, N>, prism::pipeline::ShapeViolation> {
-        Ok(input)
-    }
-}
+address_resolver!(AddressNerveResolver);
+address_resolver!(AddressChainComplexResolver);
+address_resolver!(AddressHomologyGroupResolver);
+address_resolver!(AddressCochainComplexResolver);
+address_resolver!(AddressCohomologyGroupResolver);
+address_resolver!(AddressPostnikovResolver);
+address_resolver!(AddressHomotopyGroupResolver);
+address_resolver!(AddressKInvariantResolver);
 
 macro_rules! passthrough_resolver {
     ($trait:ident, $name:ident) => {
-        impl<const N: usize, H: Hasher> $trait<N, H> for $name<H> {
+        impl<const N: usize, H> $trait<N, H> for $name<H> {
             #[inline]
             fn resolve<'a>(
                 &self,
                 input: TermValue<'a, N>,
-            ) -> Result<TermValue<'a, N>, prism::pipeline::ShapeViolation> {
+            ) -> Result<TermValue<'a, N>, ShapeViolation> {
                 Ok(input)
             }
         }
     };
 }
 
+passthrough_resolver!(NerveResolver, AddressNerveResolver);
 passthrough_resolver!(ChainComplexResolver, AddressChainComplexResolver);
 passthrough_resolver!(HomologyGroupResolver, AddressHomologyGroupResolver);
 passthrough_resolver!(CochainComplexResolver, AddressCochainComplexResolver);
@@ -116,10 +108,7 @@ passthrough_resolver!(HomotopyGroupResolver, AddressHomotopyGroupResolver);
 
 impl<const N: usize, H: AddrHash> KInvariantResolver<N, H> for AddressKInvariantResolver<H> {
     #[inline]
-    fn resolve<'a>(
-        &self,
-        input: TermValue<'a, N>,
-    ) -> Result<TermValue<'a, N>, prism::pipeline::ShapeViolation> {
+    fn resolve<'a>(&self, input: TermValue<'a, N>) -> Result<TermValue<'a, N>, ShapeViolation> {
         // ψ₉ σ-projection: fold the (streamed) canonical carrier through H
         // and emit the formatted κ-label. The `'static` Inline carrier is
         // valid for any `'a`.
@@ -127,15 +116,114 @@ impl<const N: usize, H: AddrHash> KInvariantResolver<N, H> for AddressKInvariant
     }
 }
 
-resolver! {
-    pub struct AddressResolverTuple<H: crate::hash::AddrHash> {
-        nerve: AddressNerveResolver<H>,
-        chain_complex: AddressChainComplexResolver<H>,
-        homology_groups: AddressHomologyGroupResolver<H>,
-        cochain_complex: AddressCochainComplexResolver<H>,
-        cohomology_groups: AddressCohomologyGroupResolver<H>,
-        postnikov: AddressPostnikovResolver<H>,
-        homotopy_groups: AddressHomotopyGroupResolver<H>,
-        k_invariants: AddressKInvariantResolver<H>,
+// ── The tuple. Bound on the fingerprint-width-erased [`AddrHash`] so it
+//    carries every admissible σ-axis (32- and 64-byte). ──
+
+/// The single eight-resolver ψ-tower shared by every realization.
+pub struct AddressResolverTuple<H: AddrHash> {
+    /// ψ₁ Nerve (pass-through).
+    pub nerve: AddressNerveResolver<H>,
+    /// ψ₂ ChainComplex (pass-through).
+    pub chain_complex: AddressChainComplexResolver<H>,
+    /// ψ₃ HomologyGroups (pass-through).
+    pub homology_groups: AddressHomologyGroupResolver<H>,
+    /// ψ₄ CochainComplex (pass-through).
+    pub cochain_complex: AddressCochainComplexResolver<H>,
+    /// ψ₅ CohomologyGroups (pass-through).
+    pub cohomology_groups: AddressCohomologyGroupResolver<H>,
+    /// ψ₇ PostnikovTower (pass-through).
+    pub postnikov: AddressPostnikovResolver<H>,
+    /// ψ₈ HomotopyGroups (pass-through).
+    pub homotopy_groups: AddressHomotopyGroupResolver<H>,
+    /// ψ₉ KInvariants (the σ-projection — emits the κ-label).
+    pub k_invariants: AddressKInvariantResolver<H>,
+    #[doc(hidden)]
+    pub _phantom: PhantomData<H>,
+}
+
+impl<H: AddrHash> Sealed for AddressResolverTuple<H> {}
+
+impl<H: AddrHash> ResolverTuple for AddressResolverTuple<H> {
+    const ARITY: usize = 8;
+    const CATEGORIES: &'static [ResolverCategory] = &[
+        ResolverCategory::Nerve,
+        ResolverCategory::ChainComplex,
+        ResolverCategory::HomologyGroup,
+        ResolverCategory::CochainComplex,
+        ResolverCategory::CohomologyGroup,
+        ResolverCategory::Postnikov,
+        ResolverCategory::HomotopyGroup,
+        ResolverCategory::KInvariant,
+    ];
+    type ShapeRegistry = EmptyShapeRegistry;
+}
+
+impl<H: AddrHash> Default for AddressResolverTuple<H> {
+    fn default() -> Self {
+        Self {
+            nerve: AddressNerveResolver::default(),
+            chain_complex: AddressChainComplexResolver::default(),
+            homology_groups: AddressHomologyGroupResolver::default(),
+            cochain_complex: AddressCochainComplexResolver::default(),
+            cohomology_groups: AddressCohomologyGroupResolver::default(),
+            postnikov: AddressPostnikovResolver::default(),
+            homotopy_groups: AddressHomotopyGroupResolver::default(),
+            k_invariants: AddressKInvariantResolver::default(),
+            _phantom: PhantomData,
+        }
     }
 }
+
+macro_rules! has_resolver {
+    ($marker:ident, $rtrait:ident, $accessor:ident, $field:ident) => {
+        impl<const N: usize, H: AddrHash> $marker<N, H> for AddressResolverTuple<H> {
+            fn $accessor(&self) -> &dyn $rtrait<N, H> {
+                &self.$field
+            }
+        }
+    };
+}
+
+has_resolver!(HasNerveResolver, NerveResolver, nerve_resolver, nerve);
+has_resolver!(
+    HasChainComplexResolver,
+    ChainComplexResolver,
+    chain_complex_resolver,
+    chain_complex
+);
+has_resolver!(
+    HasHomologyGroupResolver,
+    HomologyGroupResolver,
+    homology_group_resolver,
+    homology_groups
+);
+has_resolver!(
+    HasCochainComplexResolver,
+    CochainComplexResolver,
+    cochain_complex_resolver,
+    cochain_complex
+);
+has_resolver!(
+    HasCohomologyGroupResolver,
+    CohomologyGroupResolver,
+    cohomology_group_resolver,
+    cohomology_groups
+);
+has_resolver!(
+    HasPostnikovResolver,
+    PostnikovResolver,
+    postnikov_resolver,
+    postnikov
+);
+has_resolver!(
+    HasHomotopyGroupResolver,
+    HomotopyGroupResolver,
+    homotopy_group_resolver,
+    homotopy_groups
+);
+has_resolver!(
+    HasKInvariantResolver,
+    KInvariantResolver,
+    k_invariant_resolver,
+    k_invariants
+);

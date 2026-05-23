@@ -49,9 +49,12 @@ class AddressError(Exception):
 # lowercase-hex digest.
 ADDRESS_LABEL_BYTES: Final[int] = 71
 
-# Widest κ-label across the admissible σ-axes (keccak256 = len("keccak256:")
-# + 64 = 74). `*_address_with_hash` sizes its output buffer to this.
-MAX_LABEL_BYTES: Final[int] = 74
+# Widest κ-label across the admissible σ-axes (sha512 = len("sha512:") +
+# 128 = 135). `*_address_with_hash` sizes its output buffer to this.
+MAX_LABEL_BYTES: Final[int] = 135
+
+# Widest σ-projection fingerprint (sha512 = 64 bytes).
+MAX_FINGERPRINT_BYTES: Final[int] = 64
 
 # σ-axis selectors for the `*_with_hash` entry points (mirror
 # UOR_ADDR_HASH_* in uor_addr.h).
@@ -59,6 +62,7 @@ HASH_SHA256: Final[int] = 0
 HASH_BLAKE3: Final[int] = 1
 HASH_SHA3_256: Final[int] = 2
 HASH_KECCAK256: Final[int] = 3
+HASH_SHA512: Final[int] = 4
 
 # C ABI return codes (mirror UOR_ADDR_* in uor_addr.h).
 _OK = 0
@@ -300,16 +304,17 @@ class Grounded:
         return bytes(out_buf[: written.value]).decode("ascii")
 
     def content_fingerprint(self) -> bytes:
-        """Return the 32-byte SHA-256 content fingerprint."""
+        """Return the σ-projection content fingerprint (32 bytes for the
+        `Hasher<32>` axes, 64 for sha512)."""
         handle = self._require()
-        out_buf = (ctypes.c_uint8 * 32)()
+        out_buf = (ctypes.c_uint8 * MAX_FINGERPRINT_BYTES)()
         written = ctypes.c_size_t(0)
         rc = _lib.uor_addr_grounded_content_fingerprint(
-            handle, out_buf, 32, ctypes.byref(written)
+            handle, out_buf, MAX_FINGERPRINT_BYTES, ctypes.byref(written)
         )
         if rc != _OK:
             raise AddressError(_ERR_KIND.get(rc, "pipeline-failure"))
-        return bytes(out_buf)
+        return bytes(out_buf[: written.value])
 
     def verify(self) -> str:
         """Replay the derivation through `prism_verify::certify_from_trace`
@@ -565,10 +570,12 @@ kappa: Final[_Kappa] = _Kappa()
 __all__ = [
     "ADDRESS_LABEL_BYTES",
     "MAX_LABEL_BYTES",
+    "MAX_FINGERPRINT_BYTES",
     "HASH_SHA256",
     "HASH_BLAKE3",
     "HASH_SHA3_256",
     "HASH_KECCAK256",
+    "HASH_SHA512",
     "AddressError",
     "Grounded",
     "VerifyError",

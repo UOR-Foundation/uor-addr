@@ -45,6 +45,7 @@ macro_rules! addr_models {
         input: $input:ty,
         $( {
             hasher: $hasher:ty,
+            bounds: $bounds:ty,
             shape: $shape:ty,
             model: $model:ident,
             route: $route:ident,
@@ -57,7 +58,7 @@ macro_rules! addr_models {
                 pub struct $route;
                 impl PrismModel<
                     prism::vocabulary::DefaultHostTypes,
-                    $crate::bounds::AddrBounds,
+                    $bounds,
                     $hasher,
                     $crate::resolvers::AddressResolverTuple<$hasher>,
                     prism::pipeline::EmptyCommitment

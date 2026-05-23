@@ -3,7 +3,8 @@
 //! Typed content-addressing for ONNX `ModelProto` files under a
 //! protobuf-canonical structural form. The default σ-projection is
 //! [`prism::crypto::Sha256Hasher`]; [`address_blake3`], [`address_sha3_256`],
-//! and [`address_keccak256`] select the other 32-byte axes ([`crate::hash`]).
+//! [`address_keccak256`], and [`address_sha512`] select the other axes
+//! ([`crate::hash`]).
 //! As with GGUF, the skeleton's leaf commitments are SHA-256 by
 //! canonical-form definition and the selected κ-axis `H` is applied on top
 //! (κ = `H(skeleton)`); the sha256 κ-labels are byte-identical to prior
@@ -58,10 +59,11 @@ pub const CANONICAL_FORM_VERSION: u32 = 2;
 
 pub use dtype::OnnxDataType;
 pub use model::{
-    AddressModel, AddressModelBlake3, AddressModelKeccak256, AddressModelSha3_256, AddressRoute,
+    AddressModel, AddressModelBlake3, AddressModelKeccak256, AddressModelSha3_256,
+    AddressModelSha512, AddressRoute,
 };
 #[cfg(feature = "alloc")]
-pub use pipeline::{address, address_blake3, address_keccak256, address_sha3_256};
+pub use pipeline::{address, address_blake3, address_keccak256, address_sha3_256, address_sha512};
 pub use pipeline::{AddressFailure, AddressOutcome, AddressWitness, VerifyError};
 pub use shapes::bounds::{ONNX_IR_VERSION_MAX, ONNX_OPSET_VERSION_MIN, ONNX_SUBGRAPH_DEPTH_MAX};
 pub use value::OnnxCarrier;

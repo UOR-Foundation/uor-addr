@@ -298,18 +298,21 @@ fn cross_realization_typed_distinction() {
 // ─── Cross-realization σ-axis coverage ─────────────────────────────────
 
 #[test]
-fn every_realization_exposes_all_four_axes() {
+fn every_realization_exposes_all_five_axes() {
     // Each realization's `address` / `_blake3` / `_sha3_256` / `_keccak256`
-    // entry points emit the correct prefix + width and are pairwise distinct.
+    // / `_sha512` entry points emit the correct prefix + width and are
+    // pairwise distinct.
     let by_axis = |s: &uor_addr::KappaLabel<71>,
                    b: &uor_addr::KappaLabel<71>,
                    q: &uor_addr::KappaLabel<73>,
-                   k: &uor_addr::KappaLabel<74>| {
+                   k: &uor_addr::KappaLabel<74>,
+                   z: &uor_addr::KappaLabel<135>| {
         assert!(s.starts_with("sha256:") && s.len() == 71);
         assert!(b.starts_with("blake3:") && b.len() == 71);
         assert!(q.starts_with("sha3-256:") && q.len() == 73);
         assert!(k.starts_with("keccak256:") && k.len() == 74);
-        let labels = [s.as_str(), b.as_str(), q.as_str(), k.as_str()];
+        assert!(z.starts_with("sha512:") && z.len() == 135);
+        let labels = [s.as_str(), b.as_str(), q.as_str(), k.as_str(), z.as_str()];
         for i in 0..labels.len() {
             for j in (i + 1)..labels.len() {
                 assert_ne!(labels[i], labels[j], "axes must be pairwise distinct");
@@ -323,6 +326,7 @@ fn every_realization_exposes_all_four_axes() {
         &uor_addr::json::address_blake3(j).unwrap().address,
         &uor_addr::json::address_sha3_256(j).unwrap().address,
         &uor_addr::json::address_keccak256(j).unwrap().address,
+        &uor_addr::json::address_sha512(j).unwrap().address,
     );
     let c: &[u8] = &[0x83, 0x01, 0x02, 0x03];
     by_axis(
@@ -330,6 +334,7 @@ fn every_realization_exposes_all_four_axes() {
         &uor_addr::cbor::address_blake3(c).unwrap().address,
         &uor_addr::cbor::address_sha3_256(c).unwrap().address,
         &uor_addr::cbor::address_keccak256(c).unwrap().address,
+        &uor_addr::cbor::address_sha512(c).unwrap().address,
     );
     let s = b"(a b c)";
     by_axis(
@@ -337,6 +342,7 @@ fn every_realization_exposes_all_four_axes() {
         &uor_addr::sexp::address_blake3(s).unwrap().address,
         &uor_addr::sexp::address_sha3_256(s).unwrap().address,
         &uor_addr::sexp::address_keccak256(s).unwrap().address,
+        &uor_addr::sexp::address_sha512(s).unwrap().address,
     );
 }
 

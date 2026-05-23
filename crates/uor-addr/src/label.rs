@@ -92,6 +92,16 @@ output_shape! {
     }
 }
 
+static SHA512_SITES: [ConstraintRef; 135] = site_constraints::<135>();
+output_shape! {
+    pub struct AddressLabelSha512;
+    impl ConstrainedTypeShape for AddressLabelSha512 {
+        const IRI: &'static str = "https://uor.foundation/addr/AddressLabel/sha512";
+        const SITE_COUNT: usize = 135;
+        const CONSTRAINTS: &'static [ConstraintRef] = &SHA512_SITES;
+    }
+}
+
 /// The default-axis output shape (`H = Sha256Hasher`). Realizations'
 /// `address()` entry point binds this; `address_blake3` / `address_sha3_256`
 /// / `address_keccak256` bind the corresponding per-axis shape.

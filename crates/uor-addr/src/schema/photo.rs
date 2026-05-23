@@ -189,6 +189,19 @@ pub fn address_keccak256(raw: &[u8]) -> Result<crate::AddressOutcome<74>, Addres
     })
 }
 
+/// As [`address`], but binds the `sha512` σ-axis ([`crate::hash`]).
+///
+/// # Errors
+///
+/// As [`address`].
+pub fn address_sha512(raw: &[u8]) -> Result<crate::AddressOutcome<135, 64>, AddressFailure> {
+    PhotoValue::parse(raw).map_err(|_| AddressFailure::SchemaViolation)?;
+    crate::json::address_sha512(raw).map_err(|e| match e {
+        crate::json::AddressFailure::InvalidJson => AddressFailure::SchemaViolation,
+        crate::json::AddressFailure::PipelineFailure => AddressFailure::PipelineFailure,
+    })
+}
+
 /// Failure modes from [`address`].
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum AddressFailure {

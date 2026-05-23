@@ -35,10 +35,11 @@ pub mod value;
 pub mod verbs;
 
 pub use model::{
-    AddressModel, AddressModelBlake3, AddressModelKeccak256, AddressModelSha3_256, AddressRoute,
+    AddressModel, AddressModelBlake3, AddressModelKeccak256, AddressModelSha3_256,
+    AddressModelSha512, AddressRoute,
 };
 #[cfg(feature = "alloc")]
-pub use pipeline::{address, address_blake3, address_keccak256, address_sha3_256};
+pub use pipeline::{address, address_blake3, address_keccak256, address_sha3_256, address_sha512};
 pub use pipeline::{AddressFailure, AddressOutcome, AddressWitness, VerifyError};
 pub use shapes::{Sha256Hasher, MAX_CBOR_DEPTH};
 #[cfg(feature = "alloc")]
