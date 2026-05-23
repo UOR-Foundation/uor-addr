@@ -1,4 +1,4 @@
-//! Closed-loop (CL-ONNX) conformance for the ONNX IR v13 realization.
+//! Closed-loop (CL-ONNX) conformance for the ONNX realization (IR &le; v13).
 //!
 //! Synthesizes minimal `ModelProto` wire buffers in-process and asserts
 //! the canonical-form invariants: a 71-byte κ-label, determinism,
@@ -199,11 +199,38 @@ fn sensitive_to_op_type() {
 }
 
 #[test]
-fn rejects_wrong_ir_version() {
+fn rejects_out_of_range_ir_version() {
+    // ADR-060 / V&V: the realization admits any known IR revision
+    // (1..=ONNX_IR_VERSION_MAX = 13). A future / unknown revision (14) is
+    // rejected; so is the absent/0 sentinel.
     let (a, b) = sample_nodes();
     let w = init_raw("w", &[1.0, 2.0]);
-    let m = model_with(12, &graph(&[&a, &b], &[&w])); // IR v12
-    assert_eq!(onnx::address(&m).unwrap_err(), AddressFailure::InvalidOnnx);
+    let g = graph(&[&a, &b], &[&w]);
+    assert_eq!(
+        onnx::address(&model_with(14, &g)).unwrap_err(),
+        AddressFailure::InvalidOnnx
+    );
+    assert_eq!(
+        onnx::address(&model_with(0, &g)).unwrap_err(),
+        AddressFailure::InvalidOnnx
+    );
+}
+
+#[test]
+fn accepts_in_range_ir_versions_distinctly() {
+    // Older IR revisions (real-world exports are IR 6–10) are admitted;
+    // the ir_version is bound into the skeleton, so distinct revisions of
+    // the same logical graph canonicalize to distinct κ-labels.
+    let (a, b) = sample_nodes();
+    let w = init_raw("w", &[1.0, 2.0]);
+    let g = graph(&[&a, &b], &[&w]);
+    let v7 = onnx::address(&model_with(7, &g))
+        .expect("IR 7 admitted")
+        .address;
+    let v13 = onnx::address(&model_with(13, &g))
+        .expect("IR 13 admitted")
+        .address;
+    assert_ne!(v7, v13, "ir_version must bind into the κ-label");
 }
 
 #[test]

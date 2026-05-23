@@ -1,4 +1,4 @@
-//! ONNX IR v13 typed input (ADR-023 amended by ADR-060).
+//! ONNX typed input (IR &le; v13) (ADR-023 amended by ADR-060).
 //!
 //! Protobuf v3 admits many byte-representations of the same logical
 //! message; this realization defines a canonical form — a **flat
@@ -104,7 +104,7 @@ mod alloc_impl {
     use crate::onnx::dtype::OnnxDataType;
     use crate::onnx::protobuf::{read_varint, FieldValue, MessageReader};
     use crate::onnx::shapes::bounds::{
-        ONNX_IR_VERSION_REQUIRED, ONNX_OPSET_VERSION_MIN, ONNX_SUBGRAPH_DEPTH_MAX,
+        ONNX_IR_VERSION_MAX, ONNX_OPSET_VERSION_MIN, ONNX_SUBGRAPH_DEPTH_MAX,
     };
 
     // ─── ShapeViolation IRIs ─────────────────────────────────────────────
@@ -360,8 +360,12 @@ mod alloc_impl {
             let mut out: Vec<u8> = Vec::new();
 
             // ── ir_version (ModelProto #1) ──
+            // Accept any known IR revision (1..=ONNX_IR_VERSION_MAX); the
+            // canonical skeleton is IR-version-agnostic and binds the
+            // `ir_version` value, so distinct revisions canonicalize
+            // distinctly. Reject absent / 0 / a future unknown revision.
             let ir_version = first_varint(raw, 1)?.ok_or(UNSUPPORTED_IR)? as i64;
-            if ir_version != ONNX_IR_VERSION_REQUIRED {
+            if !(1..=ONNX_IR_VERSION_MAX).contains(&ir_version) {
                 return Err(UNSUPPORTED_IR);
             }
             out.extend_from_slice(&ir_version.to_le_bytes());
@@ -999,7 +1003,7 @@ mod alloc_impl {
 
             // ModelProto
             let mut model = Vec::new();
-            field_varint(&mut model, 1, ONNX_IR_VERSION_REQUIRED as u64); // ir_version
+            field_varint(&mut model, 1, ONNX_IR_VERSION_MAX as u64); // ir_version
             field_bytes(&mut model, 7, &graph); // graph
             field_bytes(&mut model, 8, &opset); // opset_import
             model
@@ -1020,9 +1024,11 @@ mod alloc_impl {
         }
 
         #[test]
-        fn rejects_unsupported_ir() {
+        fn rejects_out_of_range_ir() {
+            // IR 7 is in range (1..=13) → accepted (would reach MISSING_GRAPH);
+            // 14 is a future/unknown revision → rejected at the IR gate.
             let mut model = Vec::new();
-            field_varint(&mut model, 1, 7); // ir_version = 7
+            field_varint(&mut model, 1, (ONNX_IR_VERSION_MAX + 1) as u64);
             let err = OnnxValue::parse(&model).expect_err("unsupported ir");
             assert_eq!(err.constraint_iri, UNSUPPORTED_IR.constraint_iri);
         }
@@ -1033,7 +1039,7 @@ mod alloc_impl {
             field_bytes(&mut opset, 1, b"");
             field_varint(&mut opset, 2, 1);
             let mut model = Vec::new();
-            field_varint(&mut model, 1, ONNX_IR_VERSION_REQUIRED as u64);
+            field_varint(&mut model, 1, ONNX_IR_VERSION_MAX as u64);
             field_bytes(&mut model, 8, &opset);
             let err = OnnxValue::parse(&model).expect_err("no graph");
             assert_eq!(err.constraint_iri, MISSING_GRAPH.constraint_iri);

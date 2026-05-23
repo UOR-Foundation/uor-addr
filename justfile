@@ -70,6 +70,12 @@ conformance:
 	cargo test -p uor-addr --release --test in_toto_statement_v1
 	# Cost-model variants
 	cargo test -p uor-addr --release --test variant_storage
+	# GGUF v3 — flat Merkle skeleton (canonical-gguf.py byte-identity + invariants)
+	cargo test -p uor-addr --release --test gguf_conformance --test gguf_byte_identity
+	# ONNX — flat skeleton (canonical-onnx.py byte-identity + invariants)
+	cargo test -p uor-addr --release --test onnx_conformance --test onnx_byte_identity
+	# ADR-060 streaming / bounded-carrier proof (64 MiB synthetic tensors)
+	cargo test -p uor-addr --release --test streaming
 	# Cross-realization
 	cargo test -p uor-addr --release --test all_realizations
 
@@ -123,8 +129,14 @@ version-sync:
 	python3 tools/sync-versions.py --check
 
 # Axis 10 — live cross-validation. Gated; opt in via UOR_ADDR_LIVE=1.
+# Includes the spec-side Python encoders (CN-GGUF / CN-ONNX) and the
+# pinned external real-model V&V (CM-EXT) — the latter downloads ~635 MB
+# of real GGUF / ONNX models (cached under tests/fixtures/models/) and the
+# 531 MB GGUF exercises the streaming / bounded-carrier path.
 cn:
 	UOR_ADDR_LIVE=1 cargo test -p uor-addr --release --test cross_validation -- --ignored
+	UOR_ADDR_LIVE=1 cargo test -p uor-addr --release --features gguf,onnx --test gguf_cross_validation --test onnx_cross_validation -- --ignored
+	UOR_ADDR_LIVE=1 cargo test -p uor-addr --release --features gguf,onnx --test external_models -- --ignored
 
 # ──────────────────────────────────────────────────────────────────────────
 # Build / clean / repl conveniences

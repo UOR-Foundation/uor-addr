@@ -11,8 +11,9 @@ overflow guard on the recursive subgraph descent.
 -/
 namespace UorAddr.Onnx
 
-/-- The only ONNX IR version admitted (`ONNX_IR_VERSION_REQUIRED`). -/
-def irVersionRequired : Nat := 13
+/-- The highest ONNX IR revision admitted (`ONNX_IR_VERSION_MAX`); the
+realization accepts any `ir_version` in `1..=irVersionMax`. -/
+def irVersionMax : Nat := 13
 
 /-- Default-domain opset minimum (`ONNX_OPSET_VERSION_MIN`). -/
 def opsetVersionMin : Int := 1

@@ -302,8 +302,9 @@ committed `.kappa-label` files produced by `tools/canonical-onnx.py`.
 `tests/onnx_byte_identity.rs` asserts byte-identity; `tests/onnx_conformance.rs`
 asserts invariance under node reordering (topological canonicalization)
 and `raw_data` vs typed-`float_data` storage, sensitivity to weights and
-op types, and rejection of wrong IR version / unknown dtype / graph
-cycle.
+op types, admission of every known IR revision (`1..=ONNX_IR_VERSION_MAX`,
+distinctly bound) with rejection of out-of-range / absent IR versions, and
+rejection of unknown dtype / graph cycle.
 
 ## CN-GGUF / CN-ONNX — cross-network validation
 
@@ -319,3 +320,27 @@ Gated behind `UOR_ADDR_LIVE=1` (`tests/gguf_cross_tool.rs`,
 `tests/onnx_cross_tool.rs`). POST fixture bytes to
 `mcp.uor.foundation/tools/encode_{gguf,onnx}_address` and assert the
 returned κ-label matches the Rust κ-label.
+
+## CM-STREAM — streaming / bounded-carrier proof (ADR-060)
+
+`tests/streaming.rs`, **every CI build**. Synthesizes GGUF v3 and ONNX
+`ModelProto` buffers with a 64 MiB tensor-data section in-process and
+proves the two properties that make arbitrarily large models tractable:
+
+| ID        | Property pinned                                                                                   | Test                                                  |
+|-----------|---------------------------------------------------------------------------------------------------|-------------------------------------------------------|
+| CM-S01    | Canonical-skeleton (ψ-carrier) size is independent of tensor-data size (1 KiB vs 64 MiB ⇒ equal)  | `{gguf,onnx}_carrier_size_is_independent_of_*`        |
+| CM-S02    | Flipping any byte in the (large) tensor-data region changes the κ-label (full-weight binding)     | `{gguf,onnx}_every_tensor_byte_binds`                 |
+| CM-S03    | Large-model addressing is deterministic across calls                                              | `{gguf,onnx}_large_model_is_deterministic`            |
+
+## CM-EXT — external real-model validation & verification
+
+`tests/external_models.rs`, gated behind `UOR_ADDR_LIVE=1` (network +
+~635 MB). Pins published models (a 531 MB Qwen2-0.5B-Instruct GGUF v3 and
+two ONNX models at IR v3 / v6) by download URL, file SHA-256, and κ-label.
+For each: verifies the cached bytes against the pinned file SHA-256,
+asserts the Rust κ-label equals the pin, asserts the independent Python
+reference encoder produces the same label, asserts the carrier (skeleton)
+is < 5% of the model (the 531 MB → 28 KB streaming vector), and round-trips
+the owned TC-05 witness. Re-run after bumping a pin; the recorded κ-labels
+are the external-model attestation.

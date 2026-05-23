@@ -270,6 +270,12 @@ canonicalization; CL-GGUF asserts byte-identity against it.
 | Canonical form encoder (executable spec) | `tools/canonical-onnx.py` |
 | SHA-256 σ-projection | FIPS 180-4 |
 
+Any known IR revision is admitted — `ir_version` in
+`1..=ONNX_IR_VERSION_MAX` (= 13, the latest in `onnx.proto`; real-world
+exports are predominantly IR 6–10). The skeleton is IR-version-agnostic
+and binds the `ir_version` value, so distinct revisions of the same
+logical model address distinctly.
+
 The κ-label is SHA-256 over the **full flat skeleton**:
 `LE_i64(ir_version)`, then the opset imports sorted by `(domain,
 version)`, then the graph emitted recursively, then the model metadata.

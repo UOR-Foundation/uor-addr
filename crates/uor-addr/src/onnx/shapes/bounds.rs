@@ -1,4 +1,4 @@
-//! ONNX IR v13 spec-pinned constants.
+//! ONNX spec-pinned constants.
 //!
 //! ADR-060 removed the fixed-width two-level commitment
 //! (`ONNX_CANON_MAX_BYTES` / `ONNX_CANON_BYTES`) and the
@@ -12,12 +12,20 @@
 //! carrier. Every count and width is unbounded.
 //!
 //! What remains are ONNX **spec / policy constants** (the admitted IR
-//! version, the default-domain opset-version minimum) plus one
+//! version range, the default-domain opset-version minimum) plus one
 //! native-stack-overflow guard on the recursive subgraph descent.
 
-/// The only ONNX IR version this realization admits. Source: `onnx.proto`
-/// `Version::IR_VERSION`.
-pub const ONNX_IR_VERSION_REQUIRED: i64 = 13;
+/// The highest ONNX IR version this realization admits — `onnx.proto`'s
+/// current `Version::IR_VERSION` (`= 13`, 2026). The realization accepts
+/// any `ir_version` in `1..=ONNX_IR_VERSION_MAX`: the canonical skeleton
+/// is IR-version-agnostic (the field numbers it reads are stable across
+/// IR revisions; IR-v10+ `NodeProto.overload` simply reads empty on older
+/// models), and the `ir_version` value itself is bound into the skeleton,
+/// so two IR revisions of the same logical model canonicalize distinctly.
+/// Admitting the range lets the realization content-address real-world
+/// models (published exports are predominantly IR 6–10) rather than only
+/// the latest revision.
+pub const ONNX_IR_VERSION_MAX: i64 = 13;
 
 /// Policy: the minimum opset version accepted for the default domain `""`.
 /// ONNX mandates no minimum (`= 1` accepts any opset); raise per
