@@ -8,6 +8,12 @@ on:
   pull_request:
   push:
     branches: [main]
+  # Manual + weekly trigger for the gated live external-model V&V
+  # (`external-models` job): it downloads ~635 MB of real GGUF / ONNX
+  # models, so it does not run on every PR.
+  workflow_dispatch:
+  schedule:
+    - cron: "0 6 * * 1" # Mondays 06:00 UTC
 
 env:
   CARGO_TERM_COLOR: always
@@ -119,6 +125,38 @@ jobs:
       - run: cargo test -p uor-addr --release --test variant_storage
       - run: cargo test -p uor-addr --release --test all_realizations
       - run: cargo test -p uor-addr --release --test nfc_uax15_normalization_test
+      # GGUF v3 + ONNX flat-skeleton conformance (canonical-*.py byte-identity).
+      - run: cargo test -p uor-addr --release --test gguf_conformance --test gguf_byte_identity
+      - run: cargo test -p uor-addr --release --test onnx_conformance --test onnx_byte_identity
+      # ADR-060 streaming / bounded-carrier proof (64 MiB synthetic tensors).
+      - run: cargo test -p uor-addr --release --test streaming
+
+  external-models:
+    name: external real-model V&V (CM-EXT + CN-GGUF/ONNX, live)
+    # Gated: downloads ~635 MB of real GGUF / ONNX models, so it runs only
+    # on manual dispatch and the weekly schedule — never on PRs / pushes.
+    if: github.event_name == 'workflow_dispatch' || github.event_name == 'schedule'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - run: rustup show active-toolchain || rustup toolchain install
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - uses: Swatinem/rust-cache@v2
+      - name: Cache downloaded models
+        uses: actions/cache@v4
+        with:
+          path: crates/uor-addr/tests/fixtures/models
+          key: ext-models-v1
+      # Mirrors `just cn`: pinned real-model V&V (file SHA-256, Rust κ ==
+      # pin, independent Python encoder == pin, bounded carrier, witness
+      # round-trip) + the Python ⇄ Rust cross-validation on the synthetic
+      # fixtures. The 531 MB Qwen2-0.5B GGUF exercises the streaming path.
+      - name: CN-GGUF / CN-ONNX (canonical-*.py ⇄ Rust)
+        run: UOR_ADDR_LIVE=1 cargo test -p uor-addr --release --features gguf,onnx --test gguf_cross_validation --test onnx_cross_validation -- --ignored
+      - name: CM-EXT (pinned external models)
+        run: UOR_ADDR_LIVE=1 cargo test -p uor-addr --release --features gguf,onnx --test external_models -- --ignored
 
   analysis:
     name: analysis suite (release, CP class)
