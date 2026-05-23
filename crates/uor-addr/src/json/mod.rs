@@ -20,25 +20,20 @@
 //! - **Reference baseline** —
 //!   <https://mcp.uor.foundation/tools/encode_address> κ-label fixtures.
 //!
-//! ## End-to-end through prism's typed-iso surface
+//! ## End-to-end through prism's typed-iso surface (ADR-060)
 //!
-//! 1. The host-boundary parser [`JsonValue::parse`] consumes raw JSON
-//!    bytes, validates every typed-input bound declared in
-//!    [`shapes::bounds`], and emits a typed [`JsonValue`].
-//! 2. [`AddressModel`]'s `forward()` invokes the ψ-chain verb
-//!    [`address_inference`] end-to-end via foundation's catamorphism.
-//!    The catamorphism dispatches each resolver-bound ψ-Term through
-//!    [`AddressResolverTuple`] (ADR-036).
-//! 3. The terminal ψ_9 resolver
-//!    ([`AddressKInvariantResolver`]) calls
-//!    [`crate::common::AddressInput::canonicalize_into`] on
-//!    [`JsonValue`] inside its body (ADR-046's resolver-body
-//!    iterative-resolution discipline) to materialize the
-//!    JCS-RFC8785 plus Unicode-NFC canonical-form bytes, then
-//!    projects them through `Sha256Hasher` in one σ-projection to
-//!    derive the κ-label.
-//! 4. [`address`] returns the [`crate::AddressLabel`] κ-label —
-//!    well-formed `JsonValue` always yields exactly one label.
+//! 1. [`canonicalize`] parses raw JSON and emits the JCS-RFC8785 +
+//!    Unicode-NFC canonical-form bytes into an `alloc` buffer at the host
+//!    boundary (object members sorted by key; no width / count caps).
+//! 2. [`address`] wraps those bytes in the borrowed [`JsonCarrier`] and
+//!    runs [`AddressModel`]'s `forward()`: the ψ-chain verb
+//!    [`address_inference`] threads the carrier through the shared
+//!    [`AddressResolverTuple`] (ADR-036), and ψ₉ folds the canonical
+//!    bytes through `Sha256Hasher` in one σ-projection to derive the
+//!    κ-label.
+//! 3. [`address`] returns the [`crate::AddressOutcome`] carrying the
+//!    [`crate::AddressLabel`] κ-label + replayable TC-05 witness —
+//!    well-formed JSON always yields exactly one label.
 //!
 //! ## Why this module exists
 //!
@@ -55,23 +50,23 @@
 
 pub mod model;
 pub mod pipeline;
-pub mod resolvers;
 pub mod shapes;
 pub mod value;
 pub mod verbs;
 
 pub use model::{AddressModel, AddressRoute};
-pub use pipeline::{address, AddressFailure, AddressOutcome, AddressWitness};
-pub use resolvers::{
-    AddressChainComplexResolver, AddressCochainComplexResolver, AddressCohomologyGroupResolver,
-    AddressHomologyGroupResolver, AddressHomotopyGroupResolver, AddressKInvariantResolver,
-    AddressNerveResolver, AddressPostnikovResolver, AddressResolverTuple,
-};
-pub use shapes::{
-    AddrBounds, Sha256Hasher, JSON_VALUE_MAX_BYTES, MAX_ARRAY_ELEMENTS, MAX_JSON_DEPTH,
-    MAX_NUMBER_DIGITS, MAX_OBJECT_KEYS, MAX_STRING_BYTES,
-};
 #[cfg(feature = "alloc")]
-pub use value::canonicalize;
-pub use value::{ArrayIter, JsonValue, JsonValueRef, JsonValueRegistry, ObjectIter};
+pub use pipeline::address;
+pub use pipeline::{AddressFailure, AddressOutcome, AddressWitness, VerifyError};
+pub use shapes::{Sha256Hasher, MAX_JSON_DEPTH};
+pub use value::JsonCarrier;
+#[cfg(feature = "alloc")]
+pub use value::{canonicalize, ArrayIter, JsonValue, JsonValueRef, ObjectIter};
 pub use verbs::{address_inference, VERB_TERMS_ADDRESS_INFERENCE};
+
+/// The shared `AddrBounds` capacity profile (re-exported for the wiki
+/// cross-references; canonical path is [`crate::bounds::AddrBounds`]).
+pub use crate::bounds::AddrBounds;
+/// The shared, format-independent ψ-tower (re-exported for convenience;
+/// canonical path is [`crate::resolvers::AddressResolverTuple`]).
+pub use crate::resolvers::AddressResolverTuple;

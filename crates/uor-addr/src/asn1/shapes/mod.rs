@@ -1,5 +1,7 @@
-//! Substitution-axis selections for the ASN.1 realization.
+//! Grammar constant for the ASN.1 realization. The capacity profile is
+//! the shared [`crate::bounds::AddrBounds`]; only the recursion
+//! stack-safety bound lives here.
 
 pub mod bounds;
 
-pub use bounds::{Asn1AddrBounds, ASN1_VALUE_MAX_BYTES, MAX_ASN1_DEPTH, MAX_ASN1_ELEMENTS};
+pub use bounds::MAX_ASN1_DEPTH;

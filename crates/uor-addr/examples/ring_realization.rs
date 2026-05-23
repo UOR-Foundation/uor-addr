@@ -9,8 +9,7 @@
 //!
 //! Run with `cargo run -p uor-addr --example ring_realization`.
 
-use uor_addr::ring::shapes::MAX_WITT_LEVEL;
-use uor_addr::ring::{address, canonicalize, AddressFailure, RingElement};
+use uor_addr::ring::{address, AddressFailure, RingElement, MAX_WITT_LEVEL};
 
 fn main() {
     println!("uor-addr — ring-element realization (Amendment 43 §2)\n");
@@ -33,11 +32,14 @@ fn main() {
     //    canonical bytes at construction).
     let e = RingElement::from_components(2, 0xCAFE_BABE).expect("valid");
     let bytes = e.tagged_bytes().to_vec();
-    let canon = canonicalize(&bytes).expect("valid");
+    let canon = RingElement::parse(&bytes)
+        .expect("re-parse canonical bytes")
+        .tagged_bytes()
+        .to_vec();
     assert_eq!(canon, bytes);
-    println!("2. Canonicalizer is identity (Amendment 43 §2)");
+    println!("2. Canonical bytes are pinned at construction (Amendment 43 §2)");
     println!("   element bytes: {:02X?}", bytes);
-    println!("   canonical:     {:02X?}", canon);
+    println!("   re-parsed:     {:02X?}", canon);
     println!("   match: {} ✓\n", canon == bytes);
 
     // 3. Determinism.

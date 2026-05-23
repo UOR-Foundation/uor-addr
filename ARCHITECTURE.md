@@ -42,10 +42,13 @@ UOR-ADDR's reach has three concentric layers:
   code-module AST under format-specific canonicalization,
   ring-element under Amendment 43 §2's `Element::canonical_bytes`,
   and any other recursively-grammared format the framework supports).
-  Each format-specific realization declares its typed input shape, its
-  canonicalization realization, its `HostBounds` impl, its application
-  registry via `register_shape!`, its conformance corpus against the
-  format's reference baselines, and its V&V theorem instantiation.
+  Each format-specific realization declares its typed input shape and
+  the host-boundary parser that canonicalizes it into an ADR-060
+  source-polymorphic carrier; it binds the single shared
+  [`AddrBounds`](crates/uor-addr/src/bounds.rs) capacity profile and the
+  single shared [`AddressResolverTuple`](crates/uor-addr/src/resolvers.rs)
+  ψ-tower; and it ships its conformance corpus against the format's
+  reference baselines and its V&V theorem instantiation.
 
 - The **schema-pinned descendants** — concrete `PrismModel`
   declarations specializing a format-specific realization with
@@ -135,8 +138,10 @@ attribute and the Runtime's *Sealed Type* attribute per SD1's
 is also a `GroundedShape` that the runtime's pipeline emits as a sealed
 value. Format-specific typed input shapes (`JsonValue`, `SExprValue`)
 are similarly substrate-vocabulary entries; they are
-`ConstrainedTypeShape` impls registered into the foundation's shape-IRI
-registry per ADR-057 via the `register_shape!` SDK macro.
+`ConstrainedTypeShape` impls. ADR-057's bounded recursion is enforced
+directly by each format's parser via native stack-safety depth guards
+(`MAX_JSON_DEPTH`, `MAX_XML_DEPTH`, `MAX_ASN1_DEPTH`, …), not by a
+per-realization shape registry.
 
 UOR-ADDR's existence at SD1 is the framework's commitment that
 content-addressing's typed surface lives inside the substrate's
@@ -166,9 +171,11 @@ SD2's cost-model commitments C1–C4 hold for every UOR-ADDR prism_model:
 - **C2 (zero runtime movement)** — every UOR-ADDR prism_model's
   `address_inference` verb arena composes only ψ-Term variants per
   ADR-035; the verb body is ψ-residual-clean per CS-V01 and passes
-  the framework's `verb_arena_contains_no_sigma_residuals` test. The
-  canonicalization lives inside `AddressKInvariantResolver`'s body
-  per ADR-046's sanctioned σ-residual scope.
+  the framework's `verb_arena_contains_no_sigma_residuals` test. Under
+  ADR-060 canonicalization happens at **carrier production** (the input
+  handle's `as_binding_value`) at the host boundary; the only sanctioned
+  σ-residual is `AddressKInvariantResolver`'s ψ₉ fold of the carrier
+  through `H` per ADR-046's scope.
 - **C3 (structural inference)** — every UOR-ADDR `forward(input)`
   invocation is one structural emission of the κ-label; no
   host-side retry loop, no search over the typed-iso surface, no
@@ -255,8 +262,10 @@ the identity-shaped carrier; the verb arena does not invoke them.
 
 ### Common resolver tuple shape
 
-`AddressResolverTuple<H>` is the per-realization resolver-tuple shape,
-parameterized on the hash axis `H`. It declares the eight
+`AddressResolverTuple<H>` is the **single, shared, format-independent**
+resolver-tuple shape, parameterized on the hash axis `H` and bound by
+every realization. Because canonicalization happens at carrier
+production, no resolver holds format state. It declares the eight
 resolver-trait impls per ADR-036's `ResolverCategory` enumeration:
 
 - `AddressNerveResolver<H>` — ψ_1.
@@ -266,39 +275,38 @@ resolver-trait impls per ADR-036's `ResolverCategory` enumeration:
 - `AddressCohomologyGroupResolver<H>` — ψ_6. Off-path.
 - `AddressPostnikovResolver<H>` — ψ_7.
 - `AddressHomotopyGroupResolver<H>` — ψ_8.
-- `AddressKInvariantResolver<H>` — ψ_9. Body: invokes
-  `<V as AddressInput>::canonicalize_into` (concrete `V` per the
-  enclosing format module) on the typed input's parser-emitted byte
-  sequence, then invokes `H`'s σ-projection on the canonical bytes
-  (sanctioned σ-residual per ADR-046), then emits the κ-label as
-  `<H::IDENTIFIER>:<digest_hex>` ASCII at the `AddressLabel` carrier.
+- `AddressKInvariantResolver<H>` — ψ_9. Body: folds the incoming
+  carrier (the canonical-form bytes the input already streamed via
+  `as_binding_value`) through `H`'s σ-projection chunk-by-chunk with
+  bounded resident memory (sanctioned σ-residual per ADR-046), then
+  emits the κ-label as `<H::IDENTIFIER>:<digest_hex>` ASCII as an
+  `Inline` `AddressLabel` carrier. It never materializes the carrier and
+  imposes no size cap. ψ_1…ψ_8 thread the carrier through unchanged.
 
 ### AddressInput trait
 
 ```rust
-pub trait AddressInput:
-    prism::pipeline::ConstrainedTypeShape
-    + prism::pipeline::IntoBindingValue
-    + Sized
+pub trait AddressInput<'a>:
+    ConstrainedTypeShape + IntoBindingValue<'a> + PartitionProductFields + Sized
 {
-    type Registry: prism::pipeline::ShapeRegistryProvider;
+}
 
-    fn canonicalize_into(
-        parser_emitted: &[u8],
-        out: &mut [u8],
-    ) -> Result<usize, ShapeViolation>;
-
-    fn parse(input: &[u8]) -> Result<Self, ShapeViolation>;
+impl<'a, T> AddressInput<'a> for T where
+    T: ConstrainedTypeShape + IntoBindingValue<'a> + PartitionProductFields + Sized
+{
 }
 ```
 
-`AddressInput` composes three substrate commitments —
-`ConstrainedTypeShape` for the constraint geometry, `IntoBindingValue`
-for the catamorphism's typed-input serialization, the `Registry`
-associated type for the application's ADR-057 recursive-shape registry
-— plus the two methods supplying the format's canonicalization and
-parsing. Every format-specific typed input shape implements
-`AddressInput`.
+Under ADR-060 `AddressInput` is a **blanket marker trait** composing
+three substrate commitments — `ConstrainedTypeShape` for the constraint
+geometry, `IntoBindingValue<'a>` whose `as_binding_value` produces the
+canonical-form `TermValue` carrier (`Inline` / `Borrowed` / `Stream`),
+and `PartitionProductFields` for the nerve resolver's field surface. It
+has no `canonicalize_into` method, no `Registry` associated type, and no
+`parse` method: each realization's host-boundary parser (its own
+`parse`/`address` function) builds the handle and canonicalizes the
+bytes *before* the typed-iso surface, and ψ₉ only folds. Every
+format-specific typed input handle satisfies the marker automatically.
 
 ### Common cost-model commitment surface
 
@@ -381,8 +389,16 @@ specialized to the content-addressing problem:
   selected `H: Hasher` axis satisfies U1–U6.
 - **ADR-048** `C: TypedCommitment` cost-model surface.
 - **ADR-054** fold-fusion principle.
-- **ADR-057** bounded recursive structural typing — every realization
-  emits its application shape registry via `register_shape!`.
+- **ADR-057** bounded recursive structural typing — enforced by each
+  format parser's native stack-safety depth guards (`MAX_JSON_DEPTH`,
+  `MAX_XML_DEPTH`, `MAX_ASN1_DEPTH` = 1024; GGUF/ONNX subgraph depth =
+  64), not a per-realization shape registry. (sexp / codemodule validate
+  iteratively and need no depth guard.)
+- **ADR-060** unbounded source-polymorphic carrier — a realization's
+  canonical form flows through `run_route` as a `TermValue`
+  (`Inline` / `Borrowed` / `Stream`) with no input size ceiling and no
+  per-ψ-stage byte-width cap; the single shared `AddrBounds` carries only
+  structural-count / trace caps.
 
 ## Architectural commitments that UOR-ADDR does not change
 
@@ -399,18 +415,23 @@ realizations, validating tensor element types against the
 
 | Module | Format |
 |---|---|
-| `uor_addr::gguf` | GGUF v3 under a streamed two-level structural commitment (metadata + tensor-info skeletons, with tensor weights bound via per-tensor streamed digests) |
-| `uor_addr::onnx` | ONNX IR v13 under a protobuf-canonical commitment (Kahn-topological node ordering, name-sorted initializers / IO, typed-data→raw_data reduction, depth-bounded subgraph recursion) |
+| `uor_addr::gguf` | GGUF v3 under a flat Merkle-skeleton canonical form (header, key-sorted metadata KVs, name-sorted tensor info; variable-length leaves replaced by their streamed SHA-256 digest) |
+| `uor_addr::onnx` | ONNX IR v13 under a flat Merkle-skeleton canonical form (Kahn-topological node ordering, name-sorted initializers / IO, typed-data→raw_data reduction, inline-recursed subgraphs; variable-length leaves digested) |
 
-### Streamed-commitment design (the carrier constraint)
+### Flat-skeleton design (ADR-060)
 
-The foundation pipeline threads a fixed 4096-byte route-input buffer, so
-neither multi-GB tensor data nor a many-tensor structural skeleton can
-flow through `forward()` inline. Both realizations therefore reduce their
-input to a **fixed-width two-level commitment** at the host boundary:
-variable-length leaves (tensor data, metadata arrays, long strings) are
-folded into 32-byte streamed SHA-256 section roots (using
-`prism::crypto::Sha256Hasher`'s incremental `fold_bytes`), and only the
-bounded commitment flows through the ψ-pipeline. The κ-label is therefore
-a Merkle-style commitment — sensitive to every weight and structural byte,
-bounded for any model size.
+Under ADR-060 there is no fixed route-input buffer and no size cap, so
+both realizations canonicalize to the **full flat skeleton** rather than
+a two-level section commitment. The skeleton is emitted in a fixed total
+order — header, then sorted KVs/metadata, then sorted tensors/nodes with
+subgraphs recursed inline — and every variable-length leaf (a string, an
+array payload, a tensor's data region) is replaced by its streamed
+SHA-256 digest (`prism::crypto::Sha256Hasher`'s incremental
+`fold_bytes`). The skeleton's size therefore grows only with the KV /
+tensor / node **counts**, never with model size, while still binding
+every weight byte into the κ-label. The full skeleton flows through the
+pipeline as a `TermValue::Borrowed` carrier that ψ₉ folds — there is no
+two-level commitment and no count / width cap. GGUF's
+`CANONICAL_FORM_VERSION` is **2**. The exact byte layouts are documented
+in the [`gguf::value`](crates/uor-addr/src/gguf/value.rs) and
+[`onnx::value`](crates/uor-addr/src/onnx/value.rs) module headers.

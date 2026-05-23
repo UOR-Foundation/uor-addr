@@ -14,7 +14,7 @@ fn main() {
     println!("uor-addr — code-module AST realization (CCMAS)\n");
 
     // 1. Empty module.
-    let empty_mod = CodeModuleValue::module("empty", &[]).expect("valid");
+    let empty_mod = CodeModuleValue::module("empty", &[]);
     let outcome = address(empty_mod.tagged_bytes()).expect("κ-label");
     println!("1. Empty Module");
     println!(
@@ -24,10 +24,10 @@ fn main() {
     println!("   κ-label:  {}\n", outcome.address);
 
     // 2. Module with a function and atom literals.
-    let body = CodeModuleValue::atom("42").expect("valid");
-    let ret_ty = CodeModuleValue::atom("u32").expect("valid");
-    let f = CodeModuleValue::function("greet", &[], &ret_ty, &body).expect("valid");
-    let m = CodeModuleValue::module("demo", &[f]).expect("valid");
+    let body = CodeModuleValue::atom("42");
+    let ret_ty = CodeModuleValue::atom("u32");
+    let f = CodeModuleValue::function("greet", &[], &ret_ty, &body);
+    let m = CodeModuleValue::module("demo", &[f]);
     let outcome = address(m.tagged_bytes()).expect("κ-label");
     println!("2. Module with Function");
     println!(
@@ -62,9 +62,9 @@ fn main() {
     println!("   sexp::canonicalize(codemodule bytes) == codemodule bytes ✓\n");
 
     // 5. Typed distinction — different AST shapes yield different κ-labels.
-    let m0 = CodeModuleValue::module("a", &[]).expect("valid");
-    let m1 = CodeModuleValue::module("b", &[]).expect("valid");
-    let atom_a = CodeModuleValue::atom("a").expect("valid");
+    let m0 = CodeModuleValue::module("a", &[]);
+    let m1 = CodeModuleValue::module("b", &[]);
+    let atom_a = CodeModuleValue::atom("a");
     let l0 = address(m0.tagged_bytes()).expect("κ-label").address;
     let l1 = address(m1.tagged_bytes()).expect("κ-label").address;
     let la = address(atom_a.tagged_bytes()).expect("κ-label").address;
@@ -80,17 +80,17 @@ fn main() {
     // 6. Failure modes.
     println!("6. Failure modes");
     match address(b"not ccmas") {
-        Err(AddressFailure::InvalidCcmas) => println!("   non-CCMAS input rejected ✓"),
-        other => panic!("expected InvalidCcmas: {other:?}"),
+        Err(AddressFailure::InvalidAst) => println!("   non-CCMAS input rejected ✓"),
+        other => panic!("expected InvalidAst: {other:?}"),
     }
-    // Oversize name should fail at atom construction.
-    let too_long = "a".repeat(uor_addr::codemodule::MAX_CODEMODULE_NAME_BYTES + 1);
-    match CodeModuleValue::atom(&too_long) {
-        Err(v) if v.constraint_iri.ends_with("/nameWidth") => {
-            println!("   oversize-name rejected via nameWidth ✓");
-        }
-        other => panic!("expected nameWidth: {other:?}"),
-    }
+    // ADR-060 removed the fixed name-width cap: code-module names are
+    // now unbounded. A very long atom name is admitted and yields a
+    // valid 71-byte κ-label.
+    let very_long = "a".repeat(100_000);
+    let big_atom = CodeModuleValue::atom(&very_long);
+    let outcome = address(big_atom.tagged_bytes()).expect("κ-label");
+    assert_eq!(outcome.address.len(), 71);
+    println!("   unbounded long-name atom admitted ✓");
 
     println!("\nOK — CCMAS realization shipped; Rivest-canonical byte layer shared.");
 }

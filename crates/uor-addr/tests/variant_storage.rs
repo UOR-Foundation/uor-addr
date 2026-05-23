@@ -72,10 +72,13 @@ fn storage_model_compiles_as_a_distinct_prism_model() {
     // type level per ADR-048 + the typed-iso commitment of
     // ADR-001 + ADR-017.
     fn assert_is_prism_model<
+        'a,
         M: prism::pipeline::PrismModel<
+            'a,
             prism::vocabulary::DefaultHostTypes,
             uor_addr::AddrBounds,
             uor_addr::Sha256Hasher,
+            { uor_addr::ADDR_INLINE_BYTES },
             uor_addr::AddressResolverTuple<uor_addr::Sha256Hasher>,
             StorageCommitment,
             Route = AddressStorageRoute,

@@ -4,10 +4,16 @@ canonical-form specification.
 
 Reads an ONNX `ModelProto`, applies the canonicalization rules
 implemented by `crates/uor-addr/src/onnx/value.rs`, and emits the
-κ-label (SHA-256 of the protobuf-canonical commitment). Byte-identical
-to `uor_addr::onnx::address`. Stdlib-only (a minimal protobuf reader is
-inlined) so it runs without the `onnx` Python package; the canonical
-commitment is the realization's own discipline.
+κ-label (SHA-256 of the canonical flat skeleton). Byte-identical to
+`uor_addr::onnx::address`. Stdlib-only (a minimal protobuf reader is
+inlined) so it runs without the `onnx` Python package.
+
+ADR-060: the canonical form is the full flat skeleton emitted inline
+(ir_version, opset imports, the graph laid out node-by-node in
+Kahn-topological order with subgraphs recursed inline, then model
+metadata), with variable-length leaves replaced by their streamed
+SHA-256 digest. There is no two-level commitment and no count / width
+ceiling — only a subgraph-nesting stack-safety bound.
 
 Usage:
     python3 canonical-onnx.py MODEL.onnx
@@ -17,6 +23,8 @@ import struct
 import sys
 
 IR_VERSION = 13
+OPSET_VERSION_MIN = 1
+SUBGRAPH_DEPTH_MAX = 64
 
 
 def sha256(b):
@@ -173,7 +181,9 @@ def tensor_data_digest(t, dtype):
     if first_varint(t, 14) == 1:
         h = hashlib.sha256()
         h.update(b"onnx:external-data:v1")
-        h.update(string_string_root(t, 13))
+        sub = bytearray()
+        emit_string_string(sub, t, 13)   # u32(count) || sorted key/value digests
+        h.update(bytes(sub))
         return h.digest()
     raw = first(t, 9)
     if isinstance(raw, (bytes, bytearray)) and len(raw) > 0:
@@ -212,88 +222,94 @@ def count_dims(t):
     return n
 
 
-def tensor_digest(t):
+def emit_packed_varints_i64(out, body, n):
+    """Append each varint of a packed/unpacked repeated field as 8-byte LE
+    (the canonical dims / INTS layout — `(val as i64).to_le_bytes()`)."""
+    for v in each(body, n):
+        if isinstance(v, (bytes, bytearray)):
+            pos = 0
+            while pos < len(v):
+                val, pos = read_varint(v, pos)
+                out += struct.pack("<Q", val & 0xFFFFFFFFFFFFFFFF)
+        elif isinstance(v, int):
+            out += struct.pack("<Q", v & 0xFFFFFFFFFFFFFFFF)
+
+
+def emit_tensor(out, t):
     dtype = first_varint(t, 2)
     if not (1 <= dtype <= 23):
         raise ValueError(f"unknown dtype {dtype}")
-    h = hashlib.sha256()
-    h.update(sha256(first_bytes(t, 8)))         # name
-    h.update(struct.pack("<i", dtype))
-    h.update(struct.pack("<I", count_dims(t)))  # rank
-    fold_packed_varints_i64(h, t, 1)            # dims
-    h.update(tensor_data_digest(t, dtype))
-    return h.digest()
+    out += sha256(first_bytes(t, 8))         # name
+    out += struct.pack("<i", dtype)
+    out += struct.pack("<I", count_dims(t))  # rank
+    emit_packed_varints_i64(out, t, 1)       # dims
+    out += tensor_data_digest(t, dtype)      # 32-byte leaf digest
 
 
-def attribute_value_digest(a, atype, depth):
-    h = hashlib.sha256()
+def emit_attribute_value(out, a, atype, depth):
     if atype == 1:           # FLOAT (fixed32)
         v = first(a, 2)
         if isinstance(v, (bytes, bytearray)):
-            h.update(v)
+            out += v
     elif atype == 2:         # INT
-        h.update(struct.pack("<q", first_varint(a, 3)))
+        out += struct.pack("<q", first_varint(a, 3))
     elif atype == 3:         # STRING
-        h.update(sha256(first_bytes(a, 4)))
-    elif atype == 4:         # TENSOR
-        h.update(tensor_digest(first_bytes(a, 5)))
-    elif atype == 5:         # GRAPH
-        h.update(canonical_graph(first_bytes(a, 6), depth + 1))
+        out += sha256(first_bytes(a, 4))
+    elif atype == 4:         # TENSOR (inline)
+        emit_tensor(out, first_bytes(a, 5))
+    elif atype == 5:         # GRAPH (recurse inline)
+        emit_canonical_graph(out, first_bytes(a, 6), depth + 1)
     elif atype == 6:         # FLOATS
         for v in each(a, 7):
-            h.update(sha256(v) if isinstance(v, (bytes, bytearray)) else v)
+            out += sha256(v) if isinstance(v, (bytes, bytearray)) else v
     elif atype == 7:         # INTS
-        fold_packed_varints_i64(h, a, 8)
+        emit_packed_varints_i64(out, a, 8)
     elif atype == 8:         # STRINGS
         for s in each(a, 9):
-            h.update(sha256(s))
-    elif atype == 9:         # TENSORS
+            out += sha256(s)
+    elif atype == 9:         # TENSORS (inline)
         for tb in each(a, 10):
-            h.update(tensor_digest(tb))
-    elif atype == 10:        # GRAPHS
+            emit_tensor(out, tb)
+    elif atype == 10:        # GRAPHS (recurse inline)
         for g in each(a, 11):
-            h.update(canonical_graph(g, depth + 1))
+            emit_canonical_graph(out, g, depth + 1)
     elif atype == 11:        # SPARSE_TENSOR
-        h.update(canonical_proto_digest(first_bytes(a, 22)))
+        out += canonical_proto_digest(first_bytes(a, 22))
     elif atype == 12:        # SPARSE_TENSORS
         for s in each(a, 23):
-            h.update(canonical_proto_digest(s))
+            out += canonical_proto_digest(s)
     elif atype == 13:        # TYPE_PROTO
-        h.update(canonical_proto_digest(first_bytes(a, 14)))
+        out += canonical_proto_digest(first_bytes(a, 14))
     elif atype == 14:        # TYPE_PROTOS
         for s in each(a, 15):
-            h.update(canonical_proto_digest(s))
-    return h.digest()
+            out += canonical_proto_digest(s)
 
 
-def attribute_root(node):
+def emit_attributes(out, node, depth):
     attrs = list(each(node, 5))
     attrs.sort(key=lambda a: first_bytes(a, 1))
-    h = hashlib.sha256()
+    out += struct.pack("<I", len(attrs))
     for a in attrs:
-        h.update(sha256(first_bytes(a, 1)))
+        out += sha256(first_bytes(a, 1))
         atype = first_varint(a, 20)
-        h.update(struct.pack("<i", atype))
-        h.update(attribute_value_digest(a, atype, 0))
-    return h.digest()
+        out += struct.pack("<i", atype)
+        emit_attribute_value(out, a, atype, depth)
 
 
-def node_commitment(node):
-    h = hashlib.sha256()
-    h.update(sha256(first_bytes(node, 3)))   # name
-    h.update(sha256(first_bytes(node, 4)))   # op_type
-    h.update(sha256(first_bytes(node, 7)))   # domain
-    h.update(sha256(first_bytes(node, 8)))   # overload
+def emit_node(out, node, depth):
+    out += sha256(first_bytes(node, 3))   # name
+    out += sha256(first_bytes(node, 4))   # op_type
+    out += sha256(first_bytes(node, 7))   # domain
+    out += sha256(first_bytes(node, 8))   # overload
     ins = list(each(node, 1))
-    h.update(struct.pack("<I", len(ins)))
+    out += struct.pack("<I", len(ins))
     for i in ins:
-        h.update(sha256(i))
+        out += sha256(i)
     outs = list(each(node, 2))
-    h.update(struct.pack("<I", len(outs)))
+    out += struct.pack("<I", len(outs))
     for o in outs:
-        h.update(sha256(o))
-    h.update(attribute_root(node))
-    return h.digest()
+        out += sha256(o)
+    emit_attributes(out, node, depth)
 
 
 def topo_order(nodes):
@@ -326,72 +342,81 @@ def topo_order(nodes):
     return [nodes[i] for i in order]
 
 
-def string_string_root(body, n):
+def emit_string_string(out, body, n):
+    # u32(count) || for each (sorted by key): sha256(key) || sha256(value)
     entries = list(each(body, n))
     entries.sort(key=lambda e: first_bytes(e, 1))
-    h = hashlib.sha256()
+    out += struct.pack("<I", len(entries))
     for e in entries:
-        h.update(sha256(first_bytes(e, 1)))
-        h.update(sha256(first_bytes(e, 2)))
-    return h.digest()
+        out += sha256(first_bytes(e, 1))
+        out += sha256(first_bytes(e, 2))
 
 
-def value_info_root(graph, n):
+def emit_value_info(out, graph, n):
+    # u32(count) || for each (sorted by name): sha256(name) || proto-digest(TypeProto)
     vis = list(each(graph, n))
     vis.sort(key=lambda v: first_bytes(v, 1))
-    h = hashlib.sha256()
+    out += struct.pack("<I", len(vis))
     for v in vis:
-        h.update(sha256(first_bytes(v, 1)))
-        h.update(canonical_proto_digest(first_bytes(v, 2)))
-    return h.digest()
+        out += sha256(first_bytes(v, 1))
+        out += canonical_proto_digest(first_bytes(v, 2))
 
 
-def canonical_graph(graph, depth):
-    h = hashlib.sha256()
-    h.update(sha256(first_bytes(graph, 2)))           # name
-    for n in topo_order(list(each(graph, 1))):        # nodes (topo)
-        h.update(node_commitment(n))
-    inits = list(each(graph, 5))                      # initializers
+def emit_canonical_graph(out, graph, depth):
+    if depth > SUBGRAPH_DEPTH_MAX:
+        raise ValueError("subgraph nesting too deep")
+    out += sha256(first_bytes(graph, 2))              # name
+    nodes = list(each(graph, 1))
+    out += struct.pack("<I", len(nodes))              # node count
+    for n in topo_order(nodes):                       # nodes (topo)
+        emit_node(out, n, depth)
+    # initializers (#5), sorted by name, inline.
+    inits = list(each(graph, 5))
     inits.sort(key=lambda t: first_bytes(t, 8))
-    th = hashlib.sha256()
+    out += struct.pack("<I", len(inits))
     for t in inits:
-        th.update(tensor_digest(t))
-    h.update(th.digest())
-    h.update(value_info_root(graph, 11))
-    h.update(value_info_root(graph, 12))
-    h.update(value_info_root(graph, 13))
-    return h.digest()
+        emit_tensor(out, t)
+    # graph IO: inputs (#11), outputs (#12), value_info (#13).
+    emit_value_info(out, graph, 11)
+    emit_value_info(out, graph, 12)
+    emit_value_info(out, graph, 13)
 
 
-def opset_root(model):
+def emit_opsets(out, model):
+    # opset imports sorted by (domain, version); no count prefix.
     entries = list(each(model, 8))
+    ok_min = any(first_bytes(e, 1) == b"" and first_varint(e, 2) >= OPSET_VERSION_MIN
+                 for e in entries)
+    if entries and not ok_min:
+        raise ValueError("opset below minimum version")
     entries.sort(key=lambda e: (first_bytes(e, 1), first_varint(e, 2)))
-    h = hashlib.sha256()
     for e in entries:
-        h.update(sha256(first_bytes(e, 1)))
-        h.update(struct.pack("<q", first_varint(e, 2)))
-    return h.digest()
+        out += sha256(first_bytes(e, 1))
+        out += struct.pack("<q", first_varint(e, 2))
 
 
-def model_meta_root(model):
-    h = hashlib.sha256()
-    h.update(sha256(first_bytes(model, 2)))
-    h.update(sha256(first_bytes(model, 3)))
-    h.update(sha256(first_bytes(model, 4)))
-    h.update(struct.pack("<q", first_varint(model, 5)))
-    h.update(string_string_root(model, 14))
-    return h.digest()
+def emit_model_meta(out, model):
+    out += sha256(first_bytes(model, 2))              # producer_name
+    out += sha256(first_bytes(model, 3))              # producer_version
+    out += sha256(first_bytes(model, 4))              # domain
+    out += struct.pack("<q", first_varint(model, 5))  # model_version
+    emit_string_string(out, model, 14)                # metadata_props
 
 
 def commitment(model):
+    # ADR-060: the full flat skeleton (no two-level commitment).
     ir = first_varint(model, 1)
     if ir != IR_VERSION:
         raise ValueError(f"unsupported IR version {ir}")
     graph = first_bytes(model, 7)
     if not graph:
         raise ValueError("missing graph")
-    return (struct.pack("<q", ir) + opset_root(model)
-            + canonical_graph(graph, 0) + model_meta_root(model))
+    out = bytearray()
+    out += struct.pack("<q", ir)
+    emit_opsets(out, model)
+    emit_canonical_graph(out, graph, 0)
+    emit_model_meta(out, model)
+    return bytes(out)
 
 
 def kappa_label(model):

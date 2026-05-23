@@ -19,11 +19,15 @@ ASN.1 — then hashing the canonical bytes. Schema-pinned wrappers
 (schema.org/Photograph, schema.org/Article, in-toto Statement v1) add
 admission predicates without changing the label.
 
-The library is **`no_std` + `no_alloc`** by default — every
-canonicalization path streams into a caller-provided buffer with no
-allocator and no `std` calls. The default `std` feature is an
-ergonomic on-top wrapper; embedded targets build clean with
-`--no-default-features`.
+The library is **`no_std`** by default and the ψ-pipeline never touches
+an allocator: a value's canonical form flows through it as a
+source-polymorphic carrier (inline, borrowed, or streamed) with no input
+size cap. The realizations whose canonical form needs no heap — ring,
+sexp, asn1, codemodule — are fully `no_alloc` and build clean with
+`--no-default-features`; the ones that materialize a canonical form
+(json, xml, the `schema::*` descendants, gguf, onnx) gate `address()`
+behind the `alloc` feature. The `std` feature is an ergonomic on-top
+wrapper.
 
 ## Quickstart
 
@@ -104,9 +108,9 @@ WIT Component Model `list<u8>` → `Vec<u8>`).
   from UCD 15.1.0 `NormalizationTest.txt` exercising the in-crate NFC
   normalizer.
 - 16 runnable examples (`just examples`).
-- `#![forbid(unsafe_code)]` for the core crate; `no_std` + `no_alloc`
-  by default (verified by `cargo build --no-default-features --target
-  thumbv7em-none-eabihf`).
+- `#![forbid(unsafe_code)]` for the core crate; `no_std` by default,
+  with the ring/sexp/asn1/codemodule realizations `no_alloc` (verified
+  by `cargo build --no-default-features --target thumbv7em-none-eabihf`).
 - C ABI bindings + WASM Component Model bindings ship under
   [`crates/uor-addr-c`](crates/uor-addr-c) and
   [`crates/uor-addr-wasm`](crates/uor-addr-wasm).

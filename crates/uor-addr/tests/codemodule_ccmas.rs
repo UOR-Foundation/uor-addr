@@ -10,34 +10,34 @@ use uor_addr::codemodule::{address, canonicalize, AddressFailure, CodeModuleValu
 
 #[test]
 fn empty_module_canonical_form() {
-    let m = CodeModuleValue::module("empty", &[]).expect("valid");
+    let m = CodeModuleValue::module("empty", &[]);
     assert_eq!(m.tagged_bytes(), b"(3:mod 5:empty)");
 }
 
 #[test]
 fn module_with_atoms_canonical_form() {
-    let body = CodeModuleValue::atom("value").expect("valid");
-    let m = CodeModuleValue::module("demo", &[body]).expect("valid");
+    let body = CodeModuleValue::atom("value");
+    let m = CodeModuleValue::module("demo", &[body]);
     let canon = canonicalize(m.tagged_bytes()).expect("canonicalize");
     assert_eq!(canon, b"(3:mod 4:demo 5:value)");
 }
 
 #[test]
 fn function_canonical_form() {
-    let body = CodeModuleValue::atom("42").expect("valid");
-    let ret = CodeModuleValue::atom("u32").expect("valid");
-    let f = CodeModuleValue::function("hello", &[], &ret, &body).expect("valid");
+    let body = CodeModuleValue::atom("42");
+    let ret = CodeModuleValue::atom("u32");
+    let f = CodeModuleValue::function("hello", &[], &ret, &body);
     // (3:fun 5:hello () 3:u32 2:42)
     assert_eq!(f.tagged_bytes(), b"(3:fun 5:hello () 3:u32 2:42)");
 }
 
 #[test]
 fn function_with_parameters_canonical_form() {
-    let body = CodeModuleValue::atom("body").expect("valid");
-    let ret = CodeModuleValue::atom("unit").expect("valid");
-    let p1 = CodeModuleValue::atom("x").expect("valid");
-    let p2 = CodeModuleValue::atom("y").expect("valid");
-    let f = CodeModuleValue::function("add", &[p1, p2], &ret, &body).expect("valid");
+    let body = CodeModuleValue::atom("body");
+    let ret = CodeModuleValue::atom("unit");
+    let p1 = CodeModuleValue::atom("x");
+    let p2 = CodeModuleValue::atom("y");
+    let f = CodeModuleValue::function("add", &[p1, p2], &ret, &body);
     assert_eq!(f.tagged_bytes(), b"(3:fun 3:add (1:x 1:y) 4:unit 4:body)");
 }
 
@@ -45,17 +45,17 @@ fn function_with_parameters_canonical_form() {
 fn nested_module_canonical_form() {
     // Module containing a Module — exercises the recursive grammar
     // case admitted by AstWalker.
-    let inner = CodeModuleValue::module("inner", &[]).expect("valid");
-    let outer = CodeModuleValue::module("outer", &[inner]).expect("valid");
+    let inner = CodeModuleValue::module("inner", &[]);
+    let outer = CodeModuleValue::module("outer", &[inner]);
     assert_eq!(outer.tagged_bytes(), b"(3:mod 5:outer (3:mod 5:inner))");
 }
 
 #[test]
 fn round_trip_preserves_bytes() {
-    let body = CodeModuleValue::atom("body").expect("valid");
-    let ret = CodeModuleValue::atom("u32").expect("valid");
-    let f = CodeModuleValue::function("compute", &[], &ret, &body).expect("valid");
-    let m = CodeModuleValue::module("library", &[f]).expect("valid");
+    let body = CodeModuleValue::atom("body");
+    let ret = CodeModuleValue::atom("u32");
+    let f = CodeModuleValue::function("compute", &[], &ret, &body);
+    let m = CodeModuleValue::module("library", &[f]);
     let bytes = m.tagged_bytes().to_vec();
     let parsed = CodeModuleValue::parse(&bytes).expect("parse");
     assert_eq!(parsed.tagged_bytes(), bytes.as_slice());
@@ -65,7 +65,7 @@ fn round_trip_preserves_bytes() {
 fn ccmas_is_subset_of_rivest_canonical() {
     // CCMAS bytes are valid Rivest canonical S-expressions; the
     // sexp realization's canonicalizer is the identity on them.
-    let m = CodeModuleValue::module("demo", &[]).expect("valid");
+    let m = CodeModuleValue::module("demo", &[]);
     let bytes = m.tagged_bytes();
     let sexp_canon = uor_addr::sexp::canonicalize(bytes).expect("sexp accepts CCMAS bytes");
     assert_eq!(sexp_canon, bytes);
@@ -73,10 +73,10 @@ fn ccmas_is_subset_of_rivest_canonical() {
 
 #[test]
 fn typed_distinction_between_module_and_function() {
-    let m = CodeModuleValue::module("a", &[]).expect("valid");
-    let body = CodeModuleValue::atom("x").expect("valid");
-    let ret = CodeModuleValue::atom("u32").expect("valid");
-    let f = CodeModuleValue::function("a", &[], &ret, &body).expect("valid");
+    let m = CodeModuleValue::module("a", &[]);
+    let body = CodeModuleValue::atom("x");
+    let ret = CodeModuleValue::atom("u32");
+    let f = CodeModuleValue::function("a", &[], &ret, &body);
     let m_label = address(m.tagged_bytes()).expect("κ-label").address;
     let f_label = address(f.tagged_bytes()).expect("κ-label").address;
     assert_ne!(m_label, f_label);
@@ -84,8 +84,8 @@ fn typed_distinction_between_module_and_function() {
 
 #[test]
 fn typed_distinction_between_atoms() {
-    let a = CodeModuleValue::atom("a").expect("valid");
-    let b = CodeModuleValue::atom("b").expect("valid");
+    let a = CodeModuleValue::atom("a");
+    let b = CodeModuleValue::atom("b");
     let la = address(a.tagged_bytes()).expect("κ-label").address;
     let lb = address(b.tagged_bytes()).expect("κ-label").address;
     assert_ne!(la, lb);
@@ -96,40 +96,35 @@ fn rejects_invalid_ccmas() {
     let cases: &[&[u8]] = &[b"not ccmas", b"((((", b"(99:short", b"(unbalanced"];
     for raw in cases {
         match address(raw) {
-            Err(AddressFailure::InvalidCcmas) | Err(AddressFailure::TooLarge) => {}
+            Err(AddressFailure::InvalidAst) => {}
             other => panic!("expected rejection for {raw:?}: {other:?}"),
         }
     }
 }
 
 #[test]
-fn rejects_oversize_atom_name() {
-    use uor_addr::codemodule::MAX_CODEMODULE_NAME_BYTES;
-    let too_long = "a".repeat(MAX_CODEMODULE_NAME_BYTES + 1);
-    match CodeModuleValue::atom(&too_long) {
-        Err(v) if v.constraint_iri.ends_with("/nameWidth") => {}
-        other => panic!("expected nameWidth: {other:?}"),
-    }
+fn admits_unbounded_atom_name() {
+    // ADR-060 removed the name-width cap; long atom names are admitted.
+    let long = "a".repeat(10_000);
+    let atom = CodeModuleValue::atom(&long);
+    address(atom.tagged_bytes()).expect("long atom name admits");
 }
 
 #[test]
-fn rejects_oversize_module_name() {
-    use uor_addr::codemodule::MAX_CODEMODULE_NAME_BYTES;
-    let too_long = "a".repeat(MAX_CODEMODULE_NAME_BYTES + 1);
-    match CodeModuleValue::module(&too_long, &[]) {
-        Err(v) if v.constraint_iri.ends_with("/nameWidth") => {}
-        other => panic!("expected nameWidth: {other:?}"),
-    }
+fn admits_unbounded_module_name() {
+    // ADR-060 removed the name-width cap; long module names are admitted.
+    let long = "a".repeat(10_000);
+    let m = CodeModuleValue::module(&long, &[]);
+    address(m.tagged_bytes()).expect("long module name admits");
 }
 
 #[test]
 fn deeply_nested_modules_admit_within_bound() {
     // Build nesting comfortably within both the codemodule and the
     // sexp depth bounds (the CCMAS parser walks through sexp first).
-    let mut value = CodeModuleValue::atom("leaf").expect("valid");
+    let mut value = CodeModuleValue::atom("leaf");
     for i in 0..8 {
-        value = CodeModuleValue::module(&alloc::format!("m{i}"), core::slice::from_ref(&value))
-            .expect("valid");
+        value = CodeModuleValue::module(&alloc::format!("m{i}"), core::slice::from_ref(&value));
     }
     address(value.tagged_bytes()).expect("within-bound depth admits");
 }
@@ -138,9 +133,9 @@ fn deeply_nested_modules_admit_within_bound() {
 fn admits_module_with_multiple_items() {
     // Module carrying multiple atom items.
     let items: alloc::vec::Vec<CodeModuleValue> = (0..8)
-        .map(|i| CodeModuleValue::atom(&alloc::format!("item{i}")).expect("valid"))
+        .map(|i| CodeModuleValue::atom(&alloc::format!("item{i}")))
         .collect();
-    let m = CodeModuleValue::module("big", &items).expect("valid");
+    let m = CodeModuleValue::module("big", &items);
     address(m.tagged_bytes()).expect("admits");
 }
 

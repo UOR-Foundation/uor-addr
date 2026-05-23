@@ -62,11 +62,11 @@ use prism::pipeline::{
 };
 use prism::vocabulary::DefaultHostTypes;
 
-use crate::json::resolvers::AddressResolverTuple;
-use crate::json::shapes::bounds::AddrBounds;
-use crate::json::shapes::Sha256Hasher;
-use crate::json::value::JsonValue;
+use crate::bounds::AddrBounds;
+use crate::json::value::JsonCarrier;
 use crate::label::AddressLabel;
+use crate::resolvers::AddressResolverTuple;
+use prism::crypto::Sha256Hasher;
 
 #[allow(unused_imports)]
 use crate::json::verbs::{address_inference, VERB_TERMS_ADDRESS_INFERENCE};
@@ -109,7 +109,7 @@ prism_model! {
         AddressResolverTuple<Sha256Hasher>,
         StorageCommitment
     > for AddressStorageModel {
-        type Input = JsonValue;
+        type Input = JsonCarrier<'a>;
         type Output = AddressLabel;
         type Route = AddressStorageRoute;
         fn route(input: Self::Input) -> Self::Output {

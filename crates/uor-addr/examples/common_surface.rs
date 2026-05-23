@@ -1,70 +1,60 @@
 //! `uor-addr` — Common architectural surface comprehensive example.
 //!
-//! Demonstrates the [`uor_addr::common::AddressInput`] trait — the
-//! shared trait every format-specific UOR-ADDR realization
-//! implements. Walks parsing through the trait, canonicalize-into,
-//! registry inspection per ADR-057, and cross-realization
-//! polymorphism.
+//! Demonstrates the shared surface every format-specific UOR-ADDR
+//! realization exposes (ADR-060): a host-boundary `address(raw)` entry
+//! point that parses, canonicalizes, and folds the typed-input bytes
+//! into the common [`uor_addr::AddressOutcome`] shape (a `KappaLabel`
+//! plus a verifiable [`uor_addr::AddressWitness`]).
 //!
 //! Run with `cargo run -p uor-addr --example common_surface`.
 
-use prism::pipeline::{IntoBindingValue, ShapeRegistryProvider};
-use uor_addr::common::AddressInput;
-
-fn show_realization<V: AddressInput>(name: &str, raw: &[u8]) {
+fn show_outcome(name: &str, address: &uor_addr::KappaLabel, witness: &uor_addr::AddressWitness) {
     println!("─── {name} ─────────────────────────────────────");
-
-    // 1. parse via the trait
-    let v = <V as AddressInput>::parse(raw).expect("valid input");
-
-    // 2. binding-table form (the ψ-pipeline's input encoding)
-    let mut tagged = alloc::vec![0u8; <V as IntoBindingValue>::MAX_BYTES];
-    let n = v.into_binding_bytes(&mut tagged).expect("fits");
-    println!("   tagged byte count:    {n}");
-
-    // 3. canonicalize via the trait
-    let mut canonical = alloc::vec![0u8; <V as IntoBindingValue>::MAX_BYTES];
-    let m =
-        <V as AddressInput>::canonicalize_into(&tagged[..n], &mut canonical).expect("canonicalize");
-    println!("   canonical byte count: {m}");
-
-    // 4. registry inspection (ADR-057)
-    let entries = <<V as AddressInput>::Registry as ShapeRegistryProvider>::REGISTRY;
+    println!("   κ-label:              {address}");
     println!(
-        "   ADR-057 registry:     {} entries; first IRI = {}",
-        entries.len(),
-        entries.first().map(|e| e.iri).unwrap_or("<empty>")
+        "   content fingerprint:  {} bytes",
+        witness.content_fingerprint().len()
     );
 
-    println!();
+    // The witness re-derives the κ-label without re-invoking SHA-256 on
+    // the original input; the recovered label must match.
+    let recovered = witness.verify().expect("witness verifies");
+    assert_eq!(
+        &recovered, address,
+        "verified κ-label matches minted address"
+    );
+    println!("   witness verifies:     yes\n");
 }
 
-extern crate alloc;
-
 fn main() {
-    println!("uor-addr — common architectural surface (AddressInput trait)\n");
+    println!("uor-addr — common architectural surface (address entry points)\n");
 
-    println!("The AddressInput trait every realization implements:\n");
-    println!("    pub trait AddressInput:");
-    println!("        ConstrainedTypeShape + IntoBindingValue + Sized");
-    println!("    {{");
-    println!("        type Registry: ShapeRegistryProvider;");
-    println!("        fn canonicalize_into(parser_emitted: &[u8], out: &mut [u8])");
-    println!("            -> Result<usize, ShapeViolation>;");
-    println!("        fn parse(input: &[u8]) -> Result<Self, ShapeViolation>;");
+    println!("Every realization exposes a host-boundary `address(raw)` that");
+    println!("yields the common AddressOutcome shape:\n");
+    println!("    pub struct AddressOutcome {{");
+    println!("        pub address: KappaLabel,");
+    println!("        pub witness: AddressWitness,");
     println!("    }}\n");
 
-    // Walk every format-specific realization through the trait.
-    show_realization::<uor_addr::json::JsonValue>("json::JsonValue", br#"{"x":1}"#);
-    show_realization::<uor_addr::sexp::SExprValue>("sexp::SExprValue", b"(a b c)");
-    show_realization::<uor_addr::xml::XmlValue>("xml::XmlValue", b"<root/>");
-    show_realization::<uor_addr::asn1::Asn1Value>("asn1::Asn1Value", &[0x02, 0x01, 0x2A]);
-    show_realization::<uor_addr::ring::RingElement>("ring::RingElement", &[0u8, 0x42]);
-    let m = uor_addr::codemodule::CodeModuleValue::module("demo", &[])
-        .expect("valid")
-        .tagged_bytes()
-        .to_vec();
-    show_realization::<uor_addr::codemodule::CodeModuleValue>("codemodule::CodeModuleValue", &m);
+    // Walk every format-specific realization through its `address` entry.
+    let o = uor_addr::json::address(br#"{"x":1}"#).expect("valid json");
+    show_outcome("json", &o.address, &o.witness);
 
-    println!("OK — every realization implements `AddressInput` and exposes its ADR-057 registry.");
+    let o = uor_addr::sexp::address(b"(a b c)").expect("valid sexp");
+    show_outcome("sexp", &o.address, &o.witness);
+
+    let o = uor_addr::xml::address(b"<root/>").expect("valid xml");
+    show_outcome("xml", &o.address, &o.witness);
+
+    let o = uor_addr::asn1::address(&[0x02, 0x01, 0x2A]).expect("valid der");
+    show_outcome("asn1", &o.address, &o.witness);
+
+    let o = uor_addr::ring::address(&[0u8, 0x42]).expect("valid ring element");
+    show_outcome("ring", &o.address, &o.witness);
+
+    let m = uor_addr::codemodule::CodeModuleValue::module("demo", &[]);
+    let o = uor_addr::codemodule::address(m.tagged_bytes()).expect("valid ast");
+    show_outcome("codemodule", &o.address, &o.witness);
+
+    println!("OK — every realization exposes the common AddressOutcome surface.");
 }

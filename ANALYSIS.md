@@ -182,24 +182,30 @@ tag-byte half.
 
 ## 7.6. Typed-input bound enforcement — CT-B
 
-The typed-input bounds declared in `crate::json::shapes::bounds`
-(`MAX_JSON_DEPTH = 32`, `MAX_STRING_BYTES = 1024`,
-`MAX_NUMBER_DIGITS = 64`, `MAX_OBJECT_KEYS = 256`,
-`MAX_ARRAY_ELEMENTS = 256`, `JSON_VALUE_MAX_BYTES = 3968`) are
-enforced *exactly* at `JsonValue::parse`. There is no statistical
-claim; failure is total. The Lean theorem
-`UorAddr.TypedInput.depth_bound_is_strict` mechanises the depth
-half.
+Under ADR-060 inputs are **unbounded**: there is no input-size ceiling
+and no per-ψ-stage byte-width cap, so the per-realization byte / count
+caps (the former `MAX_STRING_BYTES`, `MAX_NUMBER_DIGITS`,
+`MAX_OBJECT_KEYS`, `MAX_ARRAY_ELEMENTS`, `JSON_VALUE_MAX_BYTES`) are
+gone. The single remaining typed-input bound is the recursive parser's
+**native stack-safety depth guard** `MAX_JSON_DEPTH = 1024`, declared in
+`crate::json::shapes::bounds` and enforced *exactly* at
+`JsonValue::parse`. It is a stack-overflow guard, not a capacity cap.
+There is no statistical claim; failure is total. The Lean theorem
+`UorAddr.TypedInput.depth_bound_is_strict` mechanises the depth half
+(`maxJsonDepth = 1024`).
 
-- CT-B01 — any input of depth > `MAX_JSON_DEPTH` is rejected.
-- CT-B02 — any string of width > `MAX_STRING_BYTES` is rejected.
-- CT-B03 — depth = `MAX_JSON_DEPTH` is accepted (the bound is `≤`).
+- CT-B01 — any input of depth > `MAX_JSON_DEPTH` is rejected at parse
+  with `InvalidJson`.
+- CT-B02 — an over-wide string (any width) is **admitted** and yields a
+  valid κ-label: there is no string-width cap.
+- CT-B03 — depth = `MAX_JSON_DEPTH` is accepted (the guard is `≤`).
 - CT-B04 — invalid JSON syntax is rejected with the `validUtf8Json`
-  violation IRI, distinct from typed-input size violations.
+  violation IRI, distinct from the depth guard.
 
-These bounds are the operational definition of "well-formed input"
-the §8 precision claims condition on. Inputs outside the bounds
-never enter the ψ-pipeline and never produce a κ-label.
+The depth guard exists purely for native stack safety; otherwise inputs
+of any size enter the ψ-pipeline (as a `Borrowed` carrier over the
+canonical form) and produce a κ-label. The §8 precision claims condition
+on syntactic well-formedness, not size.
 
 ## 8. The "arbitrary precision" framing
 
@@ -245,13 +251,15 @@ by re-running the same `cargo test` command in the same environment.
 
 ## GGUF / ONNX canonical-form design notes
 
-**Streamed two-level commitment.** Both container realizations bind
-unbounded content (tensor weights, token-vocabulary arrays) through
-streamed SHA-256 section roots rather than inlining bytes into the
-ψ-pipeline carrier. This is forced by the foundation's fixed 4096-byte
-route buffer and is the streaming realization of content-addressing:
-logically-equivalent inputs produce identical κ-labels, and any weight
-change flips the label.
+**Flat Merkle skeleton (ADR-060).** Both container realizations
+canonicalize to a full flat skeleton in which every variable-length leaf
+(tensor weights, token-vocabulary arrays, strings) is replaced by its
+streamed SHA-256 digest. The skeleton's size grows only with the
+KV / tensor / node counts, never with model size; the full skeleton
+flows through the ψ-pipeline as a `Borrowed` carrier that ψ₉ folds —
+there is no two-level section commitment and no size cap. This is the
+streaming realization of content-addressing: logically-equivalent inputs
+produce identical κ-labels, and any weight change flips the label.
 
 **GGUF.** Tensor offsets are *recomputed* in sorted-name order (not
 preserved) so two files whose tensor-data sections are laid out

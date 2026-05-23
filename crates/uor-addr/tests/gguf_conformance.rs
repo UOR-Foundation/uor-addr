@@ -130,14 +130,28 @@ fn label(bytes: &[u8]) -> String {
 fn is_kappa(s: &str) -> bool {
     s.len() == 71
         && s.starts_with("sha256:")
-        && s[7..].bytes().all(|b| b.is_ascii_hexdigit() && !b.is_ascii_uppercase())
+        && s[7..]
+            .bytes()
+            .all(|b| b.is_ascii_hexdigit() && !b.is_ascii_uppercase())
 }
 
 fn sample_kvs() -> Vec<Kv> {
     vec![
-        Kv { key: b"general.architecture".to_vec(), type_tag: T_STRING, value: str_value("llama") },
-        Kv { key: b"general.name".to_vec(), type_tag: T_STRING, value: str_value("tiny") },
-        Kv { key: b"general.alignment".to_vec(), type_tag: T_UINT32, value: u32_value(ALIGN as u32) },
+        Kv {
+            key: b"general.architecture".to_vec(),
+            type_tag: T_STRING,
+            value: str_value("llama"),
+        },
+        Kv {
+            key: b"general.name".to_vec(),
+            type_tag: T_STRING,
+            value: str_value("tiny"),
+        },
+        Kv {
+            key: b"general.alignment".to_vec(),
+            type_tag: T_UINT32,
+            value: u32_value(ALIGN as u32),
+        },
     ]
 }
 
@@ -178,7 +192,10 @@ fn invariant_under_tensor_reorder_and_relayout() {
     reordered.reverse(); // different stored offsets + emission order
     let a = label(&build(&sample_kvs(), &tensors));
     let b = label(&build(&sample_kvs(), &reordered));
-    assert_eq!(a, b, "tensor order / data layout must not affect the κ-label");
+    assert_eq!(
+        a, b,
+        "tensor order / data layout must not affect the κ-label"
+    );
 }
 
 #[test]
@@ -203,14 +220,20 @@ fn sensitive_to_metadata_value() {
 fn rejects_bad_magic() {
     let mut bytes = build(&sample_kvs(), &sample_tensors());
     bytes[0] ^= 0xFF;
-    assert_eq!(gguf::address(&bytes).unwrap_err(), AddressFailure::InvalidGguf);
+    assert_eq!(
+        gguf::address(&bytes).unwrap_err(),
+        AddressFailure::InvalidGguf
+    );
 }
 
 #[test]
 fn rejects_wrong_version() {
     let mut bytes = build(&sample_kvs(), &sample_tensors());
     bytes[4..8].copy_from_slice(&2u32.to_le_bytes()); // version = 2
-    assert_eq!(gguf::address(&bytes).unwrap_err(), AddressFailure::InvalidGguf);
+    assert_eq!(
+        gguf::address(&bytes).unwrap_err(),
+        AddressFailure::InvalidGguf
+    );
 }
 
 #[test]
@@ -220,5 +243,8 @@ fn rejects_deprecated_dtype() {
     // (data length need not match a real Q4_2 block for this rejection —
     // the deprecated type ID is refused before any data read.)
     let bytes = build(&sample_kvs(), &[t]);
-    assert_eq!(gguf::address(&bytes).unwrap_err(), AddressFailure::InvalidGguf);
+    assert_eq!(
+        gguf::address(&bytes).unwrap_err(),
+        AddressFailure::InvalidGguf
+    );
 }

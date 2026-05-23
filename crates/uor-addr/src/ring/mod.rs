@@ -37,20 +37,16 @@
 
 pub mod model;
 pub mod pipeline;
-pub mod resolvers;
 pub mod shapes;
 pub mod value;
 pub mod verbs;
 
 pub use model::{AddressModel, AddressRoute};
-pub use pipeline::{address, AddressFailure, AddressOutcome, AddressWitness};
-pub use resolvers::{
-    AddressChainComplexResolver, AddressCochainComplexResolver, AddressCohomologyGroupResolver,
-    AddressHomologyGroupResolver, AddressHomotopyGroupResolver, AddressKInvariantResolver,
-    AddressNerveResolver, AddressPostnikovResolver, AddressResolverTuple,
-};
-pub use shapes::{RingAddrBounds, MAX_WITT_LEVEL, RING_VALUE_MAX_BYTES};
-#[cfg(feature = "alloc")]
-pub use value::canonicalize;
-pub use value::{RingElement, RingElementRegistry};
+pub use pipeline::{address, AddressFailure, AddressOutcome, AddressWitness, VerifyError};
+pub use shapes::{MAX_WITT_LEVEL, RING_VALUE_MAX_BYTES};
+pub use value::RingElement;
 pub use verbs::{address_inference, VERB_TERMS_ADDRESS_INFERENCE};
+
+/// The shared, format-independent ψ-tower (re-exported for convenience;
+/// canonical path is [`crate::resolvers::AddressResolverTuple`]).
+pub use crate::resolvers::AddressResolverTuple;

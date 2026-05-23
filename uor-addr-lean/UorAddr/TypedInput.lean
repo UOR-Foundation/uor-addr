@@ -18,7 +18,10 @@ typed-input surface:
   alone, not just by canonical-form serialization.
 - `CT-B` — the parse-time depth bound is a *hard* bound: any input of
   depth > `MAX_JSON_DEPTH` is rejected; any input of depth
-  ≤ `MAX_JSON_DEPTH` is accepted (subject to width bounds).
+  ≤ `MAX_JSON_DEPTH` is accepted. Under ADR-060 this is the only
+  typed-input ceiling — a native-stack-overflow guard on the recursive
+  parser; string widths, number widths, and container arities are
+  unbounded (no width / count caps remain).
 - `CT-C` — the cost-model commitment is `EmptyCommitment` per
   ADR-048's default; no auxiliary cost surface is in scope.
 
@@ -64,10 +67,12 @@ theorem case_tag_range :
   intro c
   cases c <;> decide
 
-/-- The depth bound from `crate::shapes::bounds::MAX_JSON_DEPTH`.
+/-- The depth bound from `crate::json::shapes::bounds::MAX_JSON_DEPTH`.
 Mirrored at the Lean level as a const so the universal statement
-references the same value the runtime parser enforces. -/
-def maxJsonDepth : Nat := 32
+references the same value the runtime parser enforces. ADR-060 raised
+this to a generous native-stack-safety bound (the old 32 was a
+fixed-buffer artifact). -/
+def maxJsonDepth : Nat := 1024
 
 /-- CL-CT02 — the depth-bound check is a strict ≤ comparison. A JSON
 value of depth `d` is admissible iff `d ≤ maxJsonDepth`. -/

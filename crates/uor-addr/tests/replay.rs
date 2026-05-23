@@ -1,75 +1,52 @@
-//! CL-R — TC-05 replay round-trip via `uor-prism-verify`.
+//! CL-R — TC-05 replay round-trip via the address witness.
 //!
-//! Demonstrates the wiki TC-05 commitment: every `Grounded<AddressLabel>`
-//! the address pipeline emits can be replayed by a downstream verifier
-//! through `prism_verify::certify_from_trace` to produce a
-//! `Certified<GroundingCertificate>`, **without** re-invoking the
-//! canonical hash axis on the original input. The verifier reads the
-//! `ContentFingerprint` from the `Trace` data and re-packages it; no
-//! `Sha256Hasher::fold_bytes` call is made on the verifier side.
+//! Demonstrates the wiki TC-05 commitment: every `AddressWitness` the
+//! address pipeline emits can be replayed by a downstream verifier
+//! through [`AddressWitness::verify`] to recover the κ-label, **without**
+//! re-invoking the canonical hash axis on the original input. The witness
+//! carries the `content_fingerprint`; `verify()` re-derives the κ-label
+//! from it; no `Sha256Hasher::fold_bytes` call is made on the verifier
+//! side.
 //!
 //! This is the load-bearing demonstration of the discipline-scope
 //! separation between minting (which requires the substrate hasher)
-//! and verification (which requires only the trace + the wire-format
-//! certificate types).
+//! and verification (which requires only the witness).
 //!
 //! See [CONFORMANCE.md §CL](../../../CONFORMANCE.md#cl--formal-class--lean-mechanised-theorems)
 //! and [ARCHITECTURE.md §5](../../../ARCHITECTURE.md#5-seal-regime).
 
 #![allow(non_snake_case)]
 
-use prism_verify::{certify_from_trace, ReplayError, Trace};
-use uor_addr::address;
+use uor_addr::json::address;
 
-/// CL-R00 — façade wiring is correct: an empty `Trace` is rejected by
-/// `certify_from_trace` with `ReplayError::EmptyTrace`. Mirrors the
-/// minimal `prism_verify` rustdoc-pinned behaviour and confirms the
-/// dev-dep is reachable and the four re-exports (`certify_from_trace`,
-/// `Trace`, `ReplayError`, and implicitly `Certified`) compose.
+/// CL-R01 — round-trip: take the `AddressWitness` an `address(b)`
+/// invocation produced and call [`AddressWitness::verify`]. The recovered
+/// κ-label must equal the outcome's `address` (QS-05 replay
+/// equivalence — bit-identical round-trip), and the witness's
+/// `kappa_label()` must agree as well.
 #[test]
-fn cl_r00__verifier_facade_is_wired() {
-    let trace: Trace = Trace::empty();
-    assert!(matches!(
-        certify_from_trace(&trace),
-        Err(ReplayError::EmptyTrace)
-    ));
-}
-
-/// CL-R01 — round-trip: take the `Grounded<AddressLabel>` an
-/// `address(b)` invocation produced, ask its `derivation()` to
-/// `replay()` itself into a `Trace<256>`, and feed that `Trace` to
-/// `certify_from_trace`. The re-derived `Certified<GroundingCertificate>`
-/// must carry the **same** `ContentFingerprint` the original
-/// `Grounded<AddressLabel>` reported (QS-05 replay equivalence —
-/// bit-identical round-trip).
-#[test]
-fn cl_r01__grounded_address_label_round_trips_through_verifier() {
+fn cl_r01__address_witness_round_trips_through_verifier() {
     // Mint: forward the canonical address pipeline end-to-end.
     let outcome = address(br#"{"foo":"bar"}"#).expect("valid JSON");
-    let grounded = outcome.witness.grounded();
-    let original_fingerprint = grounded.content_fingerprint();
 
-    // Replay: convert the substrate-private `Grounded` into the wire
-    // format the verifier consumes (a `Trace`).
-    let trace: Trace<256> = grounded.derivation().replay();
-
-    // Verify: re-derive a `Certified<GroundingCertificate>` without
-    // invoking the canonical hash axis.
-    let certified = certify_from_trace(&trace).expect("trace must verify");
-    let recert_fingerprint = certified.certificate().content_fingerprint();
+    // Verify: re-derive the κ-label without invoking the canonical hash
+    // axis on the original input.
+    let recovered = outcome.witness.verify().expect("witness must verify");
 
     assert_eq!(
-        recert_fingerprint, original_fingerprint,
-        "CL-R01: replayed certificate must carry the source fingerprint \
-         (QS-05 replay equivalence). Got {recert_fingerprint:?} vs \
-         {original_fingerprint:?}"
+        recovered, outcome.address,
+        "CL-R01: verified κ-label must equal the minted address \
+         (QS-05 replay equivalence)"
     );
+    assert_eq!(outcome.witness.kappa_label(), outcome.address);
+    // The witness carries a 32-byte content fingerprint.
+    assert_eq!(outcome.witness.content_fingerprint().len(), 32);
 }
 
-/// CL-R02 — every reference fixture's `Grounded<AddressLabel>` replays
-/// through the verifier and reproduces the source `ContentFingerprint`.
-/// Establishes that round-trip equivalence holds across the entire
-/// byte-identity baseline, not just one input.
+/// CL-R02 — every reference fixture's `AddressWitness` verifies and
+/// reproduces the minted κ-label. Establishes that round-trip
+/// equivalence holds across the entire byte-identity baseline, not
+/// just one input.
 #[test]
 fn cl_r02__every_reference_fixture_round_trips() {
     let fixtures: &[&[u8]] = &[
@@ -88,13 +65,11 @@ fn cl_r02__every_reference_fixture_round_trips() {
     ];
     for raw in fixtures {
         let outcome = address(raw).expect("valid fixture");
-        let grounded = outcome.witness.grounded();
-        let trace: Trace<256> = grounded.derivation().replay();
-        let certified = certify_from_trace(&trace).expect("trace must verify");
+        let recovered = outcome.witness.verify().expect("witness must verify");
         assert_eq!(
-            certified.certificate().content_fingerprint(),
-            grounded.content_fingerprint(),
-            "CL-R02: round-trip fingerprint mismatch for {:?}",
+            recovered,
+            outcome.address,
+            "CL-R02: round-trip κ-label mismatch for {:?}",
             std::str::from_utf8(raw).unwrap_or("(non-utf8)")
         );
     }

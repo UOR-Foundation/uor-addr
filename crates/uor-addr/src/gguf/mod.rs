@@ -39,28 +39,29 @@
 pub mod dtype;
 pub mod model;
 pub mod pipeline;
-pub mod resolvers;
 pub mod shapes;
 pub mod value;
 pub mod verbs;
 
-/// Canonical-form version (see module docs). Future canonicalization-rule
-/// or spec revisions increment this.
-pub const CANONICAL_FORM_VERSION: u32 = 1;
+/// Canonical-form version (see module docs). Bumped to 2 under ADR-060:
+/// the canonical form is now the full flat Merkle skeleton (no two-level
+/// commitment), so v2 κ-labels differ from the v1 commitment's.
+pub const CANONICAL_FORM_VERSION: u32 = 2;
 
 pub use dtype::GgmlType;
 pub use model::{AddressModel, AddressRoute};
-pub use pipeline::{address, AddressFailure, AddressOutcome, AddressWitness};
-pub use resolvers::{
-    AddressChainComplexResolver, AddressCochainComplexResolver, AddressCohomologyGroupResolver,
-    AddressHomologyGroupResolver, AddressHomotopyGroupResolver, AddressKInvariantResolver,
-    AddressNerveResolver, AddressPostnikovResolver, AddressResolverTuple,
-};
-pub use shapes::bounds::{
-    GgufAddrBounds, GgufHostBounds, GGUF_CANON_MAX_BYTES, GGUF_DEFAULT_ALIGNMENT, GGUF_HEADER_BYTES,
-    GGUF_MAGIC, GGUF_MAX_DIMS, GGUF_VERSION_REQUIRED,
-};
 #[cfg(feature = "alloc")]
-pub use value::canonicalize;
-pub use value::{GgufValue, GgufValueRegistry};
+pub use pipeline::address;
+pub use pipeline::{AddressFailure, AddressOutcome, AddressWitness, VerifyError};
+pub use shapes::bounds::{
+    GGUF_DEFAULT_ALIGNMENT, GGUF_HEADER_BYTES, GGUF_MAGIC, GGUF_MAX_DIMS,
+    GGUF_METADATA_ARRAY_DEPTH_MAX, GGUF_VERSION_REQUIRED,
+};
+pub use value::GgufCarrier;
+#[cfg(feature = "alloc")]
+pub use value::{canonicalize, GgufValue};
 pub use verbs::{address_inference, VERB_TERMS_ADDRESS_INFERENCE};
+
+/// The shared, format-independent ψ-tower (re-exported for convenience;
+/// canonical path is [`crate::resolvers::AddressResolverTuple`]).
+pub use crate::resolvers::AddressResolverTuple;

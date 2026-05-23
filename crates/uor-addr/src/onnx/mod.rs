@@ -14,41 +14,52 @@
 //!
 //! ## Canonical form
 //!
-//! A protobuf-canonical two-level commitment (canonical form v1 —
-//! [`CANONICAL_FORM_VERSION`]): `LE_i64(ir_version) || opset_root ||
-//! graph_root || model_meta_root`, where each root is a streamed SHA-256
-//! over the corresponding canonicalized skeleton (field-number ordering,
-//! Kahn-topological node ordering with lexicographic tie-break,
-//! name-sorted initializers / IO, typed-data-to-`raw_data` reduction,
-//! and depth-bounded subgraph recursion). See [`value`] for the full
-//! byte layout. Mirrors [`crate::gguf`]'s streamed-commitment design.
+//! The ONNX spec defines no canonical form (protobuf v3 admits many
+//! byte-encodings of the same logical message); this realization defines
+//! one (canonical form v2 — [`CANONICAL_FORM_VERSION`]). It is a **flat
+//! skeleton**: the `ModelProto` structure emitted inline (opset imports
+//! sorted by `(domain, version)`, nodes in Kahn-topological order with
+//! lexicographic `(name, op_type, domain)` tie-break, name-sorted
+//! initializers / IO, typed-data-to-`raw_data` reduction, depth-bounded
+//! subgraph recursion emitted inline), in which every variable-length
+//! leaf — tensor data, strings, opaque sub-message payloads — is
+//! represented by its 32-byte SHA-256 digest, so the skeleton's size
+//! grows with structure, not model size, while still binding every weight
+//! byte into the κ-label. See [`value`] for the full byte layout.
+//!
+//! Under ADR-060 the **full skeleton** flows through the pipeline as a
+//! [`TermValue::Borrowed`](prism::operation::TermValue) carrier and ψ₉
+//! folds it through `H = Sha256Hasher` — there is no two-level commitment
+//! and no count / width cap. Two ONNX models that decode to the same
+//! logical content canonicalize to byte-identical skeletons and therefore
+//! to the same κ-label.
 
 pub mod dtype;
 pub mod model;
 pub mod pipeline;
 pub mod protobuf;
-pub mod resolvers;
 pub mod shapes;
 pub mod value;
 pub mod verbs;
 
-/// Canonical-form version (see [`crate::gguf::CANONICAL_FORM_VERSION`]
-/// for the versioning discipline).
-pub const CANONICAL_FORM_VERSION: u32 = 1;
+/// Canonical-form version (see module docs). Bumped to 2 under ADR-060:
+/// the canonical form is now the full flat skeleton (no two-level
+/// commitment), so v2 κ-labels differ from the v1 commitment's.
+pub const CANONICAL_FORM_VERSION: u32 = 2;
 
 pub use dtype::OnnxDataType;
 pub use model::{AddressModel, AddressRoute};
-pub use pipeline::{address, AddressFailure, AddressOutcome, AddressWitness};
-pub use resolvers::{
-    AddressChainComplexResolver, AddressCochainComplexResolver, AddressCohomologyGroupResolver,
-    AddressHomologyGroupResolver, AddressHomotopyGroupResolver, AddressKInvariantResolver,
-    AddressNerveResolver, AddressPostnikovResolver, AddressResolverTuple,
-};
-pub use shapes::bounds::{
-    OnnxAddrBounds, OnnxHostBounds, ONNX_CANON_BYTES, ONNX_CANON_MAX_BYTES,
-    ONNX_IR_VERSION_REQUIRED, ONNX_TENSOR_DATA_TYPE_MAX, ONNX_TENSOR_DATA_TYPE_MIN,
-};
 #[cfg(feature = "alloc")]
-pub use value::canonicalize;
-pub use value::{OnnxValue, OnnxValueRegistry};
+pub use pipeline::address;
+pub use pipeline::{AddressFailure, AddressOutcome, AddressWitness, VerifyError};
+pub use shapes::bounds::{
+    ONNX_IR_VERSION_REQUIRED, ONNX_OPSET_VERSION_MIN, ONNX_SUBGRAPH_DEPTH_MAX,
+};
+pub use value::OnnxCarrier;
+#[cfg(feature = "alloc")]
+pub use value::{canonicalize, OnnxValue};
 pub use verbs::{address_inference, VERB_TERMS_ADDRESS_INFERENCE};
+
+/// The shared, format-independent ψ-tower (re-exported for convenience;
+/// canonical path is [`crate::resolvers::AddressResolverTuple`]).
+pub use crate::resolvers::AddressResolverTuple;

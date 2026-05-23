@@ -37,14 +37,14 @@
 //!
 //! # TC-05 replay across the wasm boundary
 //!
-//! `grounded.verify()` runs `Grounded<AddressLabel>::derivation()`
-//! followed by `prism_verify::certify_from_trace`, returning the
-//! re-derived κ-label. The verifier path does **not** re-invoke the
-//! canonical SHA-256 hash axis (TC-05 / QS-05 — see CL-R\* in
-//! CONFORMANCE.md). The resource carries the in-process `Grounded`
-//! value; cross-process replay requires re-minting at the verifier
-//! side (a deliberate constraint of the Component Model resource
-//! lifecycle).
+//! `grounded.verify()` re-certifies the witness's owned replay
+//! `Trace<256>` through `prism::replay::certify_from_trace` (ADR-060,
+//! via `uor_addr::AddressWitness::verify`), returning the re-derived
+//! κ-label. The verifier path does **not** re-invoke the canonical
+//! SHA-256 hash axis (TC-05 / QS-05 — see CL-R\* in CONFORMANCE.md). The
+//! resource carries the in-process owned witness; cross-process replay
+//! requires re-minting at the verifier side (a deliberate constraint of
+//! the Component Model resource lifecycle).
 //!
 //! # Allocator
 //!
@@ -107,61 +107,44 @@ mod component {
         }
 
         fn content_fingerprint(&self) -> Vec<u8> {
-            self.outcome
-                .witness
-                .grounded()
-                .content_fingerprint()
-                .as_bytes()
-                .to_vec()
+            // ADR-060: the witness owns its 32-byte σ-projection fingerprint.
+            self.outcome.witness.content_fingerprint().to_vec()
         }
 
         fn verify(&self) -> Result<KappaLabel, VerifyError> {
-            // Replay the derivation through prism_verify. The replay
-            // path re-walks the trace events the source pipeline
-            // emitted; SHA-256 is *not* invoked again. The verifier's
-            // certified fingerprint must equal the source `Grounded`'s
-            // fingerprint (QS-05 replay equivalence).
-            let grounded = self.outcome.witness.grounded();
-            let trace: prism_verify::Trace<256> = grounded.derivation().replay();
-            let certified = prism_verify::certify_from_trace(&trace).map_err(map_replay_error)?;
-
-            // Defensive: the replayed certificate's fingerprint must
-            // match the source `Grounded`'s. The CL-R01/CL-R02 tests
-            // pin this; we re-check at the FFI boundary to catch any
-            // substrate corruption between mint and verify.
-            if certified.certificate().content_fingerprint() != grounded.content_fingerprint() {
-                return Err(VerifyError::OutOfOrderEvent);
-            }
-
-            // Return the κ-label this Grounded carries. The replay
-            // certificate is structurally equivalent; emitting the
-            // pre-minted ASCII bytes is the natural form for the host.
-            Ok(self.outcome.address.as_str().to_string())
+            // ADR-060: `verify()` re-certifies the owned replay `Trace<256>`
+            // through `prism::replay::certify_from_trace` (SHA-256 is *not*
+            // re-invoked) and confirms the re-derived fingerprint matches
+            // (QS-05 replay equivalence; CL-R* in CONFORMANCE.md), returning
+            // the recovered κ-label.
+            self.outcome
+                .witness
+                .verify()
+                .map(|label| label.as_str().to_string())
+                .map_err(map_verify_error)
         }
     }
 
-    fn map_replay_error(e: prism_verify::ReplayError) -> VerifyError {
+    fn map_verify_error(e: uor_addr::VerifyError) -> VerifyError {
+        // Both are defensive — unreachable for a witness this component
+        // minted. Map to the closest existing WIT verify-error variants.
         match e {
-            prism_verify::ReplayError::EmptyTrace => VerifyError::EmptyTrace,
-            prism_verify::ReplayError::OutOfOrderEvent { .. } => VerifyError::OutOfOrderEvent,
-            prism_verify::ReplayError::ZeroTarget { .. } => VerifyError::ZeroTarget,
-            prism_verify::ReplayError::NonContiguousSteps { .. } => VerifyError::NonContiguousSteps,
-            prism_verify::ReplayError::CapacityExceeded { .. } => VerifyError::CapacityExceeded,
-            // `#[non_exhaustive]` upstream — any future ReplayError
-            // variant lands here. Map defensively to the closest
-            // existing WIT verify-error.
-            _ => VerifyError::EmptyTrace,
+            uor_addr::VerifyError::ReplayFailed => VerifyError::EmptyTrace,
+            uor_addr::VerifyError::FingerprintMismatch => VerifyError::OutOfOrderEvent,
         }
     }
 
     // ─── Helpers to factor out the κ-label-only path ────────────────
 
+    // Under ADR-060 every realization's `AddressFailure` is the uniform
+    // two-variant `{ Invalid*, PipelineFailure }` (no `TooLarge` — inputs
+    // are unbounded). `$err_ty` is retained for the `PipelineFailure`
+    // path; `$invalid` names the realization's parse-rejection variant.
     macro_rules! map_addr {
         ($result:expr, $err_ty:path, $invalid:path) => {
             match $result {
                 Ok(outcome) => Ok(outcome.address.as_str().to_string()),
                 Err($invalid) => Err(AddressError::InvalidInput),
-                Err(<$err_ty>::TooLarge) => Err(AddressError::TooLarge),
                 Err(<$err_ty>::PipelineFailure) => Err(AddressError::PipelineFailure),
             }
         };
@@ -172,7 +155,6 @@ mod component {
             match $result {
                 Ok(outcome) => Ok(Grounded::new(GroundedImpl { outcome })),
                 Err($invalid) => Err(AddressError::InvalidInput),
-                Err(<$err_ty>::TooLarge) => Err(AddressError::TooLarge),
                 Err(<$err_ty>::PipelineFailure) => Err(AddressError::PipelineFailure),
             }
         };
@@ -227,7 +209,7 @@ mod component {
             map_addr!(
                 uor_addr::codemodule::address(&input),
                 uor_addr::codemodule::AddressFailure,
-                uor_addr::codemodule::AddressFailure::InvalidCcmas
+                uor_addr::codemodule::AddressFailure::InvalidAst
             )
         }
 
@@ -301,7 +283,7 @@ mod component {
             map_witness!(
                 uor_addr::codemodule::address(&input),
                 uor_addr::codemodule::AddressFailure,
-                uor_addr::codemodule::AddressFailure::InvalidCcmas
+                uor_addr::codemodule::AddressFailure::InvalidAst
             )
         }
 

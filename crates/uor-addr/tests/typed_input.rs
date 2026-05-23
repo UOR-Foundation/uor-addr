@@ -8,7 +8,7 @@
 
 #![allow(non_snake_case)]
 
-use uor_addr::{address, AddressFailure, JsonValue, MAX_JSON_DEPTH, MAX_STRING_BYTES};
+use uor_addr::json::{address, AddressFailure, JsonValue, MAX_JSON_DEPTH};
 
 // ───────────────────────────────────────────────────────────────────────────
 // CT-T — Type distinction. Different scalar types must produce distinct
@@ -115,7 +115,8 @@ fn ct_e04__nested_key_ordering_invariance() {
 // rejects inputs that violate any AddrBounds typed-input ceiling.
 // ───────────────────────────────────────────────────────────────────────────
 
-/// CT-B01 — over-deep nesting is rejected at parse with TooLarge.
+/// CT-B01 — over-deep nesting is rejected at parse (the stack-safety
+/// depth guard remains, surfacing as InvalidJson).
 #[test]
 fn ct_b01__over_deep_nesting_rejected_at_parse() {
     let mut s = String::new();
@@ -126,16 +127,15 @@ fn ct_b01__over_deep_nesting_rejected_at_parse() {
         s.push(']');
     }
     let err = address(s.as_bytes()).expect_err("must reject");
-    assert!(matches!(err, AddressFailure::TooLarge));
+    assert!(matches!(err, AddressFailure::InvalidJson));
 }
 
-/// CT-B02 — over-wide string is rejected at parse with TooLarge.
+/// CT-B02 — wide strings are admitted (ADR-060 removed the width cap).
 #[test]
-fn ct_b02__over_wide_string_rejected_at_parse() {
-    let big: String = "a".repeat(MAX_STRING_BYTES + 1);
+fn ct_b02__wide_string_admitted() {
+    let big: String = "a".repeat(100_000);
     let raw = format!("\"{big}\"");
-    let err = address(raw.as_bytes()).expect_err("must reject");
-    assert!(matches!(err, AddressFailure::TooLarge));
+    assert!(address(raw.as_bytes()).is_ok());
 }
 
 /// CT-B03 — exactly-at-bound depth is accepted.

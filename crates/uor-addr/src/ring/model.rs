@@ -1,13 +1,15 @@
-//! `ring::AddressModel` — the ring-element realization's
-//! `PrismModel<H, B, A, R, C>` declaration (wiki ADR-020 + ADR-036 +
-//! ADR-048 + ARCHITECTURE.md "Common PrismModel form").
+//! `ring::AddressModel` — the ring-element realization's `PrismModel`
+//! declaration, binding the shared [`AddrBounds`]
+//! profile and the shared [`AddressResolverTuple`](crate::resolvers)
+//! ψ-tower. `prism_model!` derives the ADR-060 `INLINE_BYTES` carrier
+//! width from the bounds and threads the `'a` input-carrier lifetime.
 
 use prism::pipeline::{prism_model, EmptyCommitment};
 use prism::vocabulary::DefaultHostTypes;
 
+use crate::bounds::AddrBounds;
 use crate::label::AddressLabel;
-use crate::ring::resolvers::AddressResolverTuple;
-use crate::ring::shapes::bounds::RingAddrBounds;
+use crate::resolvers::AddressResolverTuple;
 use crate::ring::value::RingElement;
 
 #[allow(unused_imports)]
@@ -18,7 +20,7 @@ prism_model! {
     pub struct AddressRoute;
     impl PrismModel<
         DefaultHostTypes,
-        RingAddrBounds,
+        AddrBounds,
         prism::crypto::Sha256Hasher,
         AddressResolverTuple<prism::crypto::Sha256Hasher>,
         EmptyCommitment

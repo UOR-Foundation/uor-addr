@@ -1,14 +1,16 @@
-//! `gguf::AddressModel` — the ONNX realization's `PrismModel` declaration.
-//! Mirrors [`crate::ring::model`] with `Input = OnnxValue` and the
-//! [`OnnxAddrBounds`] capacity profile.
+//! `onnx::AddressModel` — the ONNX realization's `PrismModel`
+//! declaration, binding the shared [`AddrBounds`]
+//! profile and the shared [`AddressResolverTuple`](crate::resolvers)
+//! ψ-tower. The input is the ADR-060 borrowed-carrier handle
+//! [`OnnxCarrier`].
 
 use prism::pipeline::{prism_model, EmptyCommitment};
 use prism::vocabulary::DefaultHostTypes;
 
-use crate::onnx::resolvers::AddressResolverTuple;
-use crate::onnx::shapes::bounds::OnnxAddrBounds;
-use crate::onnx::value::OnnxValue;
+use crate::bounds::AddrBounds;
 use crate::label::AddressLabel;
+use crate::onnx::value::OnnxCarrier;
+use crate::resolvers::AddressResolverTuple;
 
 #[allow(unused_imports)]
 use crate::onnx::verbs::{address_inference, VERB_TERMS_ADDRESS_INFERENCE};
@@ -18,12 +20,12 @@ prism_model! {
     pub struct AddressRoute;
     impl PrismModel<
         DefaultHostTypes,
-        OnnxAddrBounds,
+        AddrBounds,
         prism::crypto::Sha256Hasher,
         AddressResolverTuple<prism::crypto::Sha256Hasher>,
         EmptyCommitment
     > for AddressModel {
-        type Input = OnnxValue;
+        type Input = OnnxCarrier<'a>;
         type Output = AddressLabel;
         type Route = AddressRoute;
         fn route(input: Self::Input) -> Self::Output {

@@ -1,8 +1,7 @@
-//! Substitution-axis selections for the XML realization.
+//! Grammar constant for the XML realization. The capacity profile is the
+//! shared [`crate::bounds::AddrBounds`]; only the recursion stack-safety
+//! bound lives here.
 
 pub mod bounds;
 
-pub use bounds::{
-    XmlAddrBounds, MAX_XML_ATTRIBUTES, MAX_XML_DEPTH, MAX_XML_ELEMENT_NAME_BYTES,
-    MAX_XML_TEXT_BYTES, XML_VALUE_MAX_BYTES,
-};
+pub use bounds::MAX_XML_DEPTH;

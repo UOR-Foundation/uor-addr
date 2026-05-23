@@ -54,23 +54,20 @@
 
 pub mod model;
 pub mod pipeline;
-pub mod resolvers;
 pub mod shapes;
 pub mod value;
 pub mod verbs;
 
 pub use model::{AddressModel, AddressRoute};
-pub use pipeline::{address, AddressFailure, AddressOutcome, AddressWitness};
-pub use resolvers::{
-    AddressChainComplexResolver, AddressCochainComplexResolver, AddressCohomologyGroupResolver,
-    AddressHomologyGroupResolver, AddressHomotopyGroupResolver, AddressKInvariantResolver,
-    AddressNerveResolver, AddressPostnikovResolver, AddressResolverTuple,
-};
-pub use shapes::{
-    XmlAddrBounds, MAX_XML_ATTRIBUTES, MAX_XML_DEPTH, MAX_XML_ELEMENT_NAME_BYTES,
-    MAX_XML_TEXT_BYTES, XML_VALUE_MAX_BYTES,
-};
+#[cfg(feature = "alloc")]
+pub use pipeline::address;
+pub use pipeline::{AddressFailure, AddressOutcome, AddressWitness, VerifyError};
+pub use shapes::MAX_XML_DEPTH;
 #[cfg(feature = "alloc")]
 pub use value::canonicalize;
-pub use value::{XmlValue, XmlValueRegistry};
+pub use value::XmlValue;
 pub use verbs::{address_inference, VERB_TERMS_ADDRESS_INFERENCE};
+
+/// The shared, format-independent ψ-tower (re-exported for convenience;
+/// canonical path is [`crate::resolvers::AddressResolverTuple`]).
+pub use crate::resolvers::AddressResolverTuple;

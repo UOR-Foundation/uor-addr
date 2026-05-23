@@ -3,11 +3,14 @@
 //!
 //! UOR-ADDR sits at the standard-library layer per ADR-031: every
 //! format-specific addressing realization shares the [`common`]
-//! architectural surface — the [`AddressInput`] trait, the
-//! [`AddressLabel`] output shape, the resolver-tuple shape, and the
-//! `address_inference` verb body — while supplying its own concrete
-//! `prism_model!`, `verb!`, `resolver!`, and `output_shape!`
-//! specializations.
+//! architectural surface — the [`AddressInput`] trait, the single
+//! [`AddrBounds`] capacity profile, the single [`AddressLabel`] output
+//! shape, and the single format-independent [`AddressResolverTuple`]
+//! ψ-tower — while supplying its own concrete `prism_model!` + `verb!`
+//! plus a canonical-form input handle (ADR-060: the handle's
+//! `as_binding_value` produces the canonical bytes as a source-
+//! polymorphic [`prism::operation::TermValue`] carrier, so the ψ-tower is
+//! shared verbatim and there is no fixed input buffer or size cap).
 //!
 //! ## Authoritative sources
 //!
@@ -62,27 +65,27 @@
 //! |------------------------------------------------------------|--------------------------------------------------------------------|
 //! | ADR-007 / ADR-010 pluggable Hasher (substrate ships none)  | [`json::Sha256Hasher`] — re-export of `prism::crypto::Sha256Hasher` |
 //! | ADR-031 Prism standard library (`uor-prism` façade)        | `prism::pipeline` / `vocabulary` / `seal` / `crypto`                |
-//! | ADR-018 / ADR-037 HostBounds capacity ceilings             | [`json::AddrBounds`] for the JSON realization                       |
+//! | ADR-018 / ADR-037 HostBounds capacity profile              | the single shared [`AddrBounds`] (every realization binds it)       |
 //! | ADR-020 PrismModel<H, B, A, R, C> declaration              | [`json::AddressModel`] (and one per realization)                    |
 //! | ADR-023 typed-iso input shape                              | [`json::JsonValue`] (and one per format)                            |
 //! | ADR-024 implementation closure (verb!-emitted bodies)      | [`json::address_inference`] (one per realization)                   |
 //! | ADR-027 sealed Output shape (output_shape!-emitted)        | [`AddressLabel`] (single sha256-axis specialization, shared)        |
 //! | ADR-035 canonical k-invariants branch ψ_1 → ψ_7 → ψ_8 → ψ_9 | every realization's `address_inference` body                       |
 //! | ADR-035 verb-body ψ-residuals discipline                   | `verb_arena_contains_no_sigma_residuals` test per realization       |
-//! | ADR-036 ResolverTuple (eight resolver categories)          | [`json::AddressResolverTuple<H>`] (one per realization)             |
-//! | ADR-041 typed-coordinate carriers                          | `SimplicialComplexBytes` … `HomotopyGroupsBytes` chain              |
-//! | ADR-046 resolver-body iterative-resolution discipline      | `canonicalize_into` inside ψ_9's resolver body                      |
+//! | ADR-036 ResolverTuple (eight resolver categories)          | the single shared [`AddressResolverTuple`] (format-independent)     |
+//! | ADR-046 canonicalization at carrier production             | each input handle's `as_binding_value` (host boundary, not ψ_9)     |
 //! | ADR-048 TypedCommitment (5th model parameter)              | [`EmptyCommitment`] default; [`variant::storage`] non-default       |
-//! | ADR-057 bounded recursive structural typing                | [`json::JsonValueRegistry`] (the `register_shape!`-emitted registry)|
-//! | TC-02 mechanism sealing                                    | `AddressWitness` per realization borrows the sealed `Grounded<…>`    |
-//! | TC-05 replay round-trip (anamorphism)                      | `tests/replay.rs` via `prism_verify::certify_from_trace`            |
+//! | ADR-057 bounded recursive structural typing                | the recursive parsers' native-stack depth guards (`MAX_*_DEPTH`)    |
+//! | ADR-060 source-polymorphic value carrier (no fixed buffer) | input handles yield `Inline`/`Borrowed`/`Stream` [`prism::operation::TermValue`] |
+//! | TC-02 mechanism sealing                                    | [`AddressWitness`] owns the replayable `Trace<256>` + fingerprint   |
+//! | TC-05 replay round-trip (anamorphism)                      | [`AddressWitness::verify`] via `prism::replay::certify_from_trace`   |
 //! | Algebraic closure (ADR-024 / ADR-026)                      | 71 disjoint `Site` constraints; χ(N(C)) = 71 = SITE_COUNT           |
 //!
 //! ## Quick reference
 //!
-//! - [`json::address`] — the JSON entry point: parses raw JSON bytes
-//!   into a typed [`json::JsonValue`] and invokes the model's
-//!   `forward()` method.
+//! - [`json::address`] — the JSON entry point: canonicalizes raw JSON
+//!   bytes (JCS-RFC8785 + NFC) and folds the borrowed canonical form
+//!   through the model's `forward()` method.
 //! - [`sexp::address`] — the S-expression entry point.
 //! - [`AddressInput`] — the common trait every realization implements.
 //! - [`AddressLabel`] — the ψ-pipeline label (71 W8 sites — the
@@ -100,39 +103,40 @@
 #[cfg(feature = "alloc")]
 extern crate alloc;
 
-pub mod asn1;
+// ── Shared architectural surface (ADR-060 single capacity profile +
+//    format-independent ψ-tower). ──
+pub mod bounds;
 pub mod canonical;
-pub mod codemodule;
 pub mod common;
+pub mod label;
+pub mod outcome;
+pub mod resolvers;
+
+// ── Format-specific realizations. ──
+// MIGRATION (foundation 0.5.1 / prism 0.3.1, ADR-060): realizations are
+// re-enabled here one at a time as each is reshaped to the carrier-
+// producing-handle pattern. `ring` is the validated template.
+pub mod asn1;
+pub mod codemodule;
 #[cfg(feature = "gguf")]
 pub mod gguf;
 pub mod json;
-pub mod label;
 #[cfg(feature = "onnx")]
 pub mod onnx;
-pub mod outcome;
 pub mod ring;
 pub mod schema;
 pub mod sexp;
 pub mod variant;
 pub mod xml;
 
-// Common architectural surface re-exports (per ARCHITECTURE.md
-// "What UOR-ADDR provides"). Downstream realizations consume these.
+// Common architectural surface re-exports.
+pub use bounds::{AddrBounds, ADDR_INLINE_BYTES};
 pub use common::AddressInput;
 pub use label::{AddressLabel, KappaLabel, LabelDecodeError, ADDRESS_LABEL_BYTES};
-pub use outcome::{AddressOutcome, AddressWitness};
+pub use outcome::{AddressOutcome, AddressWitness, VerifyError};
 pub use prism::pipeline::EmptyCommitment;
+pub use resolvers::AddressResolverTuple;
 
-// JSON-realization re-exports at the crate root for backward
-// compatibility and for the conventional "import the default
-// realization at the root" pattern. Canonical path is
-// `uor_addr::json::*`.
-#[cfg(feature = "alloc")]
-pub use json::canonicalize;
-pub use json::{
-    address, address_inference, AddrBounds, AddressFailure, AddressModel, AddressResolverTuple,
-    AddressRoute, JsonValue, JsonValueRegistry, Sha256Hasher, JSON_VALUE_MAX_BYTES,
-    MAX_ARRAY_ELEMENTS, MAX_JSON_DEPTH, MAX_NUMBER_DIGITS, MAX_OBJECT_KEYS, MAX_STRING_BYTES,
-    VERB_TERMS_ADDRESS_INFERENCE,
-};
+/// Canonical `Hasher<32>` σ-axis selection (re-export of
+/// `prism::crypto::Sha256Hasher`); every shipped realization binds it.
+pub use prism::crypto::Sha256Hasher;
