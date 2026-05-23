@@ -23,7 +23,7 @@
 //!     points emit `<prefix>:<hex(H(canonical_form))>` for the *same* `H`,
 //!     tying the validated axis to the κ-label the pipeline mints.
 
-use prism::crypto::{Blake3Hasher, Keccak256Hasher, Sha256Hasher, Sha3_256Hasher};
+use prism::crypto::{Blake3Hasher, Keccak256Hasher, Sha256Hasher, Sha3_256Hasher, Sha512Hasher};
 use prism::vocabulary::Hasher;
 use uor_addr::hash::AddrHash;
 
@@ -40,6 +40,12 @@ fn digest<H: Hasher>(msg: &[u8]) -> String {
     hex(&out[..<H as Hasher>::OUTPUT_BYTES])
 }
 
+/// SHA-512 is `Hasher<64>`; its digest helper needs the 64-byte width.
+fn digest64<H: Hasher<64>>(msg: &[u8]) -> String {
+    let out = H::initial().fold_bytes(msg).finalize();
+    hex(&out[..<H as Hasher<64>>::OUTPUT_BYTES])
+}
+
 // ── Authoritative known-answer vectors ──
 
 const SHA256_EMPTY: &str = "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855";
@@ -50,6 +56,8 @@ const KECCAK256_EMPTY: &str = "c5d2460186f7233c927e7db2dcc703c0e500b653ca82273b7
 const KECCAK256_ABC: &str = "4e03657aea45a94fc7d47ba826c8d667c0d1e6e33a64a036ec44f58fa12d6c45";
 const BLAKE3_EMPTY: &str = "af1349b9f5f9a1a6a0404dea36dcc9499bcb25c9adc112b7cc9a93cae41f3262";
 const BLAKE3_ABC: &str = "6437b3ac38465133ffb63b75273a8db548c558465d79db03fd359c6cd5bd9d85";
+const SHA512_EMPTY: &str = "cf83e1357eefb8bdf1542850d66d8007d620e4050b5715dc83f4a921d36ce9ce47d0d13c5d85f2b0ff8318d2877eec2f63b931bd47417a81a538327af927da3e";
+const SHA512_ABC: &str = "ddaf35a193617abacc417349ae20413112e6fa4e89a97ea20a9eeee64b55d39a2192992a274fc1a836ba3c23a3feebbd454d4423643ce80e2a9ac94fa54ca49f";
 
 #[test]
 fn sha256_matches_fips_180_4() {
@@ -76,6 +84,12 @@ fn blake3_matches_reference_vectors() {
 }
 
 #[test]
+fn sha512_matches_fips_180_4() {
+    assert_eq!(digest64::<Sha512Hasher>(b""), SHA512_EMPTY);
+    assert_eq!(digest64::<Sha512Hasher>(b"abc"), SHA512_ABC);
+}
+
+#[test]
 fn keccak256_is_distinct_from_sha3_256() {
     // Same sponge, different padding byte (0x01 vs 0x06): the digests must
     // differ, proving the crate binds the two distinct axes.
@@ -91,22 +105,24 @@ fn addr_hash_prefix_and_width_mapping() {
     assert_eq!(Blake3Hasher::LABEL_PREFIX, "blake3");
     assert_eq!(Sha3_256Hasher::LABEL_PREFIX, "sha3-256");
     assert_eq!(Keccak256Hasher::LABEL_PREFIX, "keccak256");
+    assert_eq!(Sha512Hasher::LABEL_PREFIX, "sha512");
     assert_eq!(Sha256Hasher::LABEL_BYTES, 71);
     assert_eq!(Blake3Hasher::LABEL_BYTES, 71);
     assert_eq!(Sha3_256Hasher::LABEL_BYTES, 73);
     assert_eq!(Keccak256Hasher::LABEL_BYTES, 74);
+    assert_eq!(Sha512Hasher::LABEL_BYTES, 135);
 }
 
 // ── Pipeline consistency: the JSON realization mints `<prefix>:<hex>` over
 //    the canonical form, for each axis, using exactly the validated H. ──
 
 #[cfg(feature = "alloc")]
-fn expect_label<H: AddrHash>(canonical: &[u8]) -> String {
+fn expect_label<const FP: usize, H: Hasher<FP> + AddrHash>(canonical: &[u8]) -> String {
     let d = H::initial().fold_bytes(canonical).finalize();
     format!(
         "{}:{}",
-        H::LABEL_PREFIX,
-        hex(&d[..<H as Hasher>::OUTPUT_BYTES])
+        <H as AddrHash>::LABEL_PREFIX,
+        hex(&d[..<H as AddrHash>::OUTPUT_BYTES])
     )
 }
 
@@ -120,28 +136,35 @@ fn json_pipeline_mints_each_axis_over_canonical_form() {
 
     assert_eq!(
         uor_addr::json::address(raw).unwrap().address.as_str(),
-        expect_label::<Sha256Hasher>(&canonical)
+        expect_label::<32, Sha256Hasher>(&canonical)
     );
     assert_eq!(
         uor_addr::json::address_blake3(raw)
             .unwrap()
             .address
             .as_str(),
-        expect_label::<Blake3Hasher>(&canonical)
+        expect_label::<32, Blake3Hasher>(&canonical)
     );
     assert_eq!(
         uor_addr::json::address_sha3_256(raw)
             .unwrap()
             .address
             .as_str(),
-        expect_label::<Sha3_256Hasher>(&canonical)
+        expect_label::<32, Sha3_256Hasher>(&canonical)
     );
     assert_eq!(
         uor_addr::json::address_keccak256(raw)
             .unwrap()
             .address
             .as_str(),
-        expect_label::<Keccak256Hasher>(&canonical)
+        expect_label::<32, Keccak256Hasher>(&canonical)
+    );
+    assert_eq!(
+        uor_addr::json::address_sha512(raw)
+            .unwrap()
+            .address
+            .as_str(),
+        expect_label::<64, Sha512Hasher>(&canonical)
     );
 }
 
@@ -163,6 +186,9 @@ fn json_axes_are_distinct_and_deterministic() {
     assert!(b.starts_with("blake3:") && b.len() == 71);
     assert!(q.starts_with("sha3-256:") && q.len() == 73);
     assert!(k.starts_with("keccak256:") && k.len() == 74);
+    let z = uor_addr::json::address_sha512(raw).unwrap().address;
+    assert!(z.starts_with("sha512:") && z.len() == 135);
+    assert_ne!(s.as_str(), z.as_str());
 }
 
 #[cfg(feature = "alloc")]
@@ -189,4 +215,8 @@ fn json_witness_verifies_for_every_axis() {
         .witness
         .verify()
         .is_ok());
+    // sha512 (64-byte fingerprint) witness replay round-trips too.
+    let z = uor_addr::json::address_sha512(raw).unwrap();
+    assert_eq!(z.witness.verify().unwrap(), z.address);
+    assert_eq!(z.witness.content_fingerprint().len(), 64);
 }

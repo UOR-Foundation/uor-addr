@@ -60,6 +60,7 @@ interface kappa {
         blake3,
         sha3256,
         keccak256,
+        sha512,
     }
 
     /// The 71-byte ASCII κ-label.

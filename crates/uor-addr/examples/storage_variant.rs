@@ -104,6 +104,7 @@ fn main() {
             uor_addr::AddrBounds,
             uor_addr::Sha256Hasher,
             { uor_addr::ADDR_INLINE_BYTES },
+            32,
             uor_addr::AddressResolverTuple<uor_addr::Sha256Hasher>,
             StorageCommitment,
             Route = AddressStorageRoute,

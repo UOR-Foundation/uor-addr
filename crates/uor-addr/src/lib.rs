@@ -33,7 +33,7 @@
 //! - [`common`] — the shared architectural surface (trait, V&V
 //!   framing).
 //! - [`hash`] — the pluggable σ-axis family (`AddrHash`): sha256
-//!   (default), blake3, sha3-256, keccak256 — every realization's
+//!   (default), blake3, sha3-256, keccak256, sha512 — every realization's
 //!   `address_<algorithm>` entry points.
 //! - [`label`] — the per-axis `AddressLabel*` output shapes
 //!   (`https://uor.foundation/addr/AddressLabel/<algorithm>`) and the
@@ -51,7 +51,7 @@
 //! ## What's shipped
 //!
 //! The full UOR-ADDR architectural surface — common trait + a pluggable
-//! σ-axis family (sha256 / blake3 / sha3-256 / keccak256) + seven
+//! σ-axis family (sha256 / blake3 / sha3-256 / keccak256 / sha512) + seven
 //! format-specific realizations + three schema-pinned descendants +
 //! two cost-model-bearing variants. See
 //! [`ARCHITECTURE.md`](https://github.com/UOR-Foundation/uor-addr/blob/main/ARCHITECTURE.md)
@@ -84,7 +84,7 @@
 //! | ADR-060 source-polymorphic value carrier (no fixed buffer) | input handles yield `Inline`/`Borrowed`/`Stream` [`prism::operation::TermValue`] |
 //! | TC-02 mechanism sealing                                    | [`AddressWitness`] owns the replayable `Trace<256>` + fingerprint   |
 //! | TC-05 replay round-trip (anamorphism)                      | [`AddressWitness::verify`] via `prism::replay::certify_from_trace`   |
-//! | Algebraic closure (ADR-024 / ADR-026)                      | `SITE_COUNT` disjoint `Site` constraints; χ(N(C)) = SITE_COUNT (71 sha256/blake3, 73 sha3-256, 74 keccak256) |
+//! | Algebraic closure (ADR-024 / ADR-026)                      | `SITE_COUNT` disjoint `Site` constraints; χ(N(C)) = SITE_COUNT (71 sha256/blake3, 73 sha3-256, 74 keccak256, 135 sha512) |
 //!
 //! ## Quick reference
 //!
@@ -142,18 +142,21 @@ pub mod variant;
 pub mod xml;
 
 // Common architectural surface re-exports.
-pub use bounds::{AddrBounds, ADDR_INLINE_BYTES};
+pub use bounds::{AddrBounds, AddrBounds64, ADDR_INLINE_BYTES, ADDR_INLINE_BYTES_64};
 pub use common::AddressInput;
-pub use hash::{AddrHash, MAX_LABEL_BYTES};
+pub use hash::{AddrHash, MAX_DIGEST_BYTES, MAX_LABEL_BYTES};
 pub use label::{
     AddressLabel, AddressLabelBlake3, AddressLabelKeccak256, AddressLabelSha256,
-    AddressLabelSha3_256, KappaLabel, LabelDecodeError, ADDRESS_LABEL_BYTES,
+    AddressLabelSha3_256, AddressLabelSha512, KappaLabel, LabelDecodeError, ADDRESS_LABEL_BYTES,
 };
 pub use outcome::{AddressOutcome, AddressWitness, VerifyError};
 pub use prism::pipeline::EmptyCommitment;
 pub use resolvers::AddressResolverTuple;
 
-/// The admissible `Hasher<32>` σ-axes (re-exports of prism's 32-byte
-/// hashers). Every realization binds [`Sha256Hasher`] by default and
-/// admits the others via its `address_<algorithm>` entry points.
-pub use prism::crypto::{Blake3Hasher, Keccak256Hasher, Sha256Hasher, Sha3_256Hasher};
+/// The admissible σ-axes (re-exports of prism's hashers). Every realization
+/// binds [`Sha256Hasher`] by default and admits the others via its
+/// `address_<algorithm>` entry points. `Sha512Hasher` is a `Hasher<64>`
+/// (bound with [`AddrBounds64`]); the rest are `Hasher<32>`.
+pub use prism::crypto::{
+    Blake3Hasher, Keccak256Hasher, Sha256Hasher, Sha3_256Hasher, Sha512Hasher,
+};

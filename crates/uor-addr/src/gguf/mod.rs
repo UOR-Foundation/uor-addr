@@ -4,7 +4,8 @@
 //! (`GGUF_MAGIC = 0x46554747`, `version = 3`) under a spec-canonical
 //! structural form. The default σ-projection is
 //! [`prism::crypto::Sha256Hasher`]; [`address_blake3`], [`address_sha3_256`],
-//! and [`address_keccak256`] select the other 32-byte axes ([`crate::hash`]).
+//! [`address_keccak256`], and [`address_sha512`] select the other axes
+//! ([`crate::hash`]).
 //!
 //! ## σ-axis vs. the canonical form
 //!
@@ -66,10 +67,11 @@ pub const CANONICAL_FORM_VERSION: u32 = 2;
 
 pub use dtype::GgmlType;
 pub use model::{
-    AddressModel, AddressModelBlake3, AddressModelKeccak256, AddressModelSha3_256, AddressRoute,
+    AddressModel, AddressModelBlake3, AddressModelKeccak256, AddressModelSha3_256,
+    AddressModelSha512, AddressRoute,
 };
 #[cfg(feature = "alloc")]
-pub use pipeline::{address, address_blake3, address_keccak256, address_sha3_256};
+pub use pipeline::{address, address_blake3, address_keccak256, address_sha3_256, address_sha512};
 pub use pipeline::{AddressFailure, AddressOutcome, AddressWitness, VerifyError};
 pub use shapes::bounds::{
     GGUF_DEFAULT_ALIGNMENT, GGUF_HEADER_BYTES, GGUF_MAGIC, GGUF_MAX_DIMS,

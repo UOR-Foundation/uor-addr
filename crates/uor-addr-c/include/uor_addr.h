@@ -26,6 +26,9 @@
 // σ-axis selector: Keccak-256 (pre-FIPS padding).
 #define UOR_ADDR_HASH_KECCAK256 3
 
+// σ-axis selector: SHA-512 (FIPS 180-4; 64-byte digest → 135-byte label).
+#define UOR_ADDR_HASH_SHA512 4
+
 // Success.
 #define UOR_ADDR_OK 0
 
@@ -50,30 +53,30 @@
 // of the `UOR_ADDR_HASH_*` constants).
 #define UOR_ADDR_ERR_UNKNOWN_HASH -6
 
-// `verify()` failed: the trace was empty. **Reserved** — the live verify
-// path maps every failure to `UOR_ADDR_ERR_PIPELINE`; these are retained
-// for ABI stability with downstream `-10..-14` handlers.
+// `verify()` failed: empty trace. **Reserved** — the live verify path maps
+// every failure to `UOR_ADDR_ERR_PIPELINE`; retained for ABI stability.
 #define UOR_ADDR_ERR_VERIFY_EMPTY_TRACE -10
 
-// `verify()` failed: out-of-order trace event. **Reserved** (see above).
+// **Reserved** (see above).
 #define UOR_ADDR_ERR_VERIFY_OUT_OF_ORDER_EVENT -11
 
-// `verify()` failed: zero target. **Reserved** (see above).
+// **Reserved** (see above).
 #define UOR_ADDR_ERR_VERIFY_ZERO_TARGET -12
 
-// `verify()` failed: non-contiguous steps. **Reserved** (see above).
+// **Reserved** (see above).
 #define UOR_ADDR_ERR_VERIFY_NON_CONTIGUOUS_STEPS -13
 
-// `verify()` failed: trace capacity exceeded. **Reserved** (see above).
+// **Reserved** (see above).
 #define UOR_ADDR_ERR_VERIFY_CAPACITY_EXCEEDED -14
 
-// Width-erased owned outcome — lets one opaque `UorAddrGrounded` handle
-// carry a κ-label of any admissible σ-axis width (71 / 73 / 74).
+// Width-erased owned outcome — one opaque `UorAddrGrounded` handle carries
+// a κ-label of any admissible σ-axis width (71 / 73 / 74 for the 32-byte
+// fingerprint axes, 135 for sha512's 64-byte fingerprint).
 typedef struct AnyOutcome AnyOutcome;
 
 // Opaque, foreign-managed witness handle. Construct via any
 // `uor_addr_*_with_witness[_hash]` function; release with
-// `uor_addr_grounded_free`. Strictly opaque from C.
+// `uor_addr_grounded_free`.
 typedef struct UorAddrGrounded {
   struct AnyOutcome outcome;
 } UorAddrGrounded;
@@ -423,11 +426,12 @@ int32_t uor_addr_grounded_kappa_label(const struct UorAddrGrounded *handle,
                                       uintptr_t out_label_len,
                                       uintptr_t *out_written);
 
-// Read the 32-byte σ-projection content fingerprint into `out_digest`.
+// Read the σ-projection content fingerprint into `out_digest` (32 bytes
+// for the `Hasher<32>` axes, 64 for sha512). Size `out_digest` to 64.
 //
 // # Safety
 //
-// As [`uor_addr_grounded_kappa_label`], `out_digest` writable for ≥ 32 bytes.
+// As [`uor_addr_grounded_kappa_label`].
 int32_t uor_addr_grounded_content_fingerprint(const struct UorAddrGrounded *handle,
                                               uint8_t *out_digest,
                                               uintptr_t out_digest_len,

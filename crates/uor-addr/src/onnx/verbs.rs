@@ -4,6 +4,7 @@
 
 use crate::label::{
     AddressLabelBlake3, AddressLabelKeccak256, AddressLabelSha256, AddressLabelSha3_256,
+    AddressLabelSha512,
 };
 use crate::onnx::value::OnnxCarrier;
 
@@ -13,6 +14,7 @@ addr_verbs! {
     { shape: AddressLabelBlake3, verb: address_inference_blake3 },
     { shape: AddressLabelSha3_256, verb: address_inference_sha3_256 },
     { shape: AddressLabelKeccak256, verb: address_inference_keccak256 },
+    { shape: AddressLabelSha512, verb: address_inference_sha512 },
 }
 
 #[cfg(test)]

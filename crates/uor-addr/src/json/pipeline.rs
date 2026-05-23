@@ -104,3 +104,23 @@ pub fn address_keccak256(input_bytes: &[u8]) -> Result<AddressOutcome<74>, Addre
         .map_err(|_| AddressFailure::PipelineFailure)?;
     AddressOutcome::<74>::from_grounded(&grounded).map_err(|_| AddressFailure::PipelineFailure)
 }
+
+/// The JSON entry point under σ-axis `Sha512Hasher` — yields a
+/// `sha512:<128hex>` κ-label (135 bytes, 64-byte fingerprint). See
+/// [`address`] for the error contract.
+///
+/// # Errors
+///
+/// As [`address`].
+#[cfg(feature = "alloc")]
+pub fn address_sha512(input_bytes: &[u8]) -> Result<AddressOutcome<135, 64>, AddressFailure> {
+    use prism::pipeline::PrismModel;
+
+    use crate::json::model::AddressModelSha512;
+    use crate::json::value::{canonicalize, JsonCarrier};
+
+    let canonical = canonicalize(input_bytes).map_err(|_| AddressFailure::InvalidJson)?;
+    let grounded = AddressModelSha512::forward(JsonCarrier::new(&canonical))
+        .map_err(|_| AddressFailure::PipelineFailure)?;
+    AddressOutcome::<135, 64>::from_grounded(&grounded).map_err(|_| AddressFailure::PipelineFailure)
+}

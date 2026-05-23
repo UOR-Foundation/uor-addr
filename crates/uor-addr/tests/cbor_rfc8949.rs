@@ -11,7 +11,7 @@
 
 #![cfg(feature = "alloc")]
 
-use prism::crypto::{Blake3Hasher, Keccak256Hasher, Sha256Hasher, Sha3_256Hasher};
+use prism::crypto::{Blake3Hasher, Keccak256Hasher, Sha256Hasher, Sha3_256Hasher, Sha512Hasher};
 use prism::vocabulary::Hasher;
 use uor_addr::cbor;
 use uor_addr::hash::AddrHash;
@@ -147,12 +147,12 @@ fn hex(bytes: &[u8]) -> String {
     s
 }
 
-fn expect_label<H: AddrHash>(canonical: &[u8]) -> String {
+fn expect_label<const FP: usize, H: Hasher<FP> + AddrHash>(canonical: &[u8]) -> String {
     let d = H::initial().fold_bytes(canonical).finalize();
     format!(
         "{}:{}",
-        H::LABEL_PREFIX,
-        hex(&d[..<H as Hasher>::OUTPUT_BYTES])
+        <H as AddrHash>::LABEL_PREFIX,
+        hex(&d[..<H as AddrHash>::OUTPUT_BYTES])
     )
 }
 
@@ -166,19 +166,23 @@ fn pipeline_mints_each_axis_over_canonical_form() {
 
     assert_eq!(
         cbor::address(&raw).unwrap().address.as_str(),
-        expect_label::<Sha256Hasher>(&canonical)
+        expect_label::<32, Sha256Hasher>(&canonical)
     );
     assert_eq!(
         cbor::address_blake3(&raw).unwrap().address.as_str(),
-        expect_label::<Blake3Hasher>(&canonical)
+        expect_label::<32, Blake3Hasher>(&canonical)
     );
     assert_eq!(
         cbor::address_sha3_256(&raw).unwrap().address.as_str(),
-        expect_label::<Sha3_256Hasher>(&canonical)
+        expect_label::<32, Sha3_256Hasher>(&canonical)
     );
     assert_eq!(
         cbor::address_keccak256(&raw).unwrap().address.as_str(),
-        expect_label::<Keccak256Hasher>(&canonical)
+        expect_label::<32, Keccak256Hasher>(&canonical)
+    );
+    assert_eq!(
+        cbor::address_sha512(&raw).unwrap().address.as_str(),
+        expect_label::<64, Sha512Hasher>(&canonical)
     );
 }
 

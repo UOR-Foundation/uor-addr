@@ -44,9 +44,12 @@ authoritative source (`tests/hash_kat.rs`).
 | `Sha3_256Hasher` | `sha3-256` | NIST FIPS 202 — <https://nvlpubs.nist.gov/nistpubs/FIPS/NIST.FIPS.202.pdf> |
 | `Keccak256Hasher` | `keccak256` | Keccak SHA-3 submission (pre-FIPS padding) — <https://keccak.team/files/Keccak-submission-3.pdf> |
 | `Blake3Hasher` | `blake3` | BLAKE3 specification + reference vectors — <https://github.com/BLAKE3-team/BLAKE3-specs> |
+| `Sha512Hasher` | `sha512` | NIST FIPS 180-4 §6.4 — <https://nvlpubs.nist.gov/nistpubs/FIPS/NIST.FIPS.180-4.pdf> |
 
-The 64-byte SHA-512 axis is not yet admissible: prism 0.3.1 pins its
-resolver tower to `Hasher<32>`. Adding it is upstream foundation/prism work.
+The 64-byte `Sha512Hasher` (a `Hasher<64>`) is bound with the
+`AddrBounds64` capacity profile and yields a 135-byte κ-label; it became
+admissible once foundation 0.5.2 generalized the resolver tower over the
+fingerprint-width const generic (prism 0.3.3 / foundation 0.5.2).
 
 ## Format-specific realizations
 
