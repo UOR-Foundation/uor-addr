@@ -1,8 +1,12 @@
-//! **`uor_addr::onnx` — the ONNX IR v13 realization of UOR-ADDR.**
+//! **`uor_addr::onnx` — the ONNX realization of UOR-ADDR.**
 //!
 //! Typed content-addressing for ONNX `ModelProto` files under a
 //! protobuf-canonical structural form, with the σ-projection bound to
-//! [`prism::crypto::Sha256Hasher`].
+//! [`prism::crypto::Sha256Hasher`]. Admits any known IR revision
+//! (`ir_version` in `1..=`[`ONNX_IR_VERSION_MAX`](shapes::bounds::ONNX_IR_VERSION_MAX)`
+//! = 13`, the latest in `onnx.proto`); the `ir_version` is bound into the
+//! canonical form, so distinct revisions of the same logical model
+//! address distinctly.
 //!
 //! ## Authoritative sources
 //!
@@ -52,9 +56,7 @@ pub use model::{AddressModel, AddressRoute};
 #[cfg(feature = "alloc")]
 pub use pipeline::address;
 pub use pipeline::{AddressFailure, AddressOutcome, AddressWitness, VerifyError};
-pub use shapes::bounds::{
-    ONNX_IR_VERSION_REQUIRED, ONNX_OPSET_VERSION_MIN, ONNX_SUBGRAPH_DEPTH_MAX,
-};
+pub use shapes::bounds::{ONNX_IR_VERSION_MAX, ONNX_OPSET_VERSION_MIN, ONNX_SUBGRAPH_DEPTH_MAX};
 pub use value::OnnxCarrier;
 #[cfg(feature = "alloc")]
 pub use value::{canonicalize, OnnxValue};

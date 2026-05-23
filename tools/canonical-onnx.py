@@ -22,7 +22,7 @@ import hashlib
 import struct
 import sys
 
-IR_VERSION = 13
+IR_VERSION_MAX = 13  # onnx.proto Version::IR_VERSION (latest); accept 1..=MAX
 OPSET_VERSION_MIN = 1
 SUBGRAPH_DEPTH_MAX = 64
 
@@ -406,7 +406,7 @@ def emit_model_meta(out, model):
 def commitment(model):
     # ADR-060: the full flat skeleton (no two-level commitment).
     ir = first_varint(model, 1)
-    if ir != IR_VERSION:
+    if ir < 1 or ir > IR_VERSION_MAX:
         raise ValueError(f"unsupported IR version {ir}")
     graph = first_bytes(model, 7)
     if not graph:

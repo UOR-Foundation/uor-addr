@@ -33,3 +33,8 @@ bindings/python/uor_addr/__pycache__/
 # Python bytecode cache — the tools/ helpers import each other via importlib.
 __pycache__/
 *.pyc
+
+# Pinned external models — downloaded on demand by the live V&V tests
+# (UOR_ADDR_LIVE=1); cached here, never checked in (multi-hundred-MB).
+crates/uor-addr/tests/fixtures/models/*.gguf
+crates/uor-addr/tests/fixtures/models/*.onnx
