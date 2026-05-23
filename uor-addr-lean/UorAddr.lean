@@ -2,6 +2,7 @@
 -- Run: cd uor-addr-lean && lake build
 
 import UorAddr.HexEncoding
+import UorAddr.HashAxes
 import UorAddr.AddressShape
 import UorAddr.KappaDerivation
 import UorAddr.AlgebraicClosure

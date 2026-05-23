@@ -50,36 +50,32 @@
 // of the `UOR_ADDR_HASH_*` constants).
 #define UOR_ADDR_ERR_UNKNOWN_HASH -6
 
-// Verify-error codes — 1:1 with WIT `verify-error` variants. **Reserved
-// forward-compat vocabulary**: under ADR-060 [`uor_addr_grounded_verify`]
-// re-certifies through the owned witness ([`uor_addr::AddressWitness::verify`])
-// and returns `UOR_ADDR_OK` or `UOR_ADDR_ERR_PIPELINE` only — the
-// granular replay-failure codes below are retained for error-code
-// stability and a future stricter verifier, and are unreachable for a
-// handle the C ABI itself minted.
+// `verify()` failed: the trace was empty. **Reserved** — the live verify
+// path maps every failure to `UOR_ADDR_ERR_PIPELINE`; these are retained
+// for ABI stability with downstream `-10..-14` handlers.
 #define UOR_ADDR_ERR_VERIFY_EMPTY_TRACE -10
 
+// `verify()` failed: out-of-order trace event. **Reserved** (see above).
 #define UOR_ADDR_ERR_VERIFY_OUT_OF_ORDER_EVENT -11
 
+// `verify()` failed: zero target. **Reserved** (see above).
 #define UOR_ADDR_ERR_VERIFY_ZERO_TARGET -12
 
+// `verify()` failed: non-contiguous steps. **Reserved** (see above).
 #define UOR_ADDR_ERR_VERIFY_NON_CONTIGUOUS_STEPS -13
 
+// `verify()` failed: trace capacity exceeded. **Reserved** (see above).
 #define UOR_ADDR_ERR_VERIFY_CAPACITY_EXCEEDED -14
 
-// Opaque handle to a Rust-side `AddressOutcome` carrying a sealed
-// `Grounded<AddressLabel>` witness. Construct via any of the
-// `uor_addr_<realization>_with_witness` functions; release via
-// [`uor_addr_grounded_free`].
-//
-// **Lifetime**: the handle is valid until `uor_addr_grounded_free`
-// is called. Calling any `uor_addr_grounded_*` accessor on a freed
-// handle is undefined behaviour. The witness lives only in the
-// process that minted it — there is no cross-process serialization
-// (the underlying `Trace<256>` constructor is `pub(crate)` in
-// `uor-foundation`).
+// Width-erased owned outcome — lets one opaque `UorAddrGrounded` handle
+// carry a κ-label of any admissible σ-axis width (71 / 73 / 74).
+typedef struct AnyOutcome AnyOutcome;
+
+// Opaque, foreign-managed witness handle. Construct via any
+// `uor_addr_*_with_witness[_hash]` function; release with
+// `uor_addr_grounded_free`. Strictly opaque from C.
 typedef struct UorAddrGrounded {
-  AddressOutcome<71> outcome;
+  struct AnyOutcome outcome;
 } UorAddrGrounded;
 
 #ifdef __cplusplus
@@ -95,159 +91,25 @@ extern const uintptr_t UOR_ADDR_LABEL_BYTES;
 // this fits every algorithm.
 extern const uintptr_t UOR_ADDR_MAX_LABEL_BYTES;
 
-// JSON realization (RFC 8785 JCS + Unicode NFC + SHA-256).
+// `json` realization — default σ-axis (SHA-256).
 //
 // # Safety
 //
-// - `input` must be null (with `input_len == 0`) or readable for
-//   `input_len` bytes.
-// - `out_label` must be writable for at least `out_label_len` bytes.
-// - `out_written` if non-null must point to a writable `size_t`.
+// - `input` is null (with `input_len == 0`) or readable for `input_len` bytes.
+// - `out_label` is writable for at least `out_label_len` bytes.
+// - `out_written` if non-null points to a writable `size_t`.
 int32_t uor_addr_json(const uint8_t *input,
                       uintptr_t input_len,
                       uint8_t *out_label,
                       uintptr_t out_label_len,
                       uintptr_t *out_written);
 
-// S-expression realization (Rivest 1997 canonical form + SHA-256).
+// `json` realization under a caller-selected σ-axis (`UOR_ADDR_HASH_*`).
+// `out_label` must be writable for at least `UOR_ADDR_MAX_LABEL_BYTES`.
 //
 // # Safety
 //
-// Same pointer-validity requirements as [`uor_addr_json`].
-int32_t uor_addr_sexp(const uint8_t *input,
-                      uintptr_t input_len,
-                      uint8_t *out_label,
-                      uintptr_t out_label_len,
-                      uintptr_t *out_written);
-
-// XML realization (W3C XML-C14N 1.1 subset + SHA-256).
-//
-// # Safety
-//
-// Same pointer-validity requirements as [`uor_addr_json`].
-int32_t uor_addr_xml(const uint8_t *input,
-                     uintptr_t input_len,
-                     uint8_t *out_label,
-                     uintptr_t out_label_len,
-                     uintptr_t *out_written);
-
-// ASN.1 realization (ITU-T X.690 DER + SHA-256).
-//
-// # Safety
-//
-// Same pointer-validity requirements as [`uor_addr_json`].
-int32_t uor_addr_asn1(const uint8_t *input,
-                      uintptr_t input_len,
-                      uint8_t *out_label,
-                      uintptr_t out_label_len,
-                      uintptr_t *out_written);
-
-// Ring realization (UOR-Framework Amendment 43 §2 + SHA-256).
-//
-// # Safety
-//
-// Same pointer-validity requirements as [`uor_addr_json`].
-int32_t uor_addr_ring(const uint8_t *input,
-                      uintptr_t input_len,
-                      uint8_t *out_label,
-                      uintptr_t out_label_len,
-                      uintptr_t *out_written);
-
-// Code-module realization (CCMAS canonical AST + SHA-256).
-//
-// # Safety
-//
-// Same pointer-validity requirements as [`uor_addr_json`].
-int32_t uor_addr_codemodule(const uint8_t *input,
-                            uintptr_t input_len,
-                            uint8_t *out_label,
-                            uintptr_t out_label_len,
-                            uintptr_t *out_written);
-
-// schema.org/Photograph descendant — admits only schema.org/Photograph
-// JSON-LD inputs; routes canonical form through the JSON realization.
-//
-// # Safety
-//
-// Same pointer-validity requirements as [`uor_addr_json`].
-int32_t uor_addr_schema_photo(const uint8_t *input,
-                              uintptr_t input_len,
-                              uint8_t *out_label,
-                              uintptr_t out_label_len,
-                              uintptr_t *out_written);
-
-// schema.org/Article descendant — admits only schema.org/Article
-// JSON-LD inputs (plus subtypes); routes canonical form through JSON.
-//
-// # Safety
-//
-// Same pointer-validity requirements as [`uor_addr_json`].
-int32_t uor_addr_schema_document(const uint8_t *input,
-                                 uintptr_t input_len,
-                                 uint8_t *out_label,
-                                 uintptr_t out_label_len,
-                                 uintptr_t *out_written);
-
-// in-toto Statement v1 descendant — admits only in-toto Statement v1
-// JSON envelopes (sigstore / SLSA / SCAI / SPDX SBOM predicates).
-//
-// # Safety
-//
-// Same pointer-validity requirements as [`uor_addr_json`].
-int32_t uor_addr_schema_codemodule_signed(const uint8_t *input,
-                                          uintptr_t input_len,
-                                          uint8_t *out_label,
-                                          uintptr_t out_label_len,
-                                          uintptr_t *out_written);
-
-// GGUF v3 realization (spec-canonical flat Merkle skeleton + SHA-256).
-//
-// The κ-label binds every metadata byte and every tensor weight (the
-// latter via streamed per-tensor digests). Under ADR-060 the canonical
-// form is the full flat skeleton (no two-level commitment); KV / tensor
-// counts and value widths are unbounded.
-//
-// # Safety
-//
-// Same pointer-validity requirements as [`uor_addr_json`].
-int32_t uor_addr_gguf(const uint8_t *input,
-                      uintptr_t input_len,
-                      uint8_t *out_label,
-                      uintptr_t out_label_len,
-                      uintptr_t *out_written);
-
-// ONNX IR v13 realization (protobuf-canonical commitment + SHA-256).
-//
-// The κ-label binds the graph structure (nodes in topological order),
-// initializer weights, and metadata. Uses the crate's `OnnxAddrBounds`
-// encoding profile.
-//
-// # Safety
-//
-// Same pointer-validity requirements as [`uor_addr_json`].
-int32_t uor_addr_onnx(const uint8_t *input,
-                      uintptr_t input_len,
-                      uint8_t *out_label,
-                      uintptr_t out_label_len,
-                      uintptr_t *out_written);
-
-// CBOR realization (RFC 8949 §4.2 deterministic encoding + SHA-256).
-//
-// # Safety
-//
-// Same pointer-validity requirements as [`uor_addr_json`].
-int32_t uor_addr_cbor(const uint8_t *input,
-                      uintptr_t input_len,
-                      uint8_t *out_label,
-                      uintptr_t out_label_len,
-                      uintptr_t *out_written);
-
-// json realization with a caller-selected σ-axis (`UOR_ADDR_HASH_*`).
-//
-// # Safety
-//
-// Same pointer rules as [`uor_addr_json`]; `out_label` must be writable
-// for at least `UOR_ADDR_MAX_LABEL_BYTES` bytes.
+// As [`uor_addr_json`].
 int32_t uor_addr_json_with_hash(uint8_t algo,
                                 const uint8_t *input,
                                 uintptr_t input_len,
@@ -255,12 +117,25 @@ int32_t uor_addr_json_with_hash(uint8_t algo,
                                 uintptr_t out_label_len,
                                 uintptr_t *out_written);
 
-// sexp realization with a caller-selected σ-axis (`UOR_ADDR_HASH_*`).
+// `sexp` realization — default σ-axis (SHA-256).
 //
 // # Safety
 //
-// Same pointer rules as [`uor_addr_json`]; `out_label` must be writable
-// for at least `UOR_ADDR_MAX_LABEL_BYTES` bytes.
+// - `input` is null (with `input_len == 0`) or readable for `input_len` bytes.
+// - `out_label` is writable for at least `out_label_len` bytes.
+// - `out_written` if non-null points to a writable `size_t`.
+int32_t uor_addr_sexp(const uint8_t *input,
+                      uintptr_t input_len,
+                      uint8_t *out_label,
+                      uintptr_t out_label_len,
+                      uintptr_t *out_written);
+
+// `sexp` realization under a caller-selected σ-axis (`UOR_ADDR_HASH_*`).
+// `out_label` must be writable for at least `UOR_ADDR_MAX_LABEL_BYTES`.
+//
+// # Safety
+//
+// As [`uor_addr_sexp`].
 int32_t uor_addr_sexp_with_hash(uint8_t algo,
                                 const uint8_t *input,
                                 uintptr_t input_len,
@@ -268,12 +143,25 @@ int32_t uor_addr_sexp_with_hash(uint8_t algo,
                                 uintptr_t out_label_len,
                                 uintptr_t *out_written);
 
-// xml realization with a caller-selected σ-axis (`UOR_ADDR_HASH_*`).
+// `xml` realization — default σ-axis (SHA-256).
 //
 // # Safety
 //
-// Same pointer rules as [`uor_addr_json`]; `out_label` must be writable
-// for at least `UOR_ADDR_MAX_LABEL_BYTES` bytes.
+// - `input` is null (with `input_len == 0`) or readable for `input_len` bytes.
+// - `out_label` is writable for at least `out_label_len` bytes.
+// - `out_written` if non-null points to a writable `size_t`.
+int32_t uor_addr_xml(const uint8_t *input,
+                     uintptr_t input_len,
+                     uint8_t *out_label,
+                     uintptr_t out_label_len,
+                     uintptr_t *out_written);
+
+// `xml` realization under a caller-selected σ-axis (`UOR_ADDR_HASH_*`).
+// `out_label` must be writable for at least `UOR_ADDR_MAX_LABEL_BYTES`.
+//
+// # Safety
+//
+// As [`uor_addr_xml`].
 int32_t uor_addr_xml_with_hash(uint8_t algo,
                                const uint8_t *input,
                                uintptr_t input_len,
@@ -281,12 +169,25 @@ int32_t uor_addr_xml_with_hash(uint8_t algo,
                                uintptr_t out_label_len,
                                uintptr_t *out_written);
 
-// asn1 realization with a caller-selected σ-axis (`UOR_ADDR_HASH_*`).
+// `asn1` realization — default σ-axis (SHA-256).
 //
 // # Safety
 //
-// Same pointer rules as [`uor_addr_json`]; `out_label` must be writable
-// for at least `UOR_ADDR_MAX_LABEL_BYTES` bytes.
+// - `input` is null (with `input_len == 0`) or readable for `input_len` bytes.
+// - `out_label` is writable for at least `out_label_len` bytes.
+// - `out_written` if non-null points to a writable `size_t`.
+int32_t uor_addr_asn1(const uint8_t *input,
+                      uintptr_t input_len,
+                      uint8_t *out_label,
+                      uintptr_t out_label_len,
+                      uintptr_t *out_written);
+
+// `asn1` realization under a caller-selected σ-axis (`UOR_ADDR_HASH_*`).
+// `out_label` must be writable for at least `UOR_ADDR_MAX_LABEL_BYTES`.
+//
+// # Safety
+//
+// As [`uor_addr_asn1`].
 int32_t uor_addr_asn1_with_hash(uint8_t algo,
                                 const uint8_t *input,
                                 uintptr_t input_len,
@@ -294,12 +195,25 @@ int32_t uor_addr_asn1_with_hash(uint8_t algo,
                                 uintptr_t out_label_len,
                                 uintptr_t *out_written);
 
-// ring realization with a caller-selected σ-axis (`UOR_ADDR_HASH_*`).
+// `ring` realization — default σ-axis (SHA-256).
 //
 // # Safety
 //
-// Same pointer rules as [`uor_addr_json`]; `out_label` must be writable
-// for at least `UOR_ADDR_MAX_LABEL_BYTES` bytes.
+// - `input` is null (with `input_len == 0`) or readable for `input_len` bytes.
+// - `out_label` is writable for at least `out_label_len` bytes.
+// - `out_written` if non-null points to a writable `size_t`.
+int32_t uor_addr_ring(const uint8_t *input,
+                      uintptr_t input_len,
+                      uint8_t *out_label,
+                      uintptr_t out_label_len,
+                      uintptr_t *out_written);
+
+// `ring` realization under a caller-selected σ-axis (`UOR_ADDR_HASH_*`).
+// `out_label` must be writable for at least `UOR_ADDR_MAX_LABEL_BYTES`.
+//
+// # Safety
+//
+// As [`uor_addr_ring`].
 int32_t uor_addr_ring_with_hash(uint8_t algo,
                                 const uint8_t *input,
                                 uintptr_t input_len,
@@ -307,12 +221,25 @@ int32_t uor_addr_ring_with_hash(uint8_t algo,
                                 uintptr_t out_label_len,
                                 uintptr_t *out_written);
 
-// codemodule realization with a caller-selected σ-axis (`UOR_ADDR_HASH_*`).
+// `codemodule` realization — default σ-axis (SHA-256).
 //
 // # Safety
 //
-// Same pointer rules as [`uor_addr_json`]; `out_label` must be writable
-// for at least `UOR_ADDR_MAX_LABEL_BYTES` bytes.
+// - `input` is null (with `input_len == 0`) or readable for `input_len` bytes.
+// - `out_label` is writable for at least `out_label_len` bytes.
+// - `out_written` if non-null points to a writable `size_t`.
+int32_t uor_addr_codemodule(const uint8_t *input,
+                            uintptr_t input_len,
+                            uint8_t *out_label,
+                            uintptr_t out_label_len,
+                            uintptr_t *out_written);
+
+// `codemodule` realization under a caller-selected σ-axis (`UOR_ADDR_HASH_*`).
+// `out_label` must be writable for at least `UOR_ADDR_MAX_LABEL_BYTES`.
+//
+// # Safety
+//
+// As [`uor_addr_codemodule`].
 int32_t uor_addr_codemodule_with_hash(uint8_t algo,
                                       const uint8_t *input,
                                       uintptr_t input_len,
@@ -320,12 +247,25 @@ int32_t uor_addr_codemodule_with_hash(uint8_t algo,
                                       uintptr_t out_label_len,
                                       uintptr_t *out_written);
 
-// cbor realization with a caller-selected σ-axis (`UOR_ADDR_HASH_*`).
+// `cbor` realization — default σ-axis (SHA-256).
 //
 // # Safety
 //
-// Same pointer rules as [`uor_addr_json`]; `out_label` must be writable
-// for at least `UOR_ADDR_MAX_LABEL_BYTES` bytes.
+// - `input` is null (with `input_len == 0`) or readable for `input_len` bytes.
+// - `out_label` is writable for at least `out_label_len` bytes.
+// - `out_written` if non-null points to a writable `size_t`.
+int32_t uor_addr_cbor(const uint8_t *input,
+                      uintptr_t input_len,
+                      uint8_t *out_label,
+                      uintptr_t out_label_len,
+                      uintptr_t *out_written);
+
+// `cbor` realization under a caller-selected σ-axis (`UOR_ADDR_HASH_*`).
+// `out_label` must be writable for at least `UOR_ADDR_MAX_LABEL_BYTES`.
+//
+// # Safety
+//
+// As [`uor_addr_cbor`].
 int32_t uor_addr_cbor_with_hash(uint8_t algo,
                                 const uint8_t *input,
                                 uintptr_t input_len,
@@ -333,153 +273,428 @@ int32_t uor_addr_cbor_with_hash(uint8_t algo,
                                 uintptr_t out_label_len,
                                 uintptr_t *out_written);
 
-// Free a Grounded handle. Calling with a null pointer is a no-op.
-// After this call returns, `handle` is invalid; any further use is
-// undefined behaviour.
+// `schema_photo` realization — default σ-axis (SHA-256).
 //
 // # Safety
 //
-// `handle` must be either null or a pointer previously returned by
-// any `uor_addr_<realization>_with_witness` call. Each handle must
-// be freed exactly once.
+// - `input` is null (with `input_len == 0`) or readable for `input_len` bytes.
+// - `out_label` is writable for at least `out_label_len` bytes.
+// - `out_written` if non-null points to a writable `size_t`.
+int32_t uor_addr_schema_photo(const uint8_t *input,
+                              uintptr_t input_len,
+                              uint8_t *out_label,
+                              uintptr_t out_label_len,
+                              uintptr_t *out_written);
+
+// `schema_photo` realization under a caller-selected σ-axis (`UOR_ADDR_HASH_*`).
+// `out_label` must be writable for at least `UOR_ADDR_MAX_LABEL_BYTES`.
+//
+// # Safety
+//
+// As [`uor_addr_schema_photo`].
+int32_t uor_addr_schema_photo_with_hash(uint8_t algo,
+                                        const uint8_t *input,
+                                        uintptr_t input_len,
+                                        uint8_t *out_label,
+                                        uintptr_t out_label_len,
+                                        uintptr_t *out_written);
+
+// `schema_document` realization — default σ-axis (SHA-256).
+//
+// # Safety
+//
+// - `input` is null (with `input_len == 0`) or readable for `input_len` bytes.
+// - `out_label` is writable for at least `out_label_len` bytes.
+// - `out_written` if non-null points to a writable `size_t`.
+int32_t uor_addr_schema_document(const uint8_t *input,
+                                 uintptr_t input_len,
+                                 uint8_t *out_label,
+                                 uintptr_t out_label_len,
+                                 uintptr_t *out_written);
+
+// `schema_document` realization under a caller-selected σ-axis (`UOR_ADDR_HASH_*`).
+// `out_label` must be writable for at least `UOR_ADDR_MAX_LABEL_BYTES`.
+//
+// # Safety
+//
+// As [`uor_addr_schema_document`].
+int32_t uor_addr_schema_document_with_hash(uint8_t algo,
+                                           const uint8_t *input,
+                                           uintptr_t input_len,
+                                           uint8_t *out_label,
+                                           uintptr_t out_label_len,
+                                           uintptr_t *out_written);
+
+// `schema_codemodule_signed` realization — default σ-axis (SHA-256).
+//
+// # Safety
+//
+// - `input` is null (with `input_len == 0`) or readable for `input_len` bytes.
+// - `out_label` is writable for at least `out_label_len` bytes.
+// - `out_written` if non-null points to a writable `size_t`.
+int32_t uor_addr_schema_codemodule_signed(const uint8_t *input,
+                                          uintptr_t input_len,
+                                          uint8_t *out_label,
+                                          uintptr_t out_label_len,
+                                          uintptr_t *out_written);
+
+// `schema_codemodule_signed` realization under a caller-selected σ-axis (`UOR_ADDR_HASH_*`).
+// `out_label` must be writable for at least `UOR_ADDR_MAX_LABEL_BYTES`.
+//
+// # Safety
+//
+// As [`uor_addr_schema_codemodule_signed`].
+int32_t uor_addr_schema_codemodule_signed_with_hash(uint8_t algo,
+                                                    const uint8_t *input,
+                                                    uintptr_t input_len,
+                                                    uint8_t *out_label,
+                                                    uintptr_t out_label_len,
+                                                    uintptr_t *out_written);
+
+// `gguf` realization — default σ-axis (SHA-256).
+//
+// # Safety
+//
+// - `input` is null (with `input_len == 0`) or readable for `input_len` bytes.
+// - `out_label` is writable for at least `out_label_len` bytes.
+// - `out_written` if non-null points to a writable `size_t`.
+int32_t uor_addr_gguf(const uint8_t *input,
+                      uintptr_t input_len,
+                      uint8_t *out_label,
+                      uintptr_t out_label_len,
+                      uintptr_t *out_written);
+
+// `gguf` realization under a caller-selected σ-axis (`UOR_ADDR_HASH_*`).
+// `out_label` must be writable for at least `UOR_ADDR_MAX_LABEL_BYTES`.
+//
+// # Safety
+//
+// As [`uor_addr_gguf`].
+int32_t uor_addr_gguf_with_hash(uint8_t algo,
+                                const uint8_t *input,
+                                uintptr_t input_len,
+                                uint8_t *out_label,
+                                uintptr_t out_label_len,
+                                uintptr_t *out_written);
+
+// `onnx` realization — default σ-axis (SHA-256).
+//
+// # Safety
+//
+// - `input` is null (with `input_len == 0`) or readable for `input_len` bytes.
+// - `out_label` is writable for at least `out_label_len` bytes.
+// - `out_written` if non-null points to a writable `size_t`.
+int32_t uor_addr_onnx(const uint8_t *input,
+                      uintptr_t input_len,
+                      uint8_t *out_label,
+                      uintptr_t out_label_len,
+                      uintptr_t *out_written);
+
+// `onnx` realization under a caller-selected σ-axis (`UOR_ADDR_HASH_*`).
+// `out_label` must be writable for at least `UOR_ADDR_MAX_LABEL_BYTES`.
+//
+// # Safety
+//
+// As [`uor_addr_onnx`].
+int32_t uor_addr_onnx_with_hash(uint8_t algo,
+                                const uint8_t *input,
+                                uintptr_t input_len,
+                                uint8_t *out_label,
+                                uintptr_t out_label_len,
+                                uintptr_t *out_written);
+
+// Free a Grounded handle. Null is a no-op; each handle is freed once.
+//
+// # Safety
+//
+// `handle` is null or a pointer from a `*_with_witness[_hash]` call.
 void uor_addr_grounded_free(struct UorAddrGrounded *handle);
 
-// Read the κ-label this Grounded carries into `out_label`. Returns
-// the number of bytes written (always 71 on success) via
-// `out_written` (may be NULL).
+// Read the κ-label this Grounded carries into `out_label` (its width
+// depends on the σ-axis; size `out_label` to `UOR_ADDR_MAX_LABEL_BYTES`).
 //
 // # Safety
 //
-// - `handle` must be a valid live handle returned by a
-//   `*_with_witness` call.
-// - `out_label` must be writable for at least `out_label_len` bytes.
-// - `out_written` if non-null must point to a writable `size_t`.
+// - `handle` is a live handle from a `*_with_witness[_hash]` call.
+// - `out_label` writable for `out_label_len` bytes; `out_written` if
+//   non-null writable.
 int32_t uor_addr_grounded_kappa_label(const struct UorAddrGrounded *handle,
                                       uint8_t *out_label,
                                       uintptr_t out_label_len,
                                       uintptr_t *out_written);
 
-// Read the 32-byte SHA-256 content fingerprint into `out_digest`.
+// Read the 32-byte σ-projection content fingerprint into `out_digest`.
 //
 // # Safety
 //
-// Same as [`uor_addr_grounded_kappa_label`], with `out_digest`
-// writable for at least 32 bytes.
+// As [`uor_addr_grounded_kappa_label`], `out_digest` writable for ≥ 32 bytes.
 int32_t uor_addr_grounded_content_fingerprint(const struct UorAddrGrounded *handle,
                                               uint8_t *out_digest,
                                               uintptr_t out_digest_len,
                                               uintptr_t *out_written);
 
-// Verify the witness by re-certifying its owned replay trace through
-// `prism::replay::certify_from_trace` (via
-// [`uor_addr::AddressWitness::verify`]) and writing the recovered
-// κ-label into `out_label`. SHA-256 is **not** re-invoked.
-//
-// On `UOR_ADDR_OK` the bytes in `out_label[..71]` are byte-identical
-// to those `uor_addr_grounded_kappa_label` would write (QS-05 replay
-// equivalence; CL-R\* in CONFORMANCE.md).
+// Verify the witness by re-certifying its replay trace (no σ-axis
+// re-invocation) and write the recovered κ-label into `out_label`.
 //
 // # Safety
 //
-// Same as [`uor_addr_grounded_kappa_label`].
+// As [`uor_addr_grounded_kappa_label`].
 int32_t uor_addr_grounded_verify(const struct UorAddrGrounded *handle,
                                  uint8_t *out_label,
                                  uintptr_t out_label_len,
                                  uintptr_t *out_written);
 
-// JSON realization, returning a verifiable witness handle.
+// `json` realization — SHA-256 verifiable witness handle.
 //
 // # Safety
 //
-// - `input` must be null (with `input_len == 0`) or readable for
-//   `input_len` bytes.
-// - `out_handle` must be a valid writable pointer to a
-//   `*mut UorAddrGrounded`.
+// - `input` null (with `input_len == 0`) or readable for `input_len` bytes.
+// - `out_handle` is a valid writable `*mut UorAddrGrounded`.
 int32_t uor_addr_json_with_witness(const uint8_t *input,
                                    uintptr_t input_len,
                                    struct UorAddrGrounded **out_handle);
 
-// S-expression realization, returning a verifiable witness handle.
+// `json` realization — verifiable witness handle under a caller-selected
+// σ-axis (`UOR_ADDR_HASH_*`).
 //
 // # Safety
 //
-// Same as [`uor_addr_json_with_witness`].
+// As [`uor_addr_json_with_witness`].
+int32_t uor_addr_json_with_witness_hash(uint8_t algo,
+                                        const uint8_t *input,
+                                        uintptr_t input_len,
+                                        struct UorAddrGrounded **out_handle);
+
+// `sexp` realization — SHA-256 verifiable witness handle.
+//
+// # Safety
+//
+// - `input` null (with `input_len == 0`) or readable for `input_len` bytes.
+// - `out_handle` is a valid writable `*mut UorAddrGrounded`.
 int32_t uor_addr_sexp_with_witness(const uint8_t *input,
                                    uintptr_t input_len,
                                    struct UorAddrGrounded **out_handle);
 
-// XML realization, returning a verifiable witness handle.
+// `sexp` realization — verifiable witness handle under a caller-selected
+// σ-axis (`UOR_ADDR_HASH_*`).
 //
 // # Safety
 //
-// Same as [`uor_addr_json_with_witness`].
+// As [`uor_addr_sexp_with_witness`].
+int32_t uor_addr_sexp_with_witness_hash(uint8_t algo,
+                                        const uint8_t *input,
+                                        uintptr_t input_len,
+                                        struct UorAddrGrounded **out_handle);
+
+// `xml` realization — SHA-256 verifiable witness handle.
+//
+// # Safety
+//
+// - `input` null (with `input_len == 0`) or readable for `input_len` bytes.
+// - `out_handle` is a valid writable `*mut UorAddrGrounded`.
 int32_t uor_addr_xml_with_witness(const uint8_t *input,
                                   uintptr_t input_len,
                                   struct UorAddrGrounded **out_handle);
 
-// ASN.1 realization, returning a verifiable witness handle.
+// `xml` realization — verifiable witness handle under a caller-selected
+// σ-axis (`UOR_ADDR_HASH_*`).
 //
 // # Safety
 //
-// Same as [`uor_addr_json_with_witness`].
+// As [`uor_addr_xml_with_witness`].
+int32_t uor_addr_xml_with_witness_hash(uint8_t algo,
+                                       const uint8_t *input,
+                                       uintptr_t input_len,
+                                       struct UorAddrGrounded **out_handle);
+
+// `asn1` realization — SHA-256 verifiable witness handle.
+//
+// # Safety
+//
+// - `input` null (with `input_len == 0`) or readable for `input_len` bytes.
+// - `out_handle` is a valid writable `*mut UorAddrGrounded`.
 int32_t uor_addr_asn1_with_witness(const uint8_t *input,
                                    uintptr_t input_len,
                                    struct UorAddrGrounded **out_handle);
 
-// Ring realization, returning a verifiable witness handle.
+// `asn1` realization — verifiable witness handle under a caller-selected
+// σ-axis (`UOR_ADDR_HASH_*`).
 //
 // # Safety
 //
-// Same as [`uor_addr_json_with_witness`].
+// As [`uor_addr_asn1_with_witness`].
+int32_t uor_addr_asn1_with_witness_hash(uint8_t algo,
+                                        const uint8_t *input,
+                                        uintptr_t input_len,
+                                        struct UorAddrGrounded **out_handle);
+
+// `ring` realization — SHA-256 verifiable witness handle.
+//
+// # Safety
+//
+// - `input` null (with `input_len == 0`) or readable for `input_len` bytes.
+// - `out_handle` is a valid writable `*mut UorAddrGrounded`.
 int32_t uor_addr_ring_with_witness(const uint8_t *input,
                                    uintptr_t input_len,
                                    struct UorAddrGrounded **out_handle);
 
-// Code-module realization, returning a verifiable witness handle.
+// `ring` realization — verifiable witness handle under a caller-selected
+// σ-axis (`UOR_ADDR_HASH_*`).
 //
 // # Safety
 //
-// Same as [`uor_addr_json_with_witness`].
+// As [`uor_addr_ring_with_witness`].
+int32_t uor_addr_ring_with_witness_hash(uint8_t algo,
+                                        const uint8_t *input,
+                                        uintptr_t input_len,
+                                        struct UorAddrGrounded **out_handle);
+
+// `codemodule` realization — SHA-256 verifiable witness handle.
+//
+// # Safety
+//
+// - `input` null (with `input_len == 0`) or readable for `input_len` bytes.
+// - `out_handle` is a valid writable `*mut UorAddrGrounded`.
 int32_t uor_addr_codemodule_with_witness(const uint8_t *input,
                                          uintptr_t input_len,
                                          struct UorAddrGrounded **out_handle);
 
-// CBOR realization (RFC 8949 §4.2 + SHA-256), returning a verifiable
-// witness handle.
+// `codemodule` realization — verifiable witness handle under a caller-selected
+// σ-axis (`UOR_ADDR_HASH_*`).
 //
 // # Safety
 //
-// Same as [`uor_addr_json_with_witness`].
+// As [`uor_addr_codemodule_with_witness`].
+int32_t uor_addr_codemodule_with_witness_hash(uint8_t algo,
+                                              const uint8_t *input,
+                                              uintptr_t input_len,
+                                              struct UorAddrGrounded **out_handle);
+
+// `cbor` realization — SHA-256 verifiable witness handle.
+//
+// # Safety
+//
+// - `input` null (with `input_len == 0`) or readable for `input_len` bytes.
+// - `out_handle` is a valid writable `*mut UorAddrGrounded`.
 int32_t uor_addr_cbor_with_witness(const uint8_t *input,
                                    uintptr_t input_len,
                                    struct UorAddrGrounded **out_handle);
 
-// schema.org/Photograph realization, returning a verifiable witness handle.
+// `cbor` realization — verifiable witness handle under a caller-selected
+// σ-axis (`UOR_ADDR_HASH_*`).
 //
 // # Safety
 //
-// Same as [`uor_addr_json_with_witness`].
+// As [`uor_addr_cbor_with_witness`].
+int32_t uor_addr_cbor_with_witness_hash(uint8_t algo,
+                                        const uint8_t *input,
+                                        uintptr_t input_len,
+                                        struct UorAddrGrounded **out_handle);
+
+// `schema_photo` realization — SHA-256 verifiable witness handle.
+//
+// # Safety
+//
+// - `input` null (with `input_len == 0`) or readable for `input_len` bytes.
+// - `out_handle` is a valid writable `*mut UorAddrGrounded`.
 int32_t uor_addr_schema_photo_with_witness(const uint8_t *input,
                                            uintptr_t input_len,
                                            struct UorAddrGrounded **out_handle);
 
-// schema.org/Article realization, returning a verifiable witness handle.
+// `schema_photo` realization — verifiable witness handle under a caller-selected
+// σ-axis (`UOR_ADDR_HASH_*`).
 //
 // # Safety
 //
-// Same as [`uor_addr_json_with_witness`].
+// As [`uor_addr_schema_photo_with_witness`].
+int32_t uor_addr_schema_photo_with_witness_hash(uint8_t algo,
+                                                const uint8_t *input,
+                                                uintptr_t input_len,
+                                                struct UorAddrGrounded **out_handle);
+
+// `schema_document` realization — SHA-256 verifiable witness handle.
+//
+// # Safety
+//
+// - `input` null (with `input_len == 0`) or readable for `input_len` bytes.
+// - `out_handle` is a valid writable `*mut UorAddrGrounded`.
 int32_t uor_addr_schema_document_with_witness(const uint8_t *input,
                                               uintptr_t input_len,
                                               struct UorAddrGrounded **out_handle);
 
-// in-toto Statement v1 realization, returning a verifiable witness handle.
+// `schema_document` realization — verifiable witness handle under a caller-selected
+// σ-axis (`UOR_ADDR_HASH_*`).
 //
 // # Safety
 //
-// Same as [`uor_addr_json_with_witness`].
+// As [`uor_addr_schema_document_with_witness`].
+int32_t uor_addr_schema_document_with_witness_hash(uint8_t algo,
+                                                   const uint8_t *input,
+                                                   uintptr_t input_len,
+                                                   struct UorAddrGrounded **out_handle);
+
+// `schema_codemodule_signed` realization — SHA-256 verifiable witness handle.
+//
+// # Safety
+//
+// - `input` null (with `input_len == 0`) or readable for `input_len` bytes.
+// - `out_handle` is a valid writable `*mut UorAddrGrounded`.
 int32_t uor_addr_schema_codemodule_signed_with_witness(const uint8_t *input,
                                                        uintptr_t input_len,
                                                        struct UorAddrGrounded **out_handle);
+
+// `schema_codemodule_signed` realization — verifiable witness handle under a caller-selected
+// σ-axis (`UOR_ADDR_HASH_*`).
+//
+// # Safety
+//
+// As [`uor_addr_schema_codemodule_signed_with_witness`].
+int32_t uor_addr_schema_codemodule_signed_with_witness_hash(uint8_t algo,
+                                                            const uint8_t *input,
+                                                            uintptr_t input_len,
+                                                            struct UorAddrGrounded **out_handle);
+
+// `gguf` realization — SHA-256 verifiable witness handle.
+//
+// # Safety
+//
+// - `input` null (with `input_len == 0`) or readable for `input_len` bytes.
+// - `out_handle` is a valid writable `*mut UorAddrGrounded`.
+int32_t uor_addr_gguf_with_witness(const uint8_t *input,
+                                   uintptr_t input_len,
+                                   struct UorAddrGrounded **out_handle);
+
+// `gguf` realization — verifiable witness handle under a caller-selected
+// σ-axis (`UOR_ADDR_HASH_*`).
+//
+// # Safety
+//
+// As [`uor_addr_gguf_with_witness`].
+int32_t uor_addr_gguf_with_witness_hash(uint8_t algo,
+                                        const uint8_t *input,
+                                        uintptr_t input_len,
+                                        struct UorAddrGrounded **out_handle);
+
+// `onnx` realization — SHA-256 verifiable witness handle.
+//
+// # Safety
+//
+// - `input` null (with `input_len == 0`) or readable for `input_len` bytes.
+// - `out_handle` is a valid writable `*mut UorAddrGrounded`.
+int32_t uor_addr_onnx_with_witness(const uint8_t *input,
+                                   uintptr_t input_len,
+                                   struct UorAddrGrounded **out_handle);
+
+// `onnx` realization — verifiable witness handle under a caller-selected
+// σ-axis (`UOR_ADDR_HASH_*`).
+//
+// # Safety
+//
+// As [`uor_addr_onnx_with_witness`].
+int32_t uor_addr_onnx_with_witness_hash(uint8_t algo,
+                                        const uint8_t *input,
+                                        uintptr_t input_len,
+                                        struct UorAddrGrounded **out_handle);
 
 #ifdef __cplusplus
 }  // extern "C"

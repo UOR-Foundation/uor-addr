@@ -157,6 +157,48 @@ pub fn address(raw: &[u8]) -> Result<crate::AddressOutcome<71>, AddressFailure> 
     })
 }
 
+/// As [`address`], but binds the `blake3` σ-axis ([`crate::hash`]). Schema
+/// admission is identical; only the κ-derivation hash differs.
+///
+/// # Errors
+///
+/// As [`address`].
+pub fn address_blake3(raw: &[u8]) -> Result<crate::AddressOutcome<71>, AddressFailure> {
+    SignedCodeModuleValue::parse(raw).map_err(|_| AddressFailure::SchemaViolation)?;
+    crate::json::address_blake3(raw).map_err(|e| match e {
+        crate::json::AddressFailure::InvalidJson => AddressFailure::SchemaViolation,
+        crate::json::AddressFailure::PipelineFailure => AddressFailure::PipelineFailure,
+    })
+}
+
+/// As [`address`], but binds the `sha3_256` σ-axis ([`crate::hash`]). Schema
+/// admission is identical; only the κ-derivation hash differs.
+///
+/// # Errors
+///
+/// As [`address`].
+pub fn address_sha3_256(raw: &[u8]) -> Result<crate::AddressOutcome<73>, AddressFailure> {
+    SignedCodeModuleValue::parse(raw).map_err(|_| AddressFailure::SchemaViolation)?;
+    crate::json::address_sha3_256(raw).map_err(|e| match e {
+        crate::json::AddressFailure::InvalidJson => AddressFailure::SchemaViolation,
+        crate::json::AddressFailure::PipelineFailure => AddressFailure::PipelineFailure,
+    })
+}
+
+/// As [`address`], but binds the `keccak256` σ-axis ([`crate::hash`]). Schema
+/// admission is identical; only the κ-derivation hash differs.
+///
+/// # Errors
+///
+/// As [`address`].
+pub fn address_keccak256(raw: &[u8]) -> Result<crate::AddressOutcome<74>, AddressFailure> {
+    SignedCodeModuleValue::parse(raw).map_err(|_| AddressFailure::SchemaViolation)?;
+    crate::json::address_keccak256(raw).map_err(|e| match e {
+        crate::json::AddressFailure::InvalidJson => AddressFailure::SchemaViolation,
+        crate::json::AddressFailure::PipelineFailure => AddressFailure::PipelineFailure,
+    })
+}
+
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum AddressFailure {
     SchemaViolation,

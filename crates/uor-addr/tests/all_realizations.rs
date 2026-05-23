@@ -135,6 +135,27 @@ fn codemodule_realization_emits_well_formed_kappa() {
     assert_well_formed_kappa(&outcome.address);
 }
 
+// ─── CBOR realization (RFC 8949 §4.2) ──────────────────────────────────
+
+#[test]
+fn cbor_realization_emits_well_formed_kappa() {
+    // [1, 2, 3]
+    let outcome = uor_addr::cbor::address(&[0x83, 0x01, 0x02, 0x03]).expect("κ-label");
+    assert_well_formed_kappa(&outcome.address);
+}
+
+#[test]
+fn cbor_realization_canonicalizes_map_key_order() {
+    // {"b":1,"a":2} ≡ {"a":2,"b":1} under RFC 8949 §4.2.1 key sorting.
+    let a = uor_addr::cbor::address(&[0xa2, 0x61, b'b', 0x01, 0x61, b'a', 0x02])
+        .expect("κ-label")
+        .address;
+    let b = uor_addr::cbor::address(&[0xa2, 0x61, b'a', 0x02, 0x61, b'b', 0x01])
+        .expect("κ-label")
+        .address;
+    assert_eq!(a, b);
+}
+
 // ─── Schema descendants ────────────────────────────────────────────────
 
 #[test]
@@ -272,4 +293,68 @@ fn cross_realization_typed_distinction() {
     for w in labels.windows(2) {
         assert_ne!(w[0], w[1], "labels must be pairwise distinct");
     }
+}
+
+// ─── Cross-realization σ-axis coverage ─────────────────────────────────
+
+#[test]
+fn every_realization_exposes_all_four_axes() {
+    // Each realization's `address` / `_blake3` / `_sha3_256` / `_keccak256`
+    // entry points emit the correct prefix + width and are pairwise distinct.
+    let by_axis = |s: &uor_addr::KappaLabel<71>,
+                   b: &uor_addr::KappaLabel<71>,
+                   q: &uor_addr::KappaLabel<73>,
+                   k: &uor_addr::KappaLabel<74>| {
+        assert!(s.starts_with("sha256:") && s.len() == 71);
+        assert!(b.starts_with("blake3:") && b.len() == 71);
+        assert!(q.starts_with("sha3-256:") && q.len() == 73);
+        assert!(k.starts_with("keccak256:") && k.len() == 74);
+        let labels = [s.as_str(), b.as_str(), q.as_str(), k.as_str()];
+        for i in 0..labels.len() {
+            for j in (i + 1)..labels.len() {
+                assert_ne!(labels[i], labels[j], "axes must be pairwise distinct");
+            }
+        }
+    };
+
+    let j = br#"{"x":1}"#;
+    by_axis(
+        &uor_addr::json::address(j).unwrap().address,
+        &uor_addr::json::address_blake3(j).unwrap().address,
+        &uor_addr::json::address_sha3_256(j).unwrap().address,
+        &uor_addr::json::address_keccak256(j).unwrap().address,
+    );
+    let c: &[u8] = &[0x83, 0x01, 0x02, 0x03];
+    by_axis(
+        &uor_addr::cbor::address(c).unwrap().address,
+        &uor_addr::cbor::address_blake3(c).unwrap().address,
+        &uor_addr::cbor::address_sha3_256(c).unwrap().address,
+        &uor_addr::cbor::address_keccak256(c).unwrap().address,
+    );
+    let s = b"(a b c)";
+    by_axis(
+        &uor_addr::sexp::address(s).unwrap().address,
+        &uor_addr::sexp::address_blake3(s).unwrap().address,
+        &uor_addr::sexp::address_sha3_256(s).unwrap().address,
+        &uor_addr::sexp::address_keccak256(s).unwrap().address,
+    );
+}
+
+#[test]
+fn schema_descendant_axis_matches_underlying_json_axis() {
+    // A schema descendant's per-axis κ-label equals the JSON realization's
+    // for the same admitted input (schema admission is at parse time).
+    let raw = br#"{"@context":"https://schema.org","@type":"Photograph","contentUrl":"https://e.org/p.jpg","creator":"Ada"}"#;
+    assert_eq!(
+        uor_addr::schema::photo::address_blake3(raw)
+            .unwrap()
+            .address,
+        uor_addr::json::address_blake3(raw).unwrap().address
+    );
+    assert_eq!(
+        uor_addr::schema::photo::address_keccak256(raw)
+            .unwrap()
+            .address,
+        uor_addr::json::address_keccak256(raw).unwrap().address
+    );
 }

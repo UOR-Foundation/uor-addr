@@ -81,7 +81,7 @@ mod component {
     });
 
     use exports::uor::addr::kappa::{
-        AddressError, Grounded, Guest, GuestGrounded, KappaLabel, VerifyError,
+        AddressError, Grounded, Guest, GuestGrounded, HashAlgorithm, KappaLabel, VerifyError,
     };
 
     /// Component-Model export root.
@@ -97,18 +97,66 @@ mod component {
     /// wit-bindgen wraps this in a `Grounded` handle that the host
     /// consumes via the WIT method exports; the host's `own grounded`
     /// drop triggers `Drop` here, releasing the Rust state.
+    /// Width-erased owned outcome — lets one `grounded` resource carry a
+    /// κ-label of any admissible σ-axis width (71 / 73 / 74).
+    enum AnyOutcome {
+        W71(uor_addr::AddressOutcome<71>),
+        W73(uor_addr::AddressOutcome<73>),
+        W74(uor_addr::AddressOutcome<74>),
+    }
+
+    impl From<uor_addr::AddressOutcome<71>> for AnyOutcome {
+        fn from(o: uor_addr::AddressOutcome<71>) -> Self {
+            Self::W71(o)
+        }
+    }
+    impl From<uor_addr::AddressOutcome<73>> for AnyOutcome {
+        fn from(o: uor_addr::AddressOutcome<73>) -> Self {
+            Self::W73(o)
+        }
+    }
+    impl From<uor_addr::AddressOutcome<74>> for AnyOutcome {
+        fn from(o: uor_addr::AddressOutcome<74>) -> Self {
+            Self::W74(o)
+        }
+    }
+
+    impl AnyOutcome {
+        fn label(&self) -> String {
+            match self {
+                Self::W71(o) => o.address.as_str().to_string(),
+                Self::W73(o) => o.address.as_str().to_string(),
+                Self::W74(o) => o.address.as_str().to_string(),
+            }
+        }
+        fn fingerprint(&self) -> Vec<u8> {
+            match self {
+                Self::W71(o) => o.witness.content_fingerprint().to_vec(),
+                Self::W73(o) => o.witness.content_fingerprint().to_vec(),
+                Self::W74(o) => o.witness.content_fingerprint().to_vec(),
+            }
+        }
+        fn verify(&self) -> Result<String, uor_addr::VerifyError> {
+            match self {
+                Self::W71(o) => o.witness.verify().map(|l| l.as_str().to_string()),
+                Self::W73(o) => o.witness.verify().map(|l| l.as_str().to_string()),
+                Self::W74(o) => o.witness.verify().map(|l| l.as_str().to_string()),
+            }
+        }
+    }
+
     pub struct GroundedImpl {
-        outcome: uor_addr::AddressOutcome<71>,
+        outcome: AnyOutcome,
     }
 
     impl GuestGrounded for GroundedImpl {
         fn kappa_label(&self) -> KappaLabel {
-            self.outcome.address.as_str().to_string()
+            self.outcome.label()
         }
 
         fn content_fingerprint(&self) -> Vec<u8> {
             // ADR-060: the witness owns its 32-byte σ-projection fingerprint.
-            self.outcome.witness.content_fingerprint().to_vec()
+            self.outcome.fingerprint()
         }
 
         fn verify(&self) -> Result<KappaLabel, VerifyError> {
@@ -117,11 +165,7 @@ mod component {
             // re-invoked) and confirms the re-derived fingerprint matches
             // (QS-05 replay equivalence; CL-R* in CONFORMANCE.md), returning
             // the recovered κ-label.
-            self.outcome
-                .witness
-                .verify()
-                .map(|label| label.as_str().to_string())
-                .map_err(map_verify_error)
+            self.outcome.verify().map_err(map_verify_error)
         }
     }
 
@@ -153,7 +197,9 @@ mod component {
     macro_rules! map_witness {
         ($result:expr, $err_ty:path, $invalid:path) => {
             match $result {
-                Ok(outcome) => Ok(Grounded::new(GroundedImpl { outcome })),
+                Ok(outcome) => Ok(Grounded::new(GroundedImpl {
+                    outcome: outcome.into(),
+                })),
                 Err($invalid) => Err(AddressError::InvalidInput),
                 Err(<$err_ty>::PipelineFailure) => Err(AddressError::PipelineFailure),
             }
@@ -363,6 +409,680 @@ mod component {
                 uor_addr::onnx::AddressFailure,
                 uor_addr::onnx::AddressFailure::InvalidOnnx
             )
+        }
+
+        // ─── σ-axis-selecting entry points ──────────────────────────
+
+        fn json_address_with_hash(
+            input: Vec<u8>,
+            algo: HashAlgorithm,
+        ) -> Result<KappaLabel, AddressError> {
+            match algo {
+                HashAlgorithm::Sha256 => map_addr!(
+                    uor_addr::json::address(&input),
+                    uor_addr::json::AddressFailure,
+                    uor_addr::json::AddressFailure::InvalidJson
+                ),
+                HashAlgorithm::Blake3 => map_addr!(
+                    uor_addr::json::address_blake3(&input),
+                    uor_addr::json::AddressFailure,
+                    uor_addr::json::AddressFailure::InvalidJson
+                ),
+                HashAlgorithm::Sha3256 => map_addr!(
+                    uor_addr::json::address_sha3_256(&input),
+                    uor_addr::json::AddressFailure,
+                    uor_addr::json::AddressFailure::InvalidJson
+                ),
+                HashAlgorithm::Keccak256 => map_addr!(
+                    uor_addr::json::address_keccak256(&input),
+                    uor_addr::json::AddressFailure,
+                    uor_addr::json::AddressFailure::InvalidJson
+                ),
+            }
+        }
+
+        fn json_address_with_witness_hash(
+            input: Vec<u8>,
+            algo: HashAlgorithm,
+        ) -> Result<Grounded, AddressError> {
+            match algo {
+                HashAlgorithm::Sha256 => map_witness!(
+                    uor_addr::json::address(&input),
+                    uor_addr::json::AddressFailure,
+                    uor_addr::json::AddressFailure::InvalidJson
+                ),
+                HashAlgorithm::Blake3 => map_witness!(
+                    uor_addr::json::address_blake3(&input),
+                    uor_addr::json::AddressFailure,
+                    uor_addr::json::AddressFailure::InvalidJson
+                ),
+                HashAlgorithm::Sha3256 => map_witness!(
+                    uor_addr::json::address_sha3_256(&input),
+                    uor_addr::json::AddressFailure,
+                    uor_addr::json::AddressFailure::InvalidJson
+                ),
+                HashAlgorithm::Keccak256 => map_witness!(
+                    uor_addr::json::address_keccak256(&input),
+                    uor_addr::json::AddressFailure,
+                    uor_addr::json::AddressFailure::InvalidJson
+                ),
+            }
+        }
+
+        fn sexp_address_with_hash(
+            input: Vec<u8>,
+            algo: HashAlgorithm,
+        ) -> Result<KappaLabel, AddressError> {
+            match algo {
+                HashAlgorithm::Sha256 => map_addr!(
+                    uor_addr::sexp::address(&input),
+                    uor_addr::sexp::AddressFailure,
+                    uor_addr::sexp::AddressFailure::InvalidSExpr
+                ),
+                HashAlgorithm::Blake3 => map_addr!(
+                    uor_addr::sexp::address_blake3(&input),
+                    uor_addr::sexp::AddressFailure,
+                    uor_addr::sexp::AddressFailure::InvalidSExpr
+                ),
+                HashAlgorithm::Sha3256 => map_addr!(
+                    uor_addr::sexp::address_sha3_256(&input),
+                    uor_addr::sexp::AddressFailure,
+                    uor_addr::sexp::AddressFailure::InvalidSExpr
+                ),
+                HashAlgorithm::Keccak256 => map_addr!(
+                    uor_addr::sexp::address_keccak256(&input),
+                    uor_addr::sexp::AddressFailure,
+                    uor_addr::sexp::AddressFailure::InvalidSExpr
+                ),
+            }
+        }
+
+        fn sexp_address_with_witness_hash(
+            input: Vec<u8>,
+            algo: HashAlgorithm,
+        ) -> Result<Grounded, AddressError> {
+            match algo {
+                HashAlgorithm::Sha256 => map_witness!(
+                    uor_addr::sexp::address(&input),
+                    uor_addr::sexp::AddressFailure,
+                    uor_addr::sexp::AddressFailure::InvalidSExpr
+                ),
+                HashAlgorithm::Blake3 => map_witness!(
+                    uor_addr::sexp::address_blake3(&input),
+                    uor_addr::sexp::AddressFailure,
+                    uor_addr::sexp::AddressFailure::InvalidSExpr
+                ),
+                HashAlgorithm::Sha3256 => map_witness!(
+                    uor_addr::sexp::address_sha3_256(&input),
+                    uor_addr::sexp::AddressFailure,
+                    uor_addr::sexp::AddressFailure::InvalidSExpr
+                ),
+                HashAlgorithm::Keccak256 => map_witness!(
+                    uor_addr::sexp::address_keccak256(&input),
+                    uor_addr::sexp::AddressFailure,
+                    uor_addr::sexp::AddressFailure::InvalidSExpr
+                ),
+            }
+        }
+
+        fn xml_address_with_hash(
+            input: Vec<u8>,
+            algo: HashAlgorithm,
+        ) -> Result<KappaLabel, AddressError> {
+            match algo {
+                HashAlgorithm::Sha256 => map_addr!(
+                    uor_addr::xml::address(&input),
+                    uor_addr::xml::AddressFailure,
+                    uor_addr::xml::AddressFailure::InvalidXml
+                ),
+                HashAlgorithm::Blake3 => map_addr!(
+                    uor_addr::xml::address_blake3(&input),
+                    uor_addr::xml::AddressFailure,
+                    uor_addr::xml::AddressFailure::InvalidXml
+                ),
+                HashAlgorithm::Sha3256 => map_addr!(
+                    uor_addr::xml::address_sha3_256(&input),
+                    uor_addr::xml::AddressFailure,
+                    uor_addr::xml::AddressFailure::InvalidXml
+                ),
+                HashAlgorithm::Keccak256 => map_addr!(
+                    uor_addr::xml::address_keccak256(&input),
+                    uor_addr::xml::AddressFailure,
+                    uor_addr::xml::AddressFailure::InvalidXml
+                ),
+            }
+        }
+
+        fn xml_address_with_witness_hash(
+            input: Vec<u8>,
+            algo: HashAlgorithm,
+        ) -> Result<Grounded, AddressError> {
+            match algo {
+                HashAlgorithm::Sha256 => map_witness!(
+                    uor_addr::xml::address(&input),
+                    uor_addr::xml::AddressFailure,
+                    uor_addr::xml::AddressFailure::InvalidXml
+                ),
+                HashAlgorithm::Blake3 => map_witness!(
+                    uor_addr::xml::address_blake3(&input),
+                    uor_addr::xml::AddressFailure,
+                    uor_addr::xml::AddressFailure::InvalidXml
+                ),
+                HashAlgorithm::Sha3256 => map_witness!(
+                    uor_addr::xml::address_sha3_256(&input),
+                    uor_addr::xml::AddressFailure,
+                    uor_addr::xml::AddressFailure::InvalidXml
+                ),
+                HashAlgorithm::Keccak256 => map_witness!(
+                    uor_addr::xml::address_keccak256(&input),
+                    uor_addr::xml::AddressFailure,
+                    uor_addr::xml::AddressFailure::InvalidXml
+                ),
+            }
+        }
+
+        fn asn1_address_with_hash(
+            input: Vec<u8>,
+            algo: HashAlgorithm,
+        ) -> Result<KappaLabel, AddressError> {
+            match algo {
+                HashAlgorithm::Sha256 => map_addr!(
+                    uor_addr::asn1::address(&input),
+                    uor_addr::asn1::AddressFailure,
+                    uor_addr::asn1::AddressFailure::InvalidDer
+                ),
+                HashAlgorithm::Blake3 => map_addr!(
+                    uor_addr::asn1::address_blake3(&input),
+                    uor_addr::asn1::AddressFailure,
+                    uor_addr::asn1::AddressFailure::InvalidDer
+                ),
+                HashAlgorithm::Sha3256 => map_addr!(
+                    uor_addr::asn1::address_sha3_256(&input),
+                    uor_addr::asn1::AddressFailure,
+                    uor_addr::asn1::AddressFailure::InvalidDer
+                ),
+                HashAlgorithm::Keccak256 => map_addr!(
+                    uor_addr::asn1::address_keccak256(&input),
+                    uor_addr::asn1::AddressFailure,
+                    uor_addr::asn1::AddressFailure::InvalidDer
+                ),
+            }
+        }
+
+        fn asn1_address_with_witness_hash(
+            input: Vec<u8>,
+            algo: HashAlgorithm,
+        ) -> Result<Grounded, AddressError> {
+            match algo {
+                HashAlgorithm::Sha256 => map_witness!(
+                    uor_addr::asn1::address(&input),
+                    uor_addr::asn1::AddressFailure,
+                    uor_addr::asn1::AddressFailure::InvalidDer
+                ),
+                HashAlgorithm::Blake3 => map_witness!(
+                    uor_addr::asn1::address_blake3(&input),
+                    uor_addr::asn1::AddressFailure,
+                    uor_addr::asn1::AddressFailure::InvalidDer
+                ),
+                HashAlgorithm::Sha3256 => map_witness!(
+                    uor_addr::asn1::address_sha3_256(&input),
+                    uor_addr::asn1::AddressFailure,
+                    uor_addr::asn1::AddressFailure::InvalidDer
+                ),
+                HashAlgorithm::Keccak256 => map_witness!(
+                    uor_addr::asn1::address_keccak256(&input),
+                    uor_addr::asn1::AddressFailure,
+                    uor_addr::asn1::AddressFailure::InvalidDer
+                ),
+            }
+        }
+
+        fn ring_address_with_hash(
+            input: Vec<u8>,
+            algo: HashAlgorithm,
+        ) -> Result<KappaLabel, AddressError> {
+            match algo {
+                HashAlgorithm::Sha256 => map_addr!(
+                    uor_addr::ring::address(&input),
+                    uor_addr::ring::AddressFailure,
+                    uor_addr::ring::AddressFailure::InvalidRingElement
+                ),
+                HashAlgorithm::Blake3 => map_addr!(
+                    uor_addr::ring::address_blake3(&input),
+                    uor_addr::ring::AddressFailure,
+                    uor_addr::ring::AddressFailure::InvalidRingElement
+                ),
+                HashAlgorithm::Sha3256 => map_addr!(
+                    uor_addr::ring::address_sha3_256(&input),
+                    uor_addr::ring::AddressFailure,
+                    uor_addr::ring::AddressFailure::InvalidRingElement
+                ),
+                HashAlgorithm::Keccak256 => map_addr!(
+                    uor_addr::ring::address_keccak256(&input),
+                    uor_addr::ring::AddressFailure,
+                    uor_addr::ring::AddressFailure::InvalidRingElement
+                ),
+            }
+        }
+
+        fn ring_address_with_witness_hash(
+            input: Vec<u8>,
+            algo: HashAlgorithm,
+        ) -> Result<Grounded, AddressError> {
+            match algo {
+                HashAlgorithm::Sha256 => map_witness!(
+                    uor_addr::ring::address(&input),
+                    uor_addr::ring::AddressFailure,
+                    uor_addr::ring::AddressFailure::InvalidRingElement
+                ),
+                HashAlgorithm::Blake3 => map_witness!(
+                    uor_addr::ring::address_blake3(&input),
+                    uor_addr::ring::AddressFailure,
+                    uor_addr::ring::AddressFailure::InvalidRingElement
+                ),
+                HashAlgorithm::Sha3256 => map_witness!(
+                    uor_addr::ring::address_sha3_256(&input),
+                    uor_addr::ring::AddressFailure,
+                    uor_addr::ring::AddressFailure::InvalidRingElement
+                ),
+                HashAlgorithm::Keccak256 => map_witness!(
+                    uor_addr::ring::address_keccak256(&input),
+                    uor_addr::ring::AddressFailure,
+                    uor_addr::ring::AddressFailure::InvalidRingElement
+                ),
+            }
+        }
+
+        fn codemodule_address_with_hash(
+            input: Vec<u8>,
+            algo: HashAlgorithm,
+        ) -> Result<KappaLabel, AddressError> {
+            match algo {
+                HashAlgorithm::Sha256 => map_addr!(
+                    uor_addr::codemodule::address(&input),
+                    uor_addr::codemodule::AddressFailure,
+                    uor_addr::codemodule::AddressFailure::InvalidAst
+                ),
+                HashAlgorithm::Blake3 => map_addr!(
+                    uor_addr::codemodule::address_blake3(&input),
+                    uor_addr::codemodule::AddressFailure,
+                    uor_addr::codemodule::AddressFailure::InvalidAst
+                ),
+                HashAlgorithm::Sha3256 => map_addr!(
+                    uor_addr::codemodule::address_sha3_256(&input),
+                    uor_addr::codemodule::AddressFailure,
+                    uor_addr::codemodule::AddressFailure::InvalidAst
+                ),
+                HashAlgorithm::Keccak256 => map_addr!(
+                    uor_addr::codemodule::address_keccak256(&input),
+                    uor_addr::codemodule::AddressFailure,
+                    uor_addr::codemodule::AddressFailure::InvalidAst
+                ),
+            }
+        }
+
+        fn codemodule_address_with_witness_hash(
+            input: Vec<u8>,
+            algo: HashAlgorithm,
+        ) -> Result<Grounded, AddressError> {
+            match algo {
+                HashAlgorithm::Sha256 => map_witness!(
+                    uor_addr::codemodule::address(&input),
+                    uor_addr::codemodule::AddressFailure,
+                    uor_addr::codemodule::AddressFailure::InvalidAst
+                ),
+                HashAlgorithm::Blake3 => map_witness!(
+                    uor_addr::codemodule::address_blake3(&input),
+                    uor_addr::codemodule::AddressFailure,
+                    uor_addr::codemodule::AddressFailure::InvalidAst
+                ),
+                HashAlgorithm::Sha3256 => map_witness!(
+                    uor_addr::codemodule::address_sha3_256(&input),
+                    uor_addr::codemodule::AddressFailure,
+                    uor_addr::codemodule::AddressFailure::InvalidAst
+                ),
+                HashAlgorithm::Keccak256 => map_witness!(
+                    uor_addr::codemodule::address_keccak256(&input),
+                    uor_addr::codemodule::AddressFailure,
+                    uor_addr::codemodule::AddressFailure::InvalidAst
+                ),
+            }
+        }
+
+        fn cbor_address_with_hash(
+            input: Vec<u8>,
+            algo: HashAlgorithm,
+        ) -> Result<KappaLabel, AddressError> {
+            match algo {
+                HashAlgorithm::Sha256 => map_addr!(
+                    uor_addr::cbor::address(&input),
+                    uor_addr::cbor::AddressFailure,
+                    uor_addr::cbor::AddressFailure::InvalidCbor
+                ),
+                HashAlgorithm::Blake3 => map_addr!(
+                    uor_addr::cbor::address_blake3(&input),
+                    uor_addr::cbor::AddressFailure,
+                    uor_addr::cbor::AddressFailure::InvalidCbor
+                ),
+                HashAlgorithm::Sha3256 => map_addr!(
+                    uor_addr::cbor::address_sha3_256(&input),
+                    uor_addr::cbor::AddressFailure,
+                    uor_addr::cbor::AddressFailure::InvalidCbor
+                ),
+                HashAlgorithm::Keccak256 => map_addr!(
+                    uor_addr::cbor::address_keccak256(&input),
+                    uor_addr::cbor::AddressFailure,
+                    uor_addr::cbor::AddressFailure::InvalidCbor
+                ),
+            }
+        }
+
+        fn cbor_address_with_witness_hash(
+            input: Vec<u8>,
+            algo: HashAlgorithm,
+        ) -> Result<Grounded, AddressError> {
+            match algo {
+                HashAlgorithm::Sha256 => map_witness!(
+                    uor_addr::cbor::address(&input),
+                    uor_addr::cbor::AddressFailure,
+                    uor_addr::cbor::AddressFailure::InvalidCbor
+                ),
+                HashAlgorithm::Blake3 => map_witness!(
+                    uor_addr::cbor::address_blake3(&input),
+                    uor_addr::cbor::AddressFailure,
+                    uor_addr::cbor::AddressFailure::InvalidCbor
+                ),
+                HashAlgorithm::Sha3256 => map_witness!(
+                    uor_addr::cbor::address_sha3_256(&input),
+                    uor_addr::cbor::AddressFailure,
+                    uor_addr::cbor::AddressFailure::InvalidCbor
+                ),
+                HashAlgorithm::Keccak256 => map_witness!(
+                    uor_addr::cbor::address_keccak256(&input),
+                    uor_addr::cbor::AddressFailure,
+                    uor_addr::cbor::AddressFailure::InvalidCbor
+                ),
+            }
+        }
+
+        fn schema_photo_address_with_hash(
+            input: Vec<u8>,
+            algo: HashAlgorithm,
+        ) -> Result<KappaLabel, AddressError> {
+            match algo {
+                HashAlgorithm::Sha256 => map_addr!(
+                    uor_addr::schema::photo::address(&input),
+                    uor_addr::schema::photo::AddressFailure,
+                    uor_addr::schema::photo::AddressFailure::SchemaViolation
+                ),
+                HashAlgorithm::Blake3 => map_addr!(
+                    uor_addr::schema::photo::address_blake3(&input),
+                    uor_addr::schema::photo::AddressFailure,
+                    uor_addr::schema::photo::AddressFailure::SchemaViolation
+                ),
+                HashAlgorithm::Sha3256 => map_addr!(
+                    uor_addr::schema::photo::address_sha3_256(&input),
+                    uor_addr::schema::photo::AddressFailure,
+                    uor_addr::schema::photo::AddressFailure::SchemaViolation
+                ),
+                HashAlgorithm::Keccak256 => map_addr!(
+                    uor_addr::schema::photo::address_keccak256(&input),
+                    uor_addr::schema::photo::AddressFailure,
+                    uor_addr::schema::photo::AddressFailure::SchemaViolation
+                ),
+            }
+        }
+
+        fn schema_photo_address_with_witness_hash(
+            input: Vec<u8>,
+            algo: HashAlgorithm,
+        ) -> Result<Grounded, AddressError> {
+            match algo {
+                HashAlgorithm::Sha256 => map_witness!(
+                    uor_addr::schema::photo::address(&input),
+                    uor_addr::schema::photo::AddressFailure,
+                    uor_addr::schema::photo::AddressFailure::SchemaViolation
+                ),
+                HashAlgorithm::Blake3 => map_witness!(
+                    uor_addr::schema::photo::address_blake3(&input),
+                    uor_addr::schema::photo::AddressFailure,
+                    uor_addr::schema::photo::AddressFailure::SchemaViolation
+                ),
+                HashAlgorithm::Sha3256 => map_witness!(
+                    uor_addr::schema::photo::address_sha3_256(&input),
+                    uor_addr::schema::photo::AddressFailure,
+                    uor_addr::schema::photo::AddressFailure::SchemaViolation
+                ),
+                HashAlgorithm::Keccak256 => map_witness!(
+                    uor_addr::schema::photo::address_keccak256(&input),
+                    uor_addr::schema::photo::AddressFailure,
+                    uor_addr::schema::photo::AddressFailure::SchemaViolation
+                ),
+            }
+        }
+
+        fn schema_document_address_with_hash(
+            input: Vec<u8>,
+            algo: HashAlgorithm,
+        ) -> Result<KappaLabel, AddressError> {
+            match algo {
+                HashAlgorithm::Sha256 => map_addr!(
+                    uor_addr::schema::document::address(&input),
+                    uor_addr::schema::document::AddressFailure,
+                    uor_addr::schema::document::AddressFailure::SchemaViolation
+                ),
+                HashAlgorithm::Blake3 => map_addr!(
+                    uor_addr::schema::document::address_blake3(&input),
+                    uor_addr::schema::document::AddressFailure,
+                    uor_addr::schema::document::AddressFailure::SchemaViolation
+                ),
+                HashAlgorithm::Sha3256 => map_addr!(
+                    uor_addr::schema::document::address_sha3_256(&input),
+                    uor_addr::schema::document::AddressFailure,
+                    uor_addr::schema::document::AddressFailure::SchemaViolation
+                ),
+                HashAlgorithm::Keccak256 => map_addr!(
+                    uor_addr::schema::document::address_keccak256(&input),
+                    uor_addr::schema::document::AddressFailure,
+                    uor_addr::schema::document::AddressFailure::SchemaViolation
+                ),
+            }
+        }
+
+        fn schema_document_address_with_witness_hash(
+            input: Vec<u8>,
+            algo: HashAlgorithm,
+        ) -> Result<Grounded, AddressError> {
+            match algo {
+                HashAlgorithm::Sha256 => map_witness!(
+                    uor_addr::schema::document::address(&input),
+                    uor_addr::schema::document::AddressFailure,
+                    uor_addr::schema::document::AddressFailure::SchemaViolation
+                ),
+                HashAlgorithm::Blake3 => map_witness!(
+                    uor_addr::schema::document::address_blake3(&input),
+                    uor_addr::schema::document::AddressFailure,
+                    uor_addr::schema::document::AddressFailure::SchemaViolation
+                ),
+                HashAlgorithm::Sha3256 => map_witness!(
+                    uor_addr::schema::document::address_sha3_256(&input),
+                    uor_addr::schema::document::AddressFailure,
+                    uor_addr::schema::document::AddressFailure::SchemaViolation
+                ),
+                HashAlgorithm::Keccak256 => map_witness!(
+                    uor_addr::schema::document::address_keccak256(&input),
+                    uor_addr::schema::document::AddressFailure,
+                    uor_addr::schema::document::AddressFailure::SchemaViolation
+                ),
+            }
+        }
+
+        fn schema_codemodule_signed_address_with_hash(
+            input: Vec<u8>,
+            algo: HashAlgorithm,
+        ) -> Result<KappaLabel, AddressError> {
+            match algo {
+                HashAlgorithm::Sha256 => map_addr!(
+                    uor_addr::schema::codemodule_signed::address(&input),
+                    uor_addr::schema::codemodule_signed::AddressFailure,
+                    uor_addr::schema::codemodule_signed::AddressFailure::SchemaViolation
+                ),
+                HashAlgorithm::Blake3 => map_addr!(
+                    uor_addr::schema::codemodule_signed::address_blake3(&input),
+                    uor_addr::schema::codemodule_signed::AddressFailure,
+                    uor_addr::schema::codemodule_signed::AddressFailure::SchemaViolation
+                ),
+                HashAlgorithm::Sha3256 => map_addr!(
+                    uor_addr::schema::codemodule_signed::address_sha3_256(&input),
+                    uor_addr::schema::codemodule_signed::AddressFailure,
+                    uor_addr::schema::codemodule_signed::AddressFailure::SchemaViolation
+                ),
+                HashAlgorithm::Keccak256 => map_addr!(
+                    uor_addr::schema::codemodule_signed::address_keccak256(&input),
+                    uor_addr::schema::codemodule_signed::AddressFailure,
+                    uor_addr::schema::codemodule_signed::AddressFailure::SchemaViolation
+                ),
+            }
+        }
+
+        fn schema_codemodule_signed_address_with_witness_hash(
+            input: Vec<u8>,
+            algo: HashAlgorithm,
+        ) -> Result<Grounded, AddressError> {
+            match algo {
+                HashAlgorithm::Sha256 => map_witness!(
+                    uor_addr::schema::codemodule_signed::address(&input),
+                    uor_addr::schema::codemodule_signed::AddressFailure,
+                    uor_addr::schema::codemodule_signed::AddressFailure::SchemaViolation
+                ),
+                HashAlgorithm::Blake3 => map_witness!(
+                    uor_addr::schema::codemodule_signed::address_blake3(&input),
+                    uor_addr::schema::codemodule_signed::AddressFailure,
+                    uor_addr::schema::codemodule_signed::AddressFailure::SchemaViolation
+                ),
+                HashAlgorithm::Sha3256 => map_witness!(
+                    uor_addr::schema::codemodule_signed::address_sha3_256(&input),
+                    uor_addr::schema::codemodule_signed::AddressFailure,
+                    uor_addr::schema::codemodule_signed::AddressFailure::SchemaViolation
+                ),
+                HashAlgorithm::Keccak256 => map_witness!(
+                    uor_addr::schema::codemodule_signed::address_keccak256(&input),
+                    uor_addr::schema::codemodule_signed::AddressFailure,
+                    uor_addr::schema::codemodule_signed::AddressFailure::SchemaViolation
+                ),
+            }
+        }
+
+        fn gguf_address_with_hash(
+            input: Vec<u8>,
+            algo: HashAlgorithm,
+        ) -> Result<KappaLabel, AddressError> {
+            match algo {
+                HashAlgorithm::Sha256 => map_addr!(
+                    uor_addr::gguf::address(&input),
+                    uor_addr::gguf::AddressFailure,
+                    uor_addr::gguf::AddressFailure::InvalidGguf
+                ),
+                HashAlgorithm::Blake3 => map_addr!(
+                    uor_addr::gguf::address_blake3(&input),
+                    uor_addr::gguf::AddressFailure,
+                    uor_addr::gguf::AddressFailure::InvalidGguf
+                ),
+                HashAlgorithm::Sha3256 => map_addr!(
+                    uor_addr::gguf::address_sha3_256(&input),
+                    uor_addr::gguf::AddressFailure,
+                    uor_addr::gguf::AddressFailure::InvalidGguf
+                ),
+                HashAlgorithm::Keccak256 => map_addr!(
+                    uor_addr::gguf::address_keccak256(&input),
+                    uor_addr::gguf::AddressFailure,
+                    uor_addr::gguf::AddressFailure::InvalidGguf
+                ),
+            }
+        }
+
+        fn gguf_address_with_witness_hash(
+            input: Vec<u8>,
+            algo: HashAlgorithm,
+        ) -> Result<Grounded, AddressError> {
+            match algo {
+                HashAlgorithm::Sha256 => map_witness!(
+                    uor_addr::gguf::address(&input),
+                    uor_addr::gguf::AddressFailure,
+                    uor_addr::gguf::AddressFailure::InvalidGguf
+                ),
+                HashAlgorithm::Blake3 => map_witness!(
+                    uor_addr::gguf::address_blake3(&input),
+                    uor_addr::gguf::AddressFailure,
+                    uor_addr::gguf::AddressFailure::InvalidGguf
+                ),
+                HashAlgorithm::Sha3256 => map_witness!(
+                    uor_addr::gguf::address_sha3_256(&input),
+                    uor_addr::gguf::AddressFailure,
+                    uor_addr::gguf::AddressFailure::InvalidGguf
+                ),
+                HashAlgorithm::Keccak256 => map_witness!(
+                    uor_addr::gguf::address_keccak256(&input),
+                    uor_addr::gguf::AddressFailure,
+                    uor_addr::gguf::AddressFailure::InvalidGguf
+                ),
+            }
+        }
+
+        fn onnx_address_with_hash(
+            input: Vec<u8>,
+            algo: HashAlgorithm,
+        ) -> Result<KappaLabel, AddressError> {
+            match algo {
+                HashAlgorithm::Sha256 => map_addr!(
+                    uor_addr::onnx::address(&input),
+                    uor_addr::onnx::AddressFailure,
+                    uor_addr::onnx::AddressFailure::InvalidOnnx
+                ),
+                HashAlgorithm::Blake3 => map_addr!(
+                    uor_addr::onnx::address_blake3(&input),
+                    uor_addr::onnx::AddressFailure,
+                    uor_addr::onnx::AddressFailure::InvalidOnnx
+                ),
+                HashAlgorithm::Sha3256 => map_addr!(
+                    uor_addr::onnx::address_sha3_256(&input),
+                    uor_addr::onnx::AddressFailure,
+                    uor_addr::onnx::AddressFailure::InvalidOnnx
+                ),
+                HashAlgorithm::Keccak256 => map_addr!(
+                    uor_addr::onnx::address_keccak256(&input),
+                    uor_addr::onnx::AddressFailure,
+                    uor_addr::onnx::AddressFailure::InvalidOnnx
+                ),
+            }
+        }
+
+        fn onnx_address_with_witness_hash(
+            input: Vec<u8>,
+            algo: HashAlgorithm,
+        ) -> Result<Grounded, AddressError> {
+            match algo {
+                HashAlgorithm::Sha256 => map_witness!(
+                    uor_addr::onnx::address(&input),
+                    uor_addr::onnx::AddressFailure,
+                    uor_addr::onnx::AddressFailure::InvalidOnnx
+                ),
+                HashAlgorithm::Blake3 => map_witness!(
+                    uor_addr::onnx::address_blake3(&input),
+                    uor_addr::onnx::AddressFailure,
+                    uor_addr::onnx::AddressFailure::InvalidOnnx
+                ),
+                HashAlgorithm::Sha3256 => map_witness!(
+                    uor_addr::onnx::address_sha3_256(&input),
+                    uor_addr::onnx::AddressFailure,
+                    uor_addr::onnx::AddressFailure::InvalidOnnx
+                ),
+                HashAlgorithm::Keccak256 => map_witness!(
+                    uor_addr::onnx::address_keccak256(&input),
+                    uor_addr::onnx::AddressFailure,
+                    uor_addr::onnx::AddressFailure::InvalidOnnx
+                ),
+            }
         }
     }
 

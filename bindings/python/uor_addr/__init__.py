@@ -117,17 +117,11 @@ def _bind(symbol: str) -> ctypes._NamedFuncPointer:
     return fn
 
 
+# The full realization set (snake-case = the C `uor_addr_<r>` stem).
+_REALIZATIONS: Final[list[str]] = ["json", "sexp", "xml", "asn1", "ring", "codemodule", "cbor", "schema_photo", "schema_document", "schema_codemodule_signed", "gguf", "onnx"]
+
 _FUNCS: Final[dict[str, ctypes._NamedFuncPointer]] = {
-    "json_address":                       _bind("uor_addr_json"),
-    "sexp_address":                       _bind("uor_addr_sexp"),
-    "xml_address":                        _bind("uor_addr_xml"),
-    "asn1_address":                       _bind("uor_addr_asn1"),
-    "ring_address":                       _bind("uor_addr_ring"),
-    "codemodule_address":                 _bind("uor_addr_codemodule"),
-    "cbor_address":                       _bind("uor_addr_cbor"),
-    "schema_photo_address":               _bind("uor_addr_schema_photo"),
-    "schema_document_address":            _bind("uor_addr_schema_document"),
-    "schema_codemodule_signed_address":   _bind("uor_addr_schema_codemodule_signed"),
+    f"{r}_address": _bind(f"uor_addr_{r}") for r in _REALIZATIONS
 }
 
 
@@ -149,13 +143,7 @@ def _bind_with_hash(symbol: str) -> ctypes._NamedFuncPointer:
 # Per-format σ-axis-selecting entry points (label only; the witness API
 # remains SHA-256).
 _WITH_HASH_FUNCS: Final[dict[str, ctypes._NamedFuncPointer]] = {
-    "json":       _bind_with_hash("uor_addr_json_with_hash"),
-    "sexp":       _bind_with_hash("uor_addr_sexp_with_hash"),
-    "xml":        _bind_with_hash("uor_addr_xml_with_hash"),
-    "asn1":       _bind_with_hash("uor_addr_asn1_with_hash"),
-    "ring":       _bind_with_hash("uor_addr_ring_with_hash"),
-    "codemodule": _bind_with_hash("uor_addr_codemodule_with_hash"),
-    "cbor":       _bind_with_hash("uor_addr_cbor_with_hash"),
+    r: _bind_with_hash(f"uor_addr_{r}_with_hash") for r in _REALIZATIONS
 }
 
 
@@ -186,16 +174,25 @@ def _bind_with_witness(symbol: str) -> ctypes._NamedFuncPointer:
 
 
 _WITH_WITNESS_FUNCS: Final[dict[str, ctypes._NamedFuncPointer]] = {
-    "json":                       _bind_with_witness("uor_addr_json_with_witness"),
-    "sexp":                       _bind_with_witness("uor_addr_sexp_with_witness"),
-    "xml":                        _bind_with_witness("uor_addr_xml_with_witness"),
-    "asn1":                       _bind_with_witness("uor_addr_asn1_with_witness"),
-    "ring":                       _bind_with_witness("uor_addr_ring_with_witness"),
-    "codemodule":                 _bind_with_witness("uor_addr_codemodule_with_witness"),
-    "cbor":                       _bind_with_witness("uor_addr_cbor_with_witness"),
-    "schema_photo":               _bind_with_witness("uor_addr_schema_photo_with_witness"),
-    "schema_document":            _bind_with_witness("uor_addr_schema_document_with_witness"),
-    "schema_codemodule_signed":   _bind_with_witness("uor_addr_schema_codemodule_signed_with_witness"),
+    r: _bind_with_witness(f"uor_addr_{r}_with_witness") for r in _REALIZATIONS
+}
+
+
+def _bind_with_witness_hash(symbol: str) -> ctypes._NamedFuncPointer:
+    """`*_with_witness_hash` ABI: (algo, input, len, out_handle) -> i32."""
+    fn = getattr(_lib, symbol)
+    fn.argtypes = [
+        ctypes.c_uint8,
+        ctypes.POINTER(ctypes.c_uint8),
+        ctypes.c_size_t,
+        ctypes.POINTER(ctypes.c_void_p),
+    ]
+    fn.restype = ctypes.c_int32
+    return fn
+
+
+_WITH_WITNESS_HASH_FUNCS: Final[dict[str, ctypes._NamedFuncPointer]] = {
+    r: _bind_with_witness_hash(f"uor_addr_{r}_with_witness_hash") for r in _REALIZATIONS
 }
 
 # Grounded accessor ABIs.
@@ -290,16 +287,17 @@ class Grounded:
         return self._handle
 
     def kappa_label(self) -> str:
-        """Return the 71-byte ASCII κ-label this Grounded carries."""
+        """Return the ASCII κ-label this Grounded carries (width depends on
+        the σ-axis: 71 for sha256/blake3, 73 for sha3-256, 74 for keccak256)."""
         handle = self._require()
-        out_buf = (ctypes.c_uint8 * ADDRESS_LABEL_BYTES)()
+        out_buf = (ctypes.c_uint8 * MAX_LABEL_BYTES)()
         written = ctypes.c_size_t(0)
         rc = _lib.uor_addr_grounded_kappa_label(
-            handle, out_buf, ADDRESS_LABEL_BYTES, ctypes.byref(written)
+            handle, out_buf, MAX_LABEL_BYTES, ctypes.byref(written)
         )
         if rc != _OK:
             raise AddressError(_ERR_KIND.get(rc, "pipeline-failure"))
-        return bytes(out_buf).decode("ascii")
+        return bytes(out_buf[: written.value]).decode("ascii")
 
     def content_fingerprint(self) -> bytes:
         """Return the 32-byte SHA-256 content fingerprint."""
@@ -321,16 +319,16 @@ class Grounded:
         (QS-05 / CL-R* in CONFORMANCE.md).
         """
         handle = self._require()
-        out_buf = (ctypes.c_uint8 * ADDRESS_LABEL_BYTES)()
+        out_buf = (ctypes.c_uint8 * MAX_LABEL_BYTES)()
         written = ctypes.c_size_t(0)
         rc = _lib.uor_addr_grounded_verify(
-            handle, out_buf, ADDRESS_LABEL_BYTES, ctypes.byref(written)
+            handle, out_buf, MAX_LABEL_BYTES, ctypes.byref(written)
         )
         if rc != _OK:
             if rc in _ERR_VERIFY_KIND:
                 raise VerifyError(_ERR_VERIFY_KIND[rc])
             raise AddressError(_ERR_KIND.get(rc, "pipeline-failure"))
-        return bytes(out_buf).decode("ascii")
+        return bytes(out_buf[: written.value]).decode("ascii")
 
 
 def _mint_with_witness(
@@ -349,6 +347,21 @@ def _mint_with_witness(
             "pipeline-failure",
             "C ABI returned OK without writing a handle",
         )
+    return Grounded(out_handle.value)
+
+
+def _mint_with_witness_hash(
+    realization: str, algo: int, data: bytes | bytearray | memoryview
+) -> Grounded:
+    buf = bytes(data)
+    in_ptr = (ctypes.c_uint8 * len(buf)).from_buffer_copy(buf)
+    out_handle = ctypes.c_void_p()
+    fn = _WITH_WITNESS_HASH_FUNCS[realization]
+    rc = fn(algo, in_ptr, len(buf), ctypes.byref(out_handle))
+    if rc != _OK:
+        raise AddressError(_ERR_KIND.get(rc, "pipeline-failure"))
+    if out_handle.value is None:
+        raise AddressError("pipeline-failure", "C ABI returned OK without a handle")
     return Grounded(out_handle.value)
 
 
@@ -502,6 +515,47 @@ class _Kappa:
     def schema_codemodule_signed_address_with_witness(self, data: bytes) -> Grounded:
         """in-toto Statement v1; returns a verifiable [`Grounded`] witness."""
         return _mint_with_witness("schema_codemodule_signed", data)
+
+
+
+# Fill in the full method matrix — `<realization>_address`,
+# `_address_with_hash(data, algo)`, `_address_with_witness`, and
+# `_address_with_witness_hash(data, algo)` — for every realization. Methods
+# already defined explicitly above are left untouched.
+def _install_methods() -> None:
+    def label(r):
+        def m(self, data: bytes) -> str:
+            return _call(_FUNCS[f"{r}_address"], data)
+        return m
+
+    def with_hash(r):
+        def m(self, data: bytes, algo: int = HASH_SHA256) -> str:
+            return _call_with_hash(r, algo, data)
+        return m
+
+    def witness(r):
+        def m(self, data: bytes) -> "Grounded":
+            return _mint_with_witness(r, data)
+        return m
+
+    def witness_hash(r):
+        def m(self, data: bytes, algo: int = HASH_SHA256) -> "Grounded":
+            return _mint_with_witness_hash(r, algo, data)
+        return m
+
+    for r in _REALIZATIONS:
+        for suffix, factory in (
+            ("address", label),
+            ("address_with_hash", with_hash),
+            ("address_with_witness", witness),
+            ("address_with_witness_hash", witness_hash),
+        ):
+            name = f"{r}_{suffix}"
+            if not hasattr(_Kappa, name):
+                setattr(_Kappa, name, factory(r))
+
+
+_install_methods()
 
 
 # Singleton facade — matches the npm package's `kappa` export shape.

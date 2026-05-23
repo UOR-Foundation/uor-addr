@@ -39,11 +39,11 @@ uor-addr = { workspace = true }
 default = ["std", "gguf", "onnx"]
 std     = ["alloc", "uor-addr/std"]
 alloc   = ["uor-addr/alloc"]
-# GGUF / ONNX realization exports (`uor_addr_gguf` / `uor_addr_onnx`).
-# Both are no_alloc-compatible in the underlying crate, so these add no
-# allocator requirement to the C surface.
-gguf    = ["uor-addr/gguf"]
-onnx    = ["uor-addr/onnx"]
+# GGUF / ONNX realization exports. The underlying realizations
+# canonicalize into an `alloc` buffer (skeleton), and their witness
+# handles need the allocator, so these axes imply `alloc`.
+gguf    = ["alloc", "uor-addr/gguf"]
+onnx    = ["alloc", "uor-addr/onnx"]
 
 [build-dependencies]
 cbindgen = { version = "0.27", default-features = false }

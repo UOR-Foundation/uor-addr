@@ -50,6 +50,18 @@ interface kappa {
         capacity-exceeded,
     }
 
+    /// σ-axis selector for the `*-address-with-hash` and
+    /// `*-address-with-witness-hash` functions. Variant names are WIT
+    /// identifiers (no numeric-leading words), so the SHA3-256 axis is
+    /// `sha3256` here; its κ-label prefix is still `sha3-256` (produced
+    /// Rust-side, independent of this name).
+    enum hash-algorithm {
+        sha256,
+        blake3,
+        sha3256,
+        keccak256,
+    }
+
     /// The 71-byte ASCII κ-label.
     ///
     /// Layout: `sha256:` (7 bytes) ‖ 64 lowercase-hex digits.
@@ -167,6 +179,68 @@ interface kappa {
 
     /// ONNX IR v13 realization, returning the verifiable witness handle.
     onnx-address-with-witness: func(input: list<u8>) -> result<grounded, address-error>;
+
+    // ─── σ-axis-selecting entry points ───────────────────────────────
+
+    /// `json` realization under a caller-selected σ-axis.
+    json-address-with-hash: func(input: list<u8>, algo: hash-algorithm) -> result<kappa-label, address-error>;
+    /// `json` realization, σ-axis-selected, returning a verifiable witness.
+    json-address-with-witness-hash: func(input: list<u8>, algo: hash-algorithm) -> result<grounded, address-error>;
+
+    /// `sexp` realization under a caller-selected σ-axis.
+    sexp-address-with-hash: func(input: list<u8>, algo: hash-algorithm) -> result<kappa-label, address-error>;
+    /// `sexp` realization, σ-axis-selected, returning a verifiable witness.
+    sexp-address-with-witness-hash: func(input: list<u8>, algo: hash-algorithm) -> result<grounded, address-error>;
+
+    /// `xml` realization under a caller-selected σ-axis.
+    xml-address-with-hash: func(input: list<u8>, algo: hash-algorithm) -> result<kappa-label, address-error>;
+    /// `xml` realization, σ-axis-selected, returning a verifiable witness.
+    xml-address-with-witness-hash: func(input: list<u8>, algo: hash-algorithm) -> result<grounded, address-error>;
+
+    /// `asn1` realization under a caller-selected σ-axis.
+    asn1-address-with-hash: func(input: list<u8>, algo: hash-algorithm) -> result<kappa-label, address-error>;
+    /// `asn1` realization, σ-axis-selected, returning a verifiable witness.
+    asn1-address-with-witness-hash: func(input: list<u8>, algo: hash-algorithm) -> result<grounded, address-error>;
+
+    /// `ring` realization under a caller-selected σ-axis.
+    ring-address-with-hash: func(input: list<u8>, algo: hash-algorithm) -> result<kappa-label, address-error>;
+    /// `ring` realization, σ-axis-selected, returning a verifiable witness.
+    ring-address-with-witness-hash: func(input: list<u8>, algo: hash-algorithm) -> result<grounded, address-error>;
+
+    /// `codemodule` realization under a caller-selected σ-axis.
+    codemodule-address-with-hash: func(input: list<u8>, algo: hash-algorithm) -> result<kappa-label, address-error>;
+    /// `codemodule` realization, σ-axis-selected, returning a verifiable witness.
+    codemodule-address-with-witness-hash: func(input: list<u8>, algo: hash-algorithm) -> result<grounded, address-error>;
+
+    /// `cbor` realization under a caller-selected σ-axis.
+    cbor-address-with-hash: func(input: list<u8>, algo: hash-algorithm) -> result<kappa-label, address-error>;
+    /// `cbor` realization, σ-axis-selected, returning a verifiable witness.
+    cbor-address-with-witness-hash: func(input: list<u8>, algo: hash-algorithm) -> result<grounded, address-error>;
+
+    /// `schema-photo` realization under a caller-selected σ-axis.
+    schema-photo-address-with-hash: func(input: list<u8>, algo: hash-algorithm) -> result<kappa-label, address-error>;
+    /// `schema-photo` realization, σ-axis-selected, returning a verifiable witness.
+    schema-photo-address-with-witness-hash: func(input: list<u8>, algo: hash-algorithm) -> result<grounded, address-error>;
+
+    /// `schema-document` realization under a caller-selected σ-axis.
+    schema-document-address-with-hash: func(input: list<u8>, algo: hash-algorithm) -> result<kappa-label, address-error>;
+    /// `schema-document` realization, σ-axis-selected, returning a verifiable witness.
+    schema-document-address-with-witness-hash: func(input: list<u8>, algo: hash-algorithm) -> result<grounded, address-error>;
+
+    /// `schema-codemodule-signed` realization under a caller-selected σ-axis.
+    schema-codemodule-signed-address-with-hash: func(input: list<u8>, algo: hash-algorithm) -> result<kappa-label, address-error>;
+    /// `schema-codemodule-signed` realization, σ-axis-selected, returning a verifiable witness.
+    schema-codemodule-signed-address-with-witness-hash: func(input: list<u8>, algo: hash-algorithm) -> result<grounded, address-error>;
+
+    /// `gguf` realization under a caller-selected σ-axis.
+    gguf-address-with-hash: func(input: list<u8>, algo: hash-algorithm) -> result<kappa-label, address-error>;
+    /// `gguf` realization, σ-axis-selected, returning a verifiable witness.
+    gguf-address-with-witness-hash: func(input: list<u8>, algo: hash-algorithm) -> result<grounded, address-error>;
+
+    /// `onnx` realization under a caller-selected σ-axis.
+    onnx-address-with-hash: func(input: list<u8>, algo: hash-algorithm) -> result<kappa-label, address-error>;
+    /// `onnx` realization, σ-axis-selected, returning a verifiable witness.
+    onnx-address-with-witness-hash: func(input: list<u8>, algo: hash-algorithm) -> result<grounded, address-error>;
 }
 
 /// The `uor-addr` component world — exports the `kappa` interface.
