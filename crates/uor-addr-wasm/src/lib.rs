@@ -98,7 +98,7 @@ mod component {
     /// consumes via the WIT method exports; the host's `own grounded`
     /// drop triggers `Drop` here, releasing the Rust state.
     pub struct GroundedImpl {
-        outcome: uor_addr::AddressOutcome,
+        outcome: uor_addr::AddressOutcome<71>,
     }
 
     impl GuestGrounded for GroundedImpl {
@@ -213,6 +213,14 @@ mod component {
             )
         }
 
+        fn cbor_address(input: Vec<u8>) -> Result<KappaLabel, AddressError> {
+            map_addr!(
+                uor_addr::cbor::address(&input),
+                uor_addr::cbor::AddressFailure,
+                uor_addr::cbor::AddressFailure::InvalidCbor
+            )
+        }
+
         fn schema_photo_address(input: Vec<u8>) -> Result<KappaLabel, AddressError> {
             map_addr!(
                 uor_addr::schema::photo::address(&input),
@@ -284,6 +292,14 @@ mod component {
                 uor_addr::codemodule::address(&input),
                 uor_addr::codemodule::AddressFailure,
                 uor_addr::codemodule::AddressFailure::InvalidAst
+            )
+        }
+
+        fn cbor_address_with_witness(input: Vec<u8>) -> Result<Grounded, AddressError> {
+            map_witness!(
+                uor_addr::cbor::address(&input),
+                uor_addr::cbor::AddressFailure,
+                uor_addr::cbor::AddressFailure::InvalidCbor
             )
         }
 

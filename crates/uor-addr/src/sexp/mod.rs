@@ -44,8 +44,13 @@ pub mod pipeline;
 pub mod value;
 pub mod verbs;
 
-pub use model::{AddressModel, AddressRoute};
-pub use pipeline::{address, AddressFailure, AddressOutcome, AddressWitness, VerifyError};
+pub use model::{
+    AddressModel, AddressModelBlake3, AddressModelKeccak256, AddressModelSha3_256, AddressRoute,
+};
+pub use pipeline::{
+    address, address_blake3, address_keccak256, address_sha3_256, AddressFailure, AddressOutcome,
+    AddressWitness, VerifyError,
+};
 #[cfg(feature = "alloc")]
 pub use value::canonicalize;
 pub use value::{SExprCanon, SExprValue};

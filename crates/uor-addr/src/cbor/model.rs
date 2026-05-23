@@ -1,23 +1,22 @@
-//! `sexp::AddressModel*` — the sexp realization's `PrismModel` declarations,
-//! one per admissible σ-axis ([`crate::hash`]). Each binds the shared
-//! [`AddrBounds`](crate::bounds::AddrBounds) profile and the shared
-//! [`AddressResolverTuple`](crate::resolvers) ψ-tower. `AddressModel`
-//! (sha256) is the default; `AddressModelBlake3` / `AddressModelSha3_256` /
-//! `AddressModelKeccak256` bind the other 32-byte axes.
+//! `cbor::AddressModel*` — the CBOR realization's `PrismModel`
+//! declarations, one per admissible σ-axis ([`crate::hash`]). Each binds
+//! the shared [`AddrBounds`](crate::bounds::AddrBounds) profile and the
+//! shared [`AddressResolverTuple`](crate::resolvers) ψ-tower. `AddressModel`
+//! (sha256) is the default; the others bind the remaining 32-byte axes.
 
-use crate::label::{
-    AddressLabelBlake3, AddressLabelKeccak256, AddressLabelSha256, AddressLabelSha3_256,
-};
-use crate::sexp::value::SExprValue;
+use crate::cbor::value::CborCarrier;
 #[allow(unused_imports)]
-use crate::sexp::verbs::{
+use crate::cbor::verbs::{
     address_inference, address_inference_blake3, address_inference_keccak256,
     address_inference_sha3_256, VERB_TERMS_ADDRESS_INFERENCE, VERB_TERMS_ADDRESS_INFERENCE_BLAKE3,
     VERB_TERMS_ADDRESS_INFERENCE_KECCAK256, VERB_TERMS_ADDRESS_INFERENCE_SHA3_256,
 };
+use crate::label::{
+    AddressLabelBlake3, AddressLabelKeccak256, AddressLabelSha256, AddressLabelSha3_256,
+};
 
 addr_models! {
-    input: SExprValue<'a>,
+    input: CborCarrier<'a>,
     {
         hasher: prism::crypto::Sha256Hasher,
         shape: AddressLabelSha256,

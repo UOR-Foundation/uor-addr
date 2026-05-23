@@ -7,15 +7,17 @@
 //! (ψ₁ → ψ₇ → ψ₈ → ψ₉). Only the input handle type varies; the structural
 //! shape of the term arena is the same across every realization.
 
-use prism::pipeline::verb;
-
-use crate::label::AddressLabel;
+use crate::label::{
+    AddressLabelBlake3, AddressLabelKeccak256, AddressLabelSha256, AddressLabelSha3_256,
+};
 use crate::sexp::value::SExprValue;
 
-verb! {
-    pub fn address_inference(input: SExprValue<'_>) -> AddressLabel {
-        k_invariants(homotopy_groups(postnikov_tower(nerve(input))))
-    }
+addr_verbs! {
+    input: SExprValue<'_>,
+    { shape: AddressLabelSha256, verb: address_inference },
+    { shape: AddressLabelBlake3, verb: address_inference_blake3 },
+    { shape: AddressLabelSha3_256, verb: address_inference_sha3_256 },
+    { shape: AddressLabelKeccak256, verb: address_inference_keccak256 },
 }
 
 #[cfg(test)]

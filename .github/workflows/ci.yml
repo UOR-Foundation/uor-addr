@@ -125,6 +125,11 @@ jobs:
       - run: cargo test -p uor-addr --release --test variant_storage
       - run: cargo test -p uor-addr --release --test all_realizations
       - run: cargo test -p uor-addr --release --test nfc_uax15_normalization_test
+      # Arbitrary-hash σ-axes (sha256 / blake3 / sha3-256 / keccak256) against
+      # authoritative FIPS-180-4 / FIPS-202 / Keccak / BLAKE3 vectors, and the
+      # CBOR realization against RFC 8949 §4.2 (Appendix A vectors).
+      - run: cargo test -p uor-addr --release --test hash_kat
+      - run: cargo test -p uor-addr --release --test cbor_rfc8949
       # GGUF v3 + ONNX flat-skeleton conformance (canonical-*.py byte-identity).
       - run: cargo test -p uor-addr --release --test gguf_conformance --test gguf_byte_identity
       - run: cargo test -p uor-addr --release --test onnx_conformance --test onnx_byte_identity
@@ -191,6 +196,7 @@ jobs:
       - run: cargo run -p uor-addr --example typed_distinction
       - run: cargo run -p uor-addr --example replay_verification
       - run: cargo run -p uor-addr --example sexp_address
+      - run: cargo run -p uor-addr --example cbor_address
       - run: cargo run -p uor-addr --example xml_realization
       - run: cargo run -p uor-addr --example asn1_realization
       - run: cargo run -p uor-addr --example ring_realization

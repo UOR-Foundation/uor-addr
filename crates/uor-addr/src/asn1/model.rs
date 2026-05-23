@@ -1,35 +1,49 @@
-//! `asn1::AddressModel` — the ASN.1 realization's `PrismModel`
-//! declaration, binding the shared [`AddrBounds`]
-//! profile and the shared [`AddressResolverTuple`](crate::resolvers)
-//! ψ-tower. The input is the ADR-060 borrowed-carrier handle
-//! [`Asn1Carrier`].
-
-use prism::pipeline::{prism_model, EmptyCommitment};
-use prism::vocabulary::DefaultHostTypes;
+//! `asn1::AddressModel*` — the asn1 realization's `PrismModel` declarations,
+//! one per admissible σ-axis ([`crate::hash`]). Each binds the shared
+//! [`AddrBounds`](crate::bounds::AddrBounds) profile and the shared
+//! [`AddressResolverTuple`](crate::resolvers) ψ-tower. `AddressModel`
+//! (sha256) is the default; `AddressModelBlake3` / `AddressModelSha3_256` /
+//! `AddressModelKeccak256` bind the other 32-byte axes.
 
 use crate::asn1::value::Asn1Carrier;
-use crate::bounds::AddrBounds;
-use crate::label::AddressLabel;
-use crate::resolvers::AddressResolverTuple;
-
 #[allow(unused_imports)]
-use crate::asn1::verbs::{address_inference, VERB_TERMS_ADDRESS_INFERENCE};
+use crate::asn1::verbs::{
+    address_inference, address_inference_blake3, address_inference_keccak256,
+    address_inference_sha3_256, VERB_TERMS_ADDRESS_INFERENCE, VERB_TERMS_ADDRESS_INFERENCE_BLAKE3,
+    VERB_TERMS_ADDRESS_INFERENCE_KECCAK256, VERB_TERMS_ADDRESS_INFERENCE_SHA3_256,
+};
+use crate::label::{
+    AddressLabelBlake3, AddressLabelKeccak256, AddressLabelSha256, AddressLabelSha3_256,
+};
 
-prism_model! {
-    pub struct AddressModel;
-    pub struct AddressRoute;
-    impl PrismModel<
-        DefaultHostTypes,
-        AddrBounds,
-        prism::crypto::Sha256Hasher,
-        AddressResolverTuple<prism::crypto::Sha256Hasher>,
-        EmptyCommitment
-    > for AddressModel {
-        type Input = Asn1Carrier<'a>;
-        type Output = AddressLabel;
-        type Route = AddressRoute;
-        fn route(input: Self::Input) -> Self::Output {
-            address_inference(input)
-        }
-    }
+addr_models! {
+    input: Asn1Carrier<'a>,
+    {
+        hasher: prism::crypto::Sha256Hasher,
+        shape: AddressLabelSha256,
+        model: AddressModel,
+        route: AddressRoute,
+        verb: address_inference
+    },
+    {
+        hasher: prism::crypto::Blake3Hasher,
+        shape: AddressLabelBlake3,
+        model: AddressModelBlake3,
+        route: AddressRouteBlake3,
+        verb: address_inference_blake3
+    },
+    {
+        hasher: prism::crypto::Sha3_256Hasher,
+        shape: AddressLabelSha3_256,
+        model: AddressModelSha3_256,
+        route: AddressRouteSha3_256,
+        verb: address_inference_sha3_256
+    },
+    {
+        hasher: prism::crypto::Keccak256Hasher,
+        shape: AddressLabelKeccak256,
+        model: AddressModelKeccak256,
+        route: AddressRouteKeccak256,
+        verb: address_inference_keccak256
+    },
 }

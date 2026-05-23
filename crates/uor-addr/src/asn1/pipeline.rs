@@ -12,10 +12,6 @@
 //! The entry point is `no_alloc`: no transformation buffer is needed
 //! because DER is its own canonical form.
 
-use prism::pipeline::PrismModel;
-
-use crate::asn1::model::AddressModel;
-use crate::asn1::value::{validate_der, Asn1Carrier};
 pub use crate::outcome::{AddressOutcome, AddressWitness, VerifyError};
 
 /// Failure modes from [`address`].
@@ -28,19 +24,62 @@ pub enum AddressFailure {
     PipelineFailure,
 }
 
-/// **uor-addr's ASN.1 entry point** — one ψ-pipeline content-address
-/// inference per DER input.
+use crate::asn1::model::{
+    AddressModel, AddressModelBlake3, AddressModelKeccak256, AddressModelSha3_256,
+};
+use crate::asn1::value::{validate_der, Asn1Carrier};
+use prism::pipeline::PrismModel;
+
+/// **uor-addr's asn1 entry point** (σ-axis `Sha256Hasher`) — one
+/// ψ-pipeline content-address inference, yielding a `sha256:<64hex>`
+/// κ-label.
 ///
 /// # Errors
 ///
-/// - [`AddressFailure::InvalidDer`] — `input_bytes` is not a single
-///   well-formed DER value.
-/// - [`AddressFailure::PipelineFailure`] — defensive; unreachable in
-///   normal flow.
-pub fn address(input_bytes: &[u8]) -> Result<AddressOutcome, AddressFailure> {
+/// - [`AddressFailure::InvalidDer`] — the input is not well-formed.
+/// - [`AddressFailure::PipelineFailure`] — defensive; unreachable.
+pub fn address(input_bytes: &[u8]) -> Result<AddressOutcome<71>, AddressFailure> {
     validate_der(input_bytes).map_err(|_| AddressFailure::InvalidDer)?;
-
     let grounded = AddressModel::forward(Asn1Carrier::new(input_bytes))
         .map_err(|_| AddressFailure::PipelineFailure)?;
-    AddressOutcome::from_grounded(&grounded).map_err(|_| AddressFailure::PipelineFailure)
+    AddressOutcome::<71>::from_grounded(&grounded).map_err(|_| AddressFailure::PipelineFailure)
+}
+
+/// The asn1 entry point under σ-axis `Blake3Hasher` — yields a
+/// `blake3:<64hex>` κ-label. See [`address`] for the error contract.
+///
+/// # Errors
+///
+/// As [`address`].
+pub fn address_blake3(input_bytes: &[u8]) -> Result<AddressOutcome<71>, AddressFailure> {
+    validate_der(input_bytes).map_err(|_| AddressFailure::InvalidDer)?;
+    let grounded = AddressModelBlake3::forward(Asn1Carrier::new(input_bytes))
+        .map_err(|_| AddressFailure::PipelineFailure)?;
+    AddressOutcome::<71>::from_grounded(&grounded).map_err(|_| AddressFailure::PipelineFailure)
+}
+
+/// The asn1 entry point under σ-axis `Sha3_256Hasher` — yields a
+/// `sha3-256:<64hex>` κ-label. See [`address`] for the error contract.
+///
+/// # Errors
+///
+/// As [`address`].
+pub fn address_sha3_256(input_bytes: &[u8]) -> Result<AddressOutcome<73>, AddressFailure> {
+    validate_der(input_bytes).map_err(|_| AddressFailure::InvalidDer)?;
+    let grounded = AddressModelSha3_256::forward(Asn1Carrier::new(input_bytes))
+        .map_err(|_| AddressFailure::PipelineFailure)?;
+    AddressOutcome::<73>::from_grounded(&grounded).map_err(|_| AddressFailure::PipelineFailure)
+}
+
+/// The asn1 entry point under σ-axis `Keccak256Hasher` — yields a
+/// `keccak256:<64hex>` κ-label. See [`address`] for the error contract.
+///
+/// # Errors
+///
+/// As [`address`].
+pub fn address_keccak256(input_bytes: &[u8]) -> Result<AddressOutcome<74>, AddressFailure> {
+    validate_der(input_bytes).map_err(|_| AddressFailure::InvalidDer)?;
+    let grounded = AddressModelKeccak256::forward(Asn1Carrier::new(input_bytes))
+        .map_err(|_| AddressFailure::PipelineFailure)?;
+    AddressOutcome::<74>::from_grounded(&grounded).map_err(|_| AddressFailure::PipelineFailure)
 }

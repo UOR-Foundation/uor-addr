@@ -13,12 +13,7 @@
 //! The entry point is `no_alloc`: CCMAS canonical bytes stream from the
 //! borrowed input without materialization.
 
-use prism::pipeline::PrismModel;
-
-use crate::codemodule::model::AddressModel;
-use crate::codemodule::value::CodeModuleCarrier;
 pub use crate::outcome::{AddressOutcome, AddressWitness, VerifyError};
-use crate::sexp::SExprCanon;
 
 /// Failure modes from [`address`].
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -30,20 +25,67 @@ pub enum AddressFailure {
     PipelineFailure,
 }
 
-/// **uor-addr's code-module AST entry point** — one ψ-pipeline
-/// content-address inference per CCMAS input.
+use crate::codemodule::model::{
+    AddressModel, AddressModelBlake3, AddressModelKeccak256, AddressModelSha3_256,
+};
+use crate::codemodule::value::CodeModuleCarrier;
+use crate::sexp::SExprCanon;
+use prism::pipeline::PrismModel;
+
+/// **uor-addr's codemodule entry point** (σ-axis `Sha256Hasher`) — one
+/// ψ-pipeline content-address inference, yielding a `sha256:<64hex>`
+/// κ-label.
 ///
 /// # Errors
 ///
-/// - [`AddressFailure::InvalidAst`] — `input_bytes` is not a well-formed
-///   CCMAS S-expression.
-/// - [`AddressFailure::PipelineFailure`] — defensive; unreachable in
-///   normal flow.
-pub fn address(input_bytes: &[u8]) -> Result<AddressOutcome, AddressFailure> {
+/// - [`AddressFailure::InvalidAst`] — the input is not well-formed.
+/// - [`AddressFailure::PipelineFailure`] — defensive; unreachable.
+pub fn address(input_bytes: &[u8]) -> Result<AddressOutcome<71>, AddressFailure> {
     SExprCanon::validate(input_bytes).map_err(|_| AddressFailure::InvalidAst)?;
-
     let canon = SExprCanon::new(input_bytes);
     let grounded = AddressModel::forward(CodeModuleCarrier::new(&canon))
         .map_err(|_| AddressFailure::PipelineFailure)?;
-    AddressOutcome::from_grounded(&grounded).map_err(|_| AddressFailure::PipelineFailure)
+    AddressOutcome::<71>::from_grounded(&grounded).map_err(|_| AddressFailure::PipelineFailure)
+}
+
+/// The codemodule entry point under σ-axis `Blake3Hasher` — yields a
+/// `blake3:<64hex>` κ-label. See [`address`] for the error contract.
+///
+/// # Errors
+///
+/// As [`address`].
+pub fn address_blake3(input_bytes: &[u8]) -> Result<AddressOutcome<71>, AddressFailure> {
+    SExprCanon::validate(input_bytes).map_err(|_| AddressFailure::InvalidAst)?;
+    let canon = SExprCanon::new(input_bytes);
+    let grounded = AddressModelBlake3::forward(CodeModuleCarrier::new(&canon))
+        .map_err(|_| AddressFailure::PipelineFailure)?;
+    AddressOutcome::<71>::from_grounded(&grounded).map_err(|_| AddressFailure::PipelineFailure)
+}
+
+/// The codemodule entry point under σ-axis `Sha3_256Hasher` — yields a
+/// `sha3-256:<64hex>` κ-label. See [`address`] for the error contract.
+///
+/// # Errors
+///
+/// As [`address`].
+pub fn address_sha3_256(input_bytes: &[u8]) -> Result<AddressOutcome<73>, AddressFailure> {
+    SExprCanon::validate(input_bytes).map_err(|_| AddressFailure::InvalidAst)?;
+    let canon = SExprCanon::new(input_bytes);
+    let grounded = AddressModelSha3_256::forward(CodeModuleCarrier::new(&canon))
+        .map_err(|_| AddressFailure::PipelineFailure)?;
+    AddressOutcome::<73>::from_grounded(&grounded).map_err(|_| AddressFailure::PipelineFailure)
+}
+
+/// The codemodule entry point under σ-axis `Keccak256Hasher` — yields a
+/// `keccak256:<64hex>` κ-label. See [`address`] for the error contract.
+///
+/// # Errors
+///
+/// As [`address`].
+pub fn address_keccak256(input_bytes: &[u8]) -> Result<AddressOutcome<74>, AddressFailure> {
+    SExprCanon::validate(input_bytes).map_err(|_| AddressFailure::InvalidAst)?;
+    let canon = SExprCanon::new(input_bytes);
+    let grounded = AddressModelKeccak256::forward(CodeModuleCarrier::new(&canon))
+        .map_err(|_| AddressFailure::PipelineFailure)?;
+    AddressOutcome::<74>::from_grounded(&grounded).map_err(|_| AddressFailure::PipelineFailure)
 }

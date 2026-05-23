@@ -139,7 +139,7 @@ impl PhotoValue {
 /// The κ-label is byte-identical to [`crate::json::address`]'s
 /// κ-label for the same JSON input — schema admission applies at
 /// parse time per SD2 Grounding, not in the ψ-pipeline.
-pub fn address(raw: &[u8]) -> Result<crate::AddressOutcome, AddressFailure> {
+pub fn address(raw: &[u8]) -> Result<crate::AddressOutcome<71>, AddressFailure> {
     PhotoValue::parse(raw).map_err(|_| AddressFailure::SchemaViolation)?;
     crate::json::address(raw).map_err(|e| match e {
         crate::json::AddressFailure::InvalidJson => AddressFailure::SchemaViolation,

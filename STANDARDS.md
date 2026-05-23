@@ -30,7 +30,39 @@ their docstrings.
 | TC-05 (replay round-trip) | <https://github.com/UOR-Foundation/UOR-Framework/wiki/TC-05> |
 | FIPS 180-4 (SHA-256) | <https://nvlpubs.nist.gov/nistpubs/FIPS/NIST.FIPS.180-4.pdf> |
 
+## Hash σ-axes (`uor_addr::hash`)
+
+Every realization derives its κ-label `<algorithm>:<lowercase-hex>` through
+a selectable σ-axis. `address()` binds SHA-256 (the default);
+`address_blake3` / `address_sha3_256` / `address_keccak256` bind the other
+admissible 32-byte axes. Each is validated against vectors imported from its
+authoritative source (`tests/hash_kat.rs`).
+
+| Axis (`AddrHash`) | κ-label prefix | Authoritative source |
+|---|---|---|
+| `Sha256Hasher` | `sha256` | NIST FIPS 180-4 — <https://nvlpubs.nist.gov/nistpubs/FIPS/NIST.FIPS.180-4.pdf> |
+| `Sha3_256Hasher` | `sha3-256` | NIST FIPS 202 — <https://nvlpubs.nist.gov/nistpubs/FIPS/NIST.FIPS.202.pdf> |
+| `Keccak256Hasher` | `keccak256` | Keccak SHA-3 submission (pre-FIPS padding) — <https://keccak.team/files/Keccak-submission-3.pdf> |
+| `Blake3Hasher` | `blake3` | BLAKE3 specification + reference vectors — <https://github.com/BLAKE3-team/BLAKE3-specs> |
+
+The 64-byte SHA-512 axis is not yet admissible: prism 0.3.1 pins its
+resolver tower to `Hasher<32>`. Adding it is upstream foundation/prism work.
+
 ## Format-specific realizations
+
+### CBOR realization (`uor_addr::cbor`)
+
+| Concern | Authoritative source |
+|---|---|
+| CBOR data model + encoding | RFC 8949 — <https://www.rfc-editor.org/rfc/rfc8949> |
+| Canonical form (Deterministic Encoding) | RFC 8949 §4.2 — <https://www.rfc-editor.org/rfc/rfc8949#section-4.2> |
+| Preferred (shortest) serialization | RFC 8949 §4.1 / §4.2.2 |
+| Encoding examples (test vectors) | RFC 8949 Appendix A — <https://www.rfc-editor.org/rfc/rfc8949#appendix-A> |
+
+Conformance: the RFC 8949 §4.2 deterministic-encoding rules (shortest
+integer/float heads, definite lengths, bytewise-sorted map keys, canonical
+NaN) validated against Appendix A vectors. See
+[crates/uor-addr/tests/cbor_rfc8949.rs](crates/uor-addr/tests/cbor_rfc8949.rs).
 
 ### JSON realization (`uor_addr::json`)
 

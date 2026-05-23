@@ -7,7 +7,8 @@
 //! ψ-tower is therefore **format-independent**: ψ₁ (nerve) … ψ₈ thread the
 //! carrier through unchanged, and ψ₉ (k-invariants) folds the carrier
 //! through the σ-axis `H` chunk-by-chunk — never materializing it — and
-//! emits the 71-byte ASCII κ-label `sha256:<64hex>` as an `Inline` carrier.
+//! emits the `H::LABEL_BYTES`-wide ASCII κ-label `<algorithm>:<hex>` as an
+//! `Inline` carrier (see [`crate::hash`] for the admissible axes).
 //!
 //! Because canonicalization happens at carrier production (the input
 //! streams its canonical bytes), no resolver holds format state and there
@@ -23,7 +24,7 @@ use prism::pipeline::{
 };
 use prism::vocabulary::Hasher;
 
-use crate::label::ADDRESS_LABEL_BYTES;
+use crate::hash::{AddrHash, MAX_LABEL_BYTES};
 
 const HEX_LOWER: [u8; 16] = *b"0123456789abcdef";
 
@@ -35,22 +36,28 @@ fn fold_into<H: Hasher>(h: &mut H, bytes: &[u8]) {
     *h = cur.fold_bytes(bytes);
 }
 
-/// Fold the carrier through `H` (streaming, bounded memory) and format the
-/// 71-byte κ-label into an `Inline` carrier.
-fn kappa_label_carrier<const N: usize, H: Hasher>(
+/// Fold the carrier through the σ-axis `H` (streaming, bounded memory) and
+/// format the `H::LABEL_BYTES`-wide κ-label `<prefix>:<hex>` into an
+/// `Inline` carrier. The stack scratch is sized to the widest admissible
+/// axis ([`MAX_LABEL_BYTES`]); only the active axis's prefix length is
+/// emitted.
+fn kappa_label_carrier<const N: usize, H: AddrHash>(
     input: &TermValue<'_, N>,
 ) -> TermValue<'static, N> {
     let mut h = H::initial();
     input.for_each_chunk(&mut |chunk| fold_into(&mut h, chunk));
     let digest = h.finalize();
 
-    let mut out = [0u8; ADDRESS_LABEL_BYTES];
-    out[..7].copy_from_slice(b"sha256:");
-    for (i, byte) in digest.iter().enumerate().take(32) {
-        out[7 + 2 * i] = HEX_LOWER[(byte >> 4) as usize];
-        out[7 + 2 * i + 1] = HEX_LOWER[(byte & 0x0F) as usize];
+    let prefix = H::LABEL_PREFIX.as_bytes();
+    let p = prefix.len();
+    let mut out = [0u8; MAX_LABEL_BYTES];
+    out[..p].copy_from_slice(prefix);
+    out[p] = b':';
+    for (i, byte) in digest.iter().enumerate().take(<H as Hasher>::OUTPUT_BYTES) {
+        out[p + 1 + 2 * i] = HEX_LOWER[(byte >> 4) as usize];
+        out[p + 1 + 2 * i + 1] = HEX_LOWER[(byte & 0x0F) as usize];
     }
-    TermValue::inline_from_slice(&out)
+    TermValue::inline_from_slice(&out[..H::LABEL_BYTES])
 }
 
 macro_rules! sealed_resolver {
@@ -107,7 +114,7 @@ passthrough_resolver!(CohomologyGroupResolver, AddressCohomologyGroupResolver);
 passthrough_resolver!(PostnikovResolver, AddressPostnikovResolver);
 passthrough_resolver!(HomotopyGroupResolver, AddressHomotopyGroupResolver);
 
-impl<const N: usize, H: Hasher> KInvariantResolver<N, H> for AddressKInvariantResolver<H> {
+impl<const N: usize, H: AddrHash> KInvariantResolver<N, H> for AddressKInvariantResolver<H> {
     #[inline]
     fn resolve<'a>(
         &self,
@@ -121,7 +128,7 @@ impl<const N: usize, H: Hasher> KInvariantResolver<N, H> for AddressKInvariantRe
 }
 
 resolver! {
-    pub struct AddressResolverTuple<H: ::prism::vocabulary::Hasher> {
+    pub struct AddressResolverTuple<H: crate::hash::AddrHash> {
         nerve: AddressNerveResolver<H>,
         chain_complex: AddressChainComplexResolver<H>,
         homology_groups: AddressHomologyGroupResolver<H>,

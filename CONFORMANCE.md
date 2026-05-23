@@ -92,6 +92,39 @@ removed the input-size ceiling) whose nesting depth is `≤ MAX_JSON_DEPTH`:
 Each class fixes an enforcement mechanism. Invariant IDs use the
 two-letter class prefix.
 
+### CH — Hash σ-axis class — authoritative known-answer tests
+
+The κ-label `<algorithm>:<lowercase-hex>` is produced through a selectable
+σ-axis (`uor_addr::hash::AddrHash`): sha256 (default), blake3, sha3-256,
+keccak256. Each axis is validated against vectors imported from its
+authoritative source, and the pipeline is shown to mint
+`<prefix>:<hex(H(canonical_form))>` for the same `H`. Verified by
+`crates/uor-addr/tests/hash_kat.rs`.
+
+| ID      | Invariant                                                                     | Source / pinned by                                  |
+|---------|-------------------------------------------------------------------------------|-----------------------------------------------------|
+| CH-K01  | `Sha256Hasher` reproduces the FIPS 180-4 `""` / `"abc"` digests               | FIPS 180-4 — `hash_kat::sha256_matches_fips_180_4`  |
+| CH-K02  | `Sha3_256Hasher` reproduces the FIPS 202 `""` / `"abc"` digests               | FIPS 202 — `hash_kat::sha3_256_matches_fips_202`    |
+| CH-K03  | `Keccak256Hasher` reproduces the Keccak `""` / `"abc"` digests                | Keccak submission — `hash_kat::keccak256_matches_keccak_submission` |
+| CH-K04  | `Blake3Hasher` reproduces the BLAKE3 reference `""` / `"abc"` digests          | BLAKE3 spec — `hash_kat::blake3_matches_reference_vectors` |
+| CH-P01  | Each realization's `address_<algorithm>` emits `<prefix>:<hex(H(canonical))>` | `hash_kat::json_pipeline_mints_each_axis_over_canonical_form`, `cbor_rfc8949::pipeline_mints_each_axis_over_canonical_form` |
+
+### CL-CBOR — CBOR realization (RFC 8949 §4.2)
+
+The CBOR canonical form is RFC 8949 §4.2 Deterministic Encoding (shortest
+integer/float heads, definite lengths, bytewise-sorted map keys, canonical
+NaN). Validated against RFC 8949 Appendix A encoding vectors by
+`crates/uor-addr/tests/cbor_rfc8949.rs`.
+
+| ID        | Invariant                                                                  | Pinned by                                              |
+|-----------|----------------------------------------------------------------------------|--------------------------------------------------------|
+| CL-CBOR01 | `canonicalize` is the identity on RFC 8949 Appendix A canonical encodings   | `cbor_rfc8949::appendix_a_canonical_encodings_are_idempotent` |
+| CL-CBOR02 | Non-shortest integer heads shorten to preferred encoding                    | `cbor_rfc8949::preferred_integer_encoding_shortens_non_minimal_heads` |
+| CL-CBOR03 | Indefinite-length items fold to definite length                             | `cbor_rfc8949::indefinite_lengths_fold_to_definite`    |
+| CL-CBOR04 | Map keys sort bytewise-lexicographically by encoded key                     | `cbor_rfc8949::map_keys_sort_bytewise_lexicographically` |
+| CL-CBOR05 | Floats shorten to the smallest exact representation; NaN → `f97e00`         | `cbor_rfc8949::floats_shorten_to_the_smallest_exact_representation` |
+| CL-CBOR06 | Malformed input (trailing bytes, reserved heads, bad UTF-8, dup keys) rejected | `cbor_rfc8949::rejects_malformed_input`             |
+
 ### CS — Structural class — shape and typed surface
 
 Verified by **source-grep + compile-time invariants + unit tests** under
@@ -102,7 +135,7 @@ Verified by **source-grep + compile-time invariants + unit tests** under
 | CS-T01   | `AddressLabel::SITE_COUNT = 71`                                                          | `model::tests::address_label_site_count_matches_wire_format_width`                              |
 | CS-T02   | `AddressLabel::CONSTRAINTS` is exactly 71 disjoint `ConstraintRef::Site` instances        | `model::tests::address_label_carries_seventy_one_disjoint_site_constraints` + `const _` in `resolvers.rs` |
 | CS-T03   | `AddressLabel::CONSTRAINTS[i]` pins position `i` for `i ∈ [0, 71)`                        | `model::tests::address_label_constraints_pin_every_wire_format_site` + `const _` in `resolvers.rs` |
-| CS-B01   | The single shared `AddrBounds`: `NERVE_SITES_MAX = 71`, `FINGERPRINT_*_BYTES = 32`, `WITT_LEVEL_MAX_BITS = 32` | `crates/uor-addr/src/bounds.rs` (`impl HostBounds for AddrBounds`) |
+| CS-B01   | The single shared `AddrBounds`: `NERVE_SITES_MAX = 74` (admits the widest κ-label, keccak256), `FINGERPRINT_*_BYTES = 32` (every admissible σ-axis is a `Hasher<32>`), `WITT_LEVEL_MAX_BITS = 32` | `crates/uor-addr/src/bounds.rs` (`impl HostBounds for AddrBounds`) |
 | CS-B02   | ADR-060: there is no input-size ceiling and no per-ψ-stage byte-width cap; the canonical form flows as a `TermValue` carrier (`Inline` / `Borrowed` / `Stream`). `ADDR_INLINE_BYTES` is the foundation-derived κ-label inline width, not an input cap | `crates/uor-addr/src/bounds.rs` (`ADDR_INLINE_BYTES`) + `tests::common_surface` |
 | CS-V01   | The verb arena contains no `Term::FirstAdmit` / `Term::AxisInvocation` / `Le`/`Lt`/`Ge`/`Gt`/`Concat` | `verbs::tests::verb_arena_contains_no_sigma_residuals`                              |
 | CS-V02   | The verb arena contains each of ψ_1, ψ_7, ψ_8, ψ_9                                       | `verbs::tests::verb_arena_contains_psi_{1,7,8,9}_*`                                             |

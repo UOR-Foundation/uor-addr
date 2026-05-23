@@ -2,8 +2,21 @@
 //!
 //! Typed content-addressing for GGUF v3 model files
 //! (`GGUF_MAGIC = 0x46554747`, `version = 3`) under a spec-canonical
-//! structural form, with the σ-projection bound to
-//! [`prism::crypto::Sha256Hasher`].
+//! structural form. The default σ-projection is
+//! [`prism::crypto::Sha256Hasher`]; [`address_blake3`], [`address_sha3_256`],
+//! and [`address_keccak256`] select the other 32-byte axes ([`crate::hash`]).
+//!
+//! ## σ-axis vs. the canonical form
+//!
+//! The leaf commitments inside the skeleton (tensor-data, array-payload,
+//! and long-string digests) are **SHA-256 by canonical-form definition**
+//! ([`CANONICAL_FORM_VERSION`]) — they are a fixed part of the
+//! serialization, exactly as JCS fixes JSON number formatting independently
+//! of the κ-hash. The selected κ-axis `H` is applied *on top* of that fixed
+//! canonical form: κ = `H(skeleton)`. So `address_blake3` yields
+//! `blake3(skeleton-with-sha256-leaves)`. Every byte still binds (a flipped
+//! tensor byte changes its SHA-256 leaf → changes the skeleton → changes
+//! κ), and the sha256 κ-labels are byte-identical to prior releases.
 //!
 //! ## Authoritative sources
 //!
@@ -52,9 +65,11 @@ pub mod verbs;
 pub const CANONICAL_FORM_VERSION: u32 = 2;
 
 pub use dtype::GgmlType;
-pub use model::{AddressModel, AddressRoute};
+pub use model::{
+    AddressModel, AddressModelBlake3, AddressModelKeccak256, AddressModelSha3_256, AddressRoute,
+};
 #[cfg(feature = "alloc")]
-pub use pipeline::address;
+pub use pipeline::{address, address_blake3, address_keccak256, address_sha3_256};
 pub use pipeline::{AddressFailure, AddressOutcome, AddressWitness, VerifyError};
 pub use shapes::bounds::{
     GGUF_DEFAULT_ALIGNMENT, GGUF_HEADER_BYTES, GGUF_MAGIC, GGUF_MAX_DIMS,

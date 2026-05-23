@@ -76,6 +76,10 @@ conformance:
 	cargo test -p uor-addr --release --test onnx_conformance --test onnx_byte_identity
 	# ADR-060 streaming / bounded-carrier proof (64 MiB synthetic tensors)
 	cargo test -p uor-addr --release --test streaming
+	# Arbitrary-hash σ-axes (authoritative FIPS/Keccak/BLAKE3 KATs) + CBOR
+	# (RFC 8949 §4.2 / Appendix A).
+	cargo test -p uor-addr --release --test hash_kat
+	cargo test -p uor-addr --release --test cbor_rfc8949
 	# Cross-realization
 	cargo test -p uor-addr --release --test all_realizations
 
@@ -99,6 +103,7 @@ examples:
 	cargo run -p uor-addr --example replay_verification
 	# Other format-specific realizations
 	cargo run -p uor-addr --example sexp_address
+	cargo run -p uor-addr --example cbor_address
 	cargo run -p uor-addr --example xml_realization
 	cargo run -p uor-addr --example asn1_realization
 	cargo run -p uor-addr --example ring_realization

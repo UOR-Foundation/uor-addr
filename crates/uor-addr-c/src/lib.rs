@@ -42,15 +42,31 @@
 use core::slice;
 
 use uor_addr::{asn1, codemodule, ring, sexp, AddressOutcome, ADDRESS_LABEL_BYTES};
-// JSON / XML / schema canonicalization needs `alloc` (object-key /
-// attribute sorting), so their C entry points — and these imports — are
-// `alloc`-gated under ADR-060.
+// JSON / XML / schema / CBOR canonicalization needs `alloc` (object-key /
+// attribute / map-key sorting), so their C entry points — and these
+// imports — are `alloc`-gated under ADR-060.
 #[cfg(feature = "alloc")]
-use uor_addr::{json, schema, xml};
+use uor_addr::{cbor, json, schema, xml};
 
-/// Wire-format κ-label byte width — `len("sha256:") + 64`.
+/// Wire-format κ-label byte width under the default σ-axis (sha256) —
+/// `len("sha256:") + 64 = 71`.
 #[no_mangle]
 pub static UOR_ADDR_LABEL_BYTES: usize = ADDRESS_LABEL_BYTES;
+
+/// Widest κ-label byte width across the admissible σ-axes (keccak256 →
+/// `len("keccak256:") + 64 = 74`). A `*_with_hash` output buffer sized to
+/// this fits every algorithm.
+#[no_mangle]
+pub static UOR_ADDR_MAX_LABEL_BYTES: usize = uor_addr::MAX_LABEL_BYTES;
+
+/// σ-axis selector for the `*_with_hash` entry points: SHA-256 (default).
+pub const UOR_ADDR_HASH_SHA256: u8 = 0;
+/// σ-axis selector: BLAKE3.
+pub const UOR_ADDR_HASH_BLAKE3: u8 = 1;
+/// σ-axis selector: SHA3-256 (FIPS 202).
+pub const UOR_ADDR_HASH_SHA3_256: u8 = 2;
+/// σ-axis selector: Keccak-256 (pre-FIPS padding).
+pub const UOR_ADDR_HASH_KECCAK256: u8 = 3;
 
 /// Success.
 pub const UOR_ADDR_OK: i32 = 0;
@@ -66,6 +82,9 @@ pub const UOR_ADDR_ERR_INVALID_INPUT: i32 = -3;
 pub const UOR_ADDR_ERR_TOO_LARGE: i32 = -4;
 /// Defensive — substrate-level pipeline failure.
 pub const UOR_ADDR_ERR_PIPELINE: i32 = -5;
+/// Unknown σ-axis selector passed to a `*_with_hash` entry point (not one
+/// of the `UOR_ADDR_HASH_*` constants).
+pub const UOR_ADDR_ERR_UNKNOWN_HASH: i32 = -6;
 
 /// Marshal a successful `AddressOutcome` into the caller's output
 /// buffer. Returns the appropriate error code on buffer overflow / null
@@ -75,8 +94,8 @@ pub const UOR_ADDR_ERR_PIPELINE: i32 = -5;
 ///
 /// `out_label` must be writable for at least `out_label_len` bytes;
 /// `out_written` if non-null must point to a writable `usize`.
-unsafe fn write_outcome(
-    outcome: AddressOutcome,
+unsafe fn write_outcome<const N: usize>(
+    outcome: AddressOutcome<N>,
     out_label: *mut u8,
     out_label_len: usize,
     out_written: *mut usize,
@@ -84,15 +103,14 @@ unsafe fn write_outcome(
     if out_label.is_null() {
         return UOR_ADDR_ERR_NULL_POINTER;
     }
-    if out_label_len < ADDRESS_LABEL_BYTES {
+    let bytes = outcome.address.as_bytes();
+    if out_label_len < bytes.len() {
         return UOR_ADDR_ERR_BUFFER_TOO_SMALL;
     }
-    let bytes = outcome.address.as_bytes();
-    debug_assert_eq!(bytes.len(), ADDRESS_LABEL_BYTES);
     unsafe {
-        core::ptr::copy_nonoverlapping(bytes.as_ptr(), out_label, ADDRESS_LABEL_BYTES);
+        core::ptr::copy_nonoverlapping(bytes.as_ptr(), out_label, bytes.len());
         if !out_written.is_null() {
-            *out_written = ADDRESS_LABEL_BYTES;
+            *out_written = bytes.len();
         }
     }
     UOR_ADDR_OK
@@ -420,6 +438,394 @@ pub unsafe extern "C" fn uor_addr_onnx(
     }
 }
 
+// ─── CBOR realization (RFC 8949 §4.2 deterministic encoding + SHA-256) ──
+
+/// CBOR realization (RFC 8949 §4.2 deterministic encoding + SHA-256).
+///
+/// # Safety
+///
+/// Same pointer-validity requirements as [`uor_addr_json`].
+#[cfg(feature = "alloc")]
+#[no_mangle]
+pub unsafe extern "C" fn uor_addr_cbor(
+    input: *const u8,
+    input_len: usize,
+    out_label: *mut u8,
+    out_label_len: usize,
+    out_written: *mut usize,
+) -> i32 {
+    let s = match unsafe { borrow_input(input, input_len) } {
+        Ok(s) => s,
+        Err(code) => return code,
+    };
+    match cbor::address(s) {
+        Ok(outcome) => unsafe { write_outcome(outcome, out_label, out_label_len, out_written) },
+        Err(e) => e.c_code(),
+    }
+}
+
+// ─── σ-axis selection (`*_with_hash`) ──────────────────────────────
+//
+// Each text/structured realization exposes a `*_with_hash` entry point
+// taking a `UOR_ADDR_HASH_*` selector. The κ-label width varies by axis
+// (sha256 / blake3 = 71, sha3-256 = 73, keccak256 = 74), so callers size
+// `out_label` to `UOR_ADDR_MAX_LABEL_BYTES`. The witness API
+// (`*_with_witness`) remains SHA-256-only.
+
+/// Map a realization's `AddressFailure` to a C status code.
+trait CErr {
+    fn c_code(&self) -> i32;
+}
+
+#[cfg(feature = "alloc")]
+impl CErr for json::AddressFailure {
+    fn c_code(&self) -> i32 {
+        match self {
+            json::AddressFailure::InvalidJson => UOR_ADDR_ERR_INVALID_INPUT,
+            json::AddressFailure::PipelineFailure => UOR_ADDR_ERR_PIPELINE,
+        }
+    }
+}
+
+impl CErr for sexp::AddressFailure {
+    fn c_code(&self) -> i32 {
+        match self {
+            sexp::AddressFailure::InvalidSExpr => UOR_ADDR_ERR_INVALID_INPUT,
+            sexp::AddressFailure::PipelineFailure => UOR_ADDR_ERR_PIPELINE,
+        }
+    }
+}
+
+#[cfg(feature = "alloc")]
+impl CErr for xml::AddressFailure {
+    fn c_code(&self) -> i32 {
+        match self {
+            xml::AddressFailure::InvalidXml => UOR_ADDR_ERR_INVALID_INPUT,
+            xml::AddressFailure::PipelineFailure => UOR_ADDR_ERR_PIPELINE,
+        }
+    }
+}
+
+impl CErr for asn1::AddressFailure {
+    fn c_code(&self) -> i32 {
+        match self {
+            asn1::AddressFailure::InvalidDer => UOR_ADDR_ERR_INVALID_INPUT,
+            asn1::AddressFailure::PipelineFailure => UOR_ADDR_ERR_PIPELINE,
+        }
+    }
+}
+
+impl CErr for ring::AddressFailure {
+    fn c_code(&self) -> i32 {
+        match self {
+            ring::AddressFailure::InvalidRingElement => UOR_ADDR_ERR_INVALID_INPUT,
+            ring::AddressFailure::PipelineFailure => UOR_ADDR_ERR_PIPELINE,
+        }
+    }
+}
+
+impl CErr for codemodule::AddressFailure {
+    fn c_code(&self) -> i32 {
+        match self {
+            codemodule::AddressFailure::InvalidAst => UOR_ADDR_ERR_INVALID_INPUT,
+            codemodule::AddressFailure::PipelineFailure => UOR_ADDR_ERR_PIPELINE,
+        }
+    }
+}
+
+#[cfg(feature = "alloc")]
+impl CErr for cbor::AddressFailure {
+    fn c_code(&self) -> i32 {
+        match self {
+            cbor::AddressFailure::InvalidCbor => UOR_ADDR_ERR_INVALID_INPUT,
+            cbor::AddressFailure::PipelineFailure => UOR_ADDR_ERR_PIPELINE,
+        }
+    }
+}
+
+/// json realization with a caller-selected σ-axis (`UOR_ADDR_HASH_*`).
+///
+/// # Safety
+///
+/// Same pointer rules as [`uor_addr_json`]; `out_label` must be writable
+/// for at least `UOR_ADDR_MAX_LABEL_BYTES` bytes.
+#[cfg(feature = "alloc")]
+#[no_mangle]
+pub unsafe extern "C" fn uor_addr_json_with_hash(
+    algo: u8,
+    input: *const u8,
+    input_len: usize,
+    out_label: *mut u8,
+    out_label_len: usize,
+    out_written: *mut usize,
+) -> i32 {
+    let s = match unsafe { borrow_input(input, input_len) } {
+        Ok(s) => s,
+        Err(code) => return code,
+    };
+    match algo {
+        UOR_ADDR_HASH_SHA256 => match json::address(s) {
+            Ok(o) => unsafe { write_outcome(o, out_label, out_label_len, out_written) },
+            Err(e) => e.c_code(),
+        },
+        UOR_ADDR_HASH_BLAKE3 => match json::address_blake3(s) {
+            Ok(o) => unsafe { write_outcome(o, out_label, out_label_len, out_written) },
+            Err(e) => e.c_code(),
+        },
+        UOR_ADDR_HASH_SHA3_256 => match json::address_sha3_256(s) {
+            Ok(o) => unsafe { write_outcome(o, out_label, out_label_len, out_written) },
+            Err(e) => e.c_code(),
+        },
+        UOR_ADDR_HASH_KECCAK256 => match json::address_keccak256(s) {
+            Ok(o) => unsafe { write_outcome(o, out_label, out_label_len, out_written) },
+            Err(e) => e.c_code(),
+        },
+        _ => UOR_ADDR_ERR_UNKNOWN_HASH,
+    }
+}
+
+/// sexp realization with a caller-selected σ-axis (`UOR_ADDR_HASH_*`).
+///
+/// # Safety
+///
+/// Same pointer rules as [`uor_addr_json`]; `out_label` must be writable
+/// for at least `UOR_ADDR_MAX_LABEL_BYTES` bytes.
+#[no_mangle]
+pub unsafe extern "C" fn uor_addr_sexp_with_hash(
+    algo: u8,
+    input: *const u8,
+    input_len: usize,
+    out_label: *mut u8,
+    out_label_len: usize,
+    out_written: *mut usize,
+) -> i32 {
+    let s = match unsafe { borrow_input(input, input_len) } {
+        Ok(s) => s,
+        Err(code) => return code,
+    };
+    match algo {
+        UOR_ADDR_HASH_SHA256 => match sexp::address(s) {
+            Ok(o) => unsafe { write_outcome(o, out_label, out_label_len, out_written) },
+            Err(e) => e.c_code(),
+        },
+        UOR_ADDR_HASH_BLAKE3 => match sexp::address_blake3(s) {
+            Ok(o) => unsafe { write_outcome(o, out_label, out_label_len, out_written) },
+            Err(e) => e.c_code(),
+        },
+        UOR_ADDR_HASH_SHA3_256 => match sexp::address_sha3_256(s) {
+            Ok(o) => unsafe { write_outcome(o, out_label, out_label_len, out_written) },
+            Err(e) => e.c_code(),
+        },
+        UOR_ADDR_HASH_KECCAK256 => match sexp::address_keccak256(s) {
+            Ok(o) => unsafe { write_outcome(o, out_label, out_label_len, out_written) },
+            Err(e) => e.c_code(),
+        },
+        _ => UOR_ADDR_ERR_UNKNOWN_HASH,
+    }
+}
+
+/// xml realization with a caller-selected σ-axis (`UOR_ADDR_HASH_*`).
+///
+/// # Safety
+///
+/// Same pointer rules as [`uor_addr_json`]; `out_label` must be writable
+/// for at least `UOR_ADDR_MAX_LABEL_BYTES` bytes.
+#[cfg(feature = "alloc")]
+#[no_mangle]
+pub unsafe extern "C" fn uor_addr_xml_with_hash(
+    algo: u8,
+    input: *const u8,
+    input_len: usize,
+    out_label: *mut u8,
+    out_label_len: usize,
+    out_written: *mut usize,
+) -> i32 {
+    let s = match unsafe { borrow_input(input, input_len) } {
+        Ok(s) => s,
+        Err(code) => return code,
+    };
+    match algo {
+        UOR_ADDR_HASH_SHA256 => match xml::address(s) {
+            Ok(o) => unsafe { write_outcome(o, out_label, out_label_len, out_written) },
+            Err(e) => e.c_code(),
+        },
+        UOR_ADDR_HASH_BLAKE3 => match xml::address_blake3(s) {
+            Ok(o) => unsafe { write_outcome(o, out_label, out_label_len, out_written) },
+            Err(e) => e.c_code(),
+        },
+        UOR_ADDR_HASH_SHA3_256 => match xml::address_sha3_256(s) {
+            Ok(o) => unsafe { write_outcome(o, out_label, out_label_len, out_written) },
+            Err(e) => e.c_code(),
+        },
+        UOR_ADDR_HASH_KECCAK256 => match xml::address_keccak256(s) {
+            Ok(o) => unsafe { write_outcome(o, out_label, out_label_len, out_written) },
+            Err(e) => e.c_code(),
+        },
+        _ => UOR_ADDR_ERR_UNKNOWN_HASH,
+    }
+}
+
+/// asn1 realization with a caller-selected σ-axis (`UOR_ADDR_HASH_*`).
+///
+/// # Safety
+///
+/// Same pointer rules as [`uor_addr_json`]; `out_label` must be writable
+/// for at least `UOR_ADDR_MAX_LABEL_BYTES` bytes.
+#[no_mangle]
+pub unsafe extern "C" fn uor_addr_asn1_with_hash(
+    algo: u8,
+    input: *const u8,
+    input_len: usize,
+    out_label: *mut u8,
+    out_label_len: usize,
+    out_written: *mut usize,
+) -> i32 {
+    let s = match unsafe { borrow_input(input, input_len) } {
+        Ok(s) => s,
+        Err(code) => return code,
+    };
+    match algo {
+        UOR_ADDR_HASH_SHA256 => match asn1::address(s) {
+            Ok(o) => unsafe { write_outcome(o, out_label, out_label_len, out_written) },
+            Err(e) => e.c_code(),
+        },
+        UOR_ADDR_HASH_BLAKE3 => match asn1::address_blake3(s) {
+            Ok(o) => unsafe { write_outcome(o, out_label, out_label_len, out_written) },
+            Err(e) => e.c_code(),
+        },
+        UOR_ADDR_HASH_SHA3_256 => match asn1::address_sha3_256(s) {
+            Ok(o) => unsafe { write_outcome(o, out_label, out_label_len, out_written) },
+            Err(e) => e.c_code(),
+        },
+        UOR_ADDR_HASH_KECCAK256 => match asn1::address_keccak256(s) {
+            Ok(o) => unsafe { write_outcome(o, out_label, out_label_len, out_written) },
+            Err(e) => e.c_code(),
+        },
+        _ => UOR_ADDR_ERR_UNKNOWN_HASH,
+    }
+}
+
+/// ring realization with a caller-selected σ-axis (`UOR_ADDR_HASH_*`).
+///
+/// # Safety
+///
+/// Same pointer rules as [`uor_addr_json`]; `out_label` must be writable
+/// for at least `UOR_ADDR_MAX_LABEL_BYTES` bytes.
+#[no_mangle]
+pub unsafe extern "C" fn uor_addr_ring_with_hash(
+    algo: u8,
+    input: *const u8,
+    input_len: usize,
+    out_label: *mut u8,
+    out_label_len: usize,
+    out_written: *mut usize,
+) -> i32 {
+    let s = match unsafe { borrow_input(input, input_len) } {
+        Ok(s) => s,
+        Err(code) => return code,
+    };
+    match algo {
+        UOR_ADDR_HASH_SHA256 => match ring::address(s) {
+            Ok(o) => unsafe { write_outcome(o, out_label, out_label_len, out_written) },
+            Err(e) => e.c_code(),
+        },
+        UOR_ADDR_HASH_BLAKE3 => match ring::address_blake3(s) {
+            Ok(o) => unsafe { write_outcome(o, out_label, out_label_len, out_written) },
+            Err(e) => e.c_code(),
+        },
+        UOR_ADDR_HASH_SHA3_256 => match ring::address_sha3_256(s) {
+            Ok(o) => unsafe { write_outcome(o, out_label, out_label_len, out_written) },
+            Err(e) => e.c_code(),
+        },
+        UOR_ADDR_HASH_KECCAK256 => match ring::address_keccak256(s) {
+            Ok(o) => unsafe { write_outcome(o, out_label, out_label_len, out_written) },
+            Err(e) => e.c_code(),
+        },
+        _ => UOR_ADDR_ERR_UNKNOWN_HASH,
+    }
+}
+
+/// codemodule realization with a caller-selected σ-axis (`UOR_ADDR_HASH_*`).
+///
+/// # Safety
+///
+/// Same pointer rules as [`uor_addr_json`]; `out_label` must be writable
+/// for at least `UOR_ADDR_MAX_LABEL_BYTES` bytes.
+#[no_mangle]
+pub unsafe extern "C" fn uor_addr_codemodule_with_hash(
+    algo: u8,
+    input: *const u8,
+    input_len: usize,
+    out_label: *mut u8,
+    out_label_len: usize,
+    out_written: *mut usize,
+) -> i32 {
+    let s = match unsafe { borrow_input(input, input_len) } {
+        Ok(s) => s,
+        Err(code) => return code,
+    };
+    match algo {
+        UOR_ADDR_HASH_SHA256 => match codemodule::address(s) {
+            Ok(o) => unsafe { write_outcome(o, out_label, out_label_len, out_written) },
+            Err(e) => e.c_code(),
+        },
+        UOR_ADDR_HASH_BLAKE3 => match codemodule::address_blake3(s) {
+            Ok(o) => unsafe { write_outcome(o, out_label, out_label_len, out_written) },
+            Err(e) => e.c_code(),
+        },
+        UOR_ADDR_HASH_SHA3_256 => match codemodule::address_sha3_256(s) {
+            Ok(o) => unsafe { write_outcome(o, out_label, out_label_len, out_written) },
+            Err(e) => e.c_code(),
+        },
+        UOR_ADDR_HASH_KECCAK256 => match codemodule::address_keccak256(s) {
+            Ok(o) => unsafe { write_outcome(o, out_label, out_label_len, out_written) },
+            Err(e) => e.c_code(),
+        },
+        _ => UOR_ADDR_ERR_UNKNOWN_HASH,
+    }
+}
+
+/// cbor realization with a caller-selected σ-axis (`UOR_ADDR_HASH_*`).
+///
+/// # Safety
+///
+/// Same pointer rules as [`uor_addr_json`]; `out_label` must be writable
+/// for at least `UOR_ADDR_MAX_LABEL_BYTES` bytes.
+#[cfg(feature = "alloc")]
+#[no_mangle]
+pub unsafe extern "C" fn uor_addr_cbor_with_hash(
+    algo: u8,
+    input: *const u8,
+    input_len: usize,
+    out_label: *mut u8,
+    out_label_len: usize,
+    out_written: *mut usize,
+) -> i32 {
+    let s = match unsafe { borrow_input(input, input_len) } {
+        Ok(s) => s,
+        Err(code) => return code,
+    };
+    match algo {
+        UOR_ADDR_HASH_SHA256 => match cbor::address(s) {
+            Ok(o) => unsafe { write_outcome(o, out_label, out_label_len, out_written) },
+            Err(e) => e.c_code(),
+        },
+        UOR_ADDR_HASH_BLAKE3 => match cbor::address_blake3(s) {
+            Ok(o) => unsafe { write_outcome(o, out_label, out_label_len, out_written) },
+            Err(e) => e.c_code(),
+        },
+        UOR_ADDR_HASH_SHA3_256 => match cbor::address_sha3_256(s) {
+            Ok(o) => unsafe { write_outcome(o, out_label, out_label_len, out_written) },
+            Err(e) => e.c_code(),
+        },
+        UOR_ADDR_HASH_KECCAK256 => match cbor::address_keccak256(s) {
+            Ok(o) => unsafe { write_outcome(o, out_label, out_label_len, out_written) },
+            Err(e) => e.c_code(),
+        },
+        _ => UOR_ADDR_ERR_UNKNOWN_HASH,
+    }
+}
+
 // ─── Grounded witness (TC-05 cross-language replay) ────────────────
 //
 // Mirrors the WIT `resource grounded` exposed by the WASM Component
@@ -464,7 +870,7 @@ pub struct UorAddrGrounded {
     // `pub(crate)` body — the struct is *strictly opaque* from the C
     // side. The contained `AddressOutcome` carries both the κ-label
     // and the sealed `Grounded<AddressLabel>` witness.
-    pub(crate) outcome: AddressOutcome,
+    pub(crate) outcome: AddressOutcome<71>,
 }
 
 #[cfg(feature = "alloc")]
@@ -481,7 +887,10 @@ use alloc::boxed::Box;
 /// `out_handle` must be a valid writable pointer to a `*mut
 /// UorAddrGrounded`.
 #[cfg(feature = "alloc")]
-unsafe fn write_grounded(outcome: AddressOutcome, out_handle: *mut *mut UorAddrGrounded) -> i32 {
+unsafe fn write_grounded(
+    outcome: AddressOutcome<71>,
+    out_handle: *mut *mut UorAddrGrounded,
+) -> i32 {
     if out_handle.is_null() {
         return UOR_ADDR_ERR_NULL_POINTER;
     }
@@ -782,6 +1191,29 @@ pub unsafe extern "C" fn uor_addr_codemodule_with_witness(
         Ok(outcome) => unsafe { write_grounded(outcome, out_handle) },
         Err(codemodule::AddressFailure::InvalidAst) => UOR_ADDR_ERR_INVALID_INPUT,
         Err(codemodule::AddressFailure::PipelineFailure) => UOR_ADDR_ERR_PIPELINE,
+    }
+}
+
+/// CBOR realization (RFC 8949 §4.2 + SHA-256), returning a verifiable
+/// witness handle.
+///
+/// # Safety
+///
+/// Same as [`uor_addr_json_with_witness`].
+#[cfg(feature = "alloc")]
+#[no_mangle]
+pub unsafe extern "C" fn uor_addr_cbor_with_witness(
+    input: *const u8,
+    input_len: usize,
+    out_handle: *mut *mut UorAddrGrounded,
+) -> i32 {
+    let s = match unsafe { borrow_input(input, input_len) } {
+        Ok(s) => s,
+        Err(code) => return code,
+    };
+    match cbor::address(s) {
+        Ok(outcome) => unsafe { write_grounded(outcome, out_handle) },
+        Err(e) => e.c_code(),
     }
 }
 
