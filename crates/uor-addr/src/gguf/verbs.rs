@@ -2,15 +2,17 @@
 //! at the term-arena level to [`crate::ring::verbs`] — the canonical
 //! k-invariants branch ψ_1 → ψ_7 → ψ_8 → ψ_9 — over `Input = GgufValue`.
 
-use prism::pipeline::verb;
-
 use crate::gguf::value::GgufCarrier;
-use crate::label::AddressLabel;
+use crate::label::{
+    AddressLabelBlake3, AddressLabelKeccak256, AddressLabelSha256, AddressLabelSha3_256,
+};
 
-verb! {
-    pub fn address_inference(input: GgufCarrier<'_>) -> AddressLabel {
-        k_invariants(homotopy_groups(postnikov_tower(nerve(input))))
-    }
+addr_verbs! {
+    input: GgufCarrier<'_>,
+    { shape: AddressLabelSha256, verb: address_inference },
+    { shape: AddressLabelBlake3, verb: address_inference_blake3 },
+    { shape: AddressLabelSha3_256, verb: address_inference_sha3_256 },
+    { shape: AddressLabelKeccak256, verb: address_inference_keccak256 },
 }
 
 #[cfg(test)]

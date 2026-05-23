@@ -45,8 +45,20 @@ class AddressError(Exception):
         super().__init__(message or f"uor-addr address failed: {kind}")
 
 
-# Wire-format width: len("sha256:") + 64-byte lowercase-hex digest.
+# Wire-format width under the default σ-axis: len("sha256:") + 64-byte
+# lowercase-hex digest.
 ADDRESS_LABEL_BYTES: Final[int] = 71
+
+# Widest κ-label across the admissible σ-axes (keccak256 = len("keccak256:")
+# + 64 = 74). `*_address_with_hash` sizes its output buffer to this.
+MAX_LABEL_BYTES: Final[int] = 74
+
+# σ-axis selectors for the `*_with_hash` entry points (mirror
+# UOR_ADDR_HASH_* in uor_addr.h).
+HASH_SHA256: Final[int] = 0
+HASH_BLAKE3: Final[int] = 1
+HASH_SHA3_256: Final[int] = 2
+HASH_KECCAK256: Final[int] = 3
 
 # C ABI return codes (mirror UOR_ADDR_* in uor_addr.h).
 _OK = 0
@@ -55,6 +67,7 @@ _ERR_BUFFER_TOO_SMALL = -2
 _ERR_INVALID_INPUT = -3
 _ERR_TOO_LARGE = -4  # reserved; never returned under ADR-060 (unbounded inputs)
 _ERR_PIPELINE = -5
+_ERR_UNKNOWN_HASH = -6  # unknown σ-axis selector passed to *_with_hash
 
 _ERR_KIND: Final[dict[int, str]] = {
     _ERR_INVALID_INPUT: "invalid-input",
@@ -62,6 +75,7 @@ _ERR_KIND: Final[dict[int, str]] = {
     _ERR_PIPELINE: "pipeline-failure",
     _ERR_NULL_POINTER: "pipeline-failure",
     _ERR_BUFFER_TOO_SMALL: "pipeline-failure",
+    _ERR_UNKNOWN_HASH: "unknown-hash",
 }
 
 
@@ -110,9 +124,38 @@ _FUNCS: Final[dict[str, ctypes._NamedFuncPointer]] = {
     "asn1_address":                       _bind("uor_addr_asn1"),
     "ring_address":                       _bind("uor_addr_ring"),
     "codemodule_address":                 _bind("uor_addr_codemodule"),
+    "cbor_address":                       _bind("uor_addr_cbor"),
     "schema_photo_address":               _bind("uor_addr_schema_photo"),
     "schema_document_address":            _bind("uor_addr_schema_document"),
     "schema_codemodule_signed_address":   _bind("uor_addr_schema_codemodule_signed"),
+}
+
+
+def _bind_with_hash(symbol: str) -> ctypes._NamedFuncPointer:
+    """Bind a `*_with_hash` C function: (algo, input, len, out, out_len, written)."""
+    fn = getattr(_lib, symbol)
+    fn.argtypes = [
+        ctypes.c_uint8,                   # uint8_t algo
+        ctypes.POINTER(ctypes.c_uint8),  # const uint8_t *input
+        ctypes.c_size_t,                  # size_t input_len
+        ctypes.POINTER(ctypes.c_uint8),  # uint8_t *out_label
+        ctypes.c_size_t,                  # size_t out_label_len
+        ctypes.POINTER(ctypes.c_size_t), # size_t *out_written
+    ]
+    fn.restype = ctypes.c_int32
+    return fn
+
+
+# Per-format σ-axis-selecting entry points (label only; the witness API
+# remains SHA-256).
+_WITH_HASH_FUNCS: Final[dict[str, ctypes._NamedFuncPointer]] = {
+    "json":       _bind_with_hash("uor_addr_json_with_hash"),
+    "sexp":       _bind_with_hash("uor_addr_sexp_with_hash"),
+    "xml":        _bind_with_hash("uor_addr_xml_with_hash"),
+    "asn1":       _bind_with_hash("uor_addr_asn1_with_hash"),
+    "ring":       _bind_with_hash("uor_addr_ring_with_hash"),
+    "codemodule": _bind_with_hash("uor_addr_codemodule_with_hash"),
+    "cbor":       _bind_with_hash("uor_addr_cbor_with_hash"),
 }
 
 
@@ -149,6 +192,7 @@ _WITH_WITNESS_FUNCS: Final[dict[str, ctypes._NamedFuncPointer]] = {
     "asn1":                       _bind_with_witness("uor_addr_asn1_with_witness"),
     "ring":                       _bind_with_witness("uor_addr_ring_with_witness"),
     "codemodule":                 _bind_with_witness("uor_addr_codemodule_with_witness"),
+    "cbor":                       _bind_with_witness("uor_addr_cbor_with_witness"),
     "schema_photo":               _bind_with_witness("uor_addr_schema_photo_with_witness"),
     "schema_document":            _bind_with_witness("uor_addr_schema_document_with_witness"),
     "schema_codemodule_signed":   _bind_with_witness("uor_addr_schema_codemodule_signed_with_witness"),
@@ -325,6 +369,25 @@ def _call(fn: ctypes._NamedFuncPointer, data: bytes | bytearray | memoryview) ->
     return bytes(out_buf).decode("ascii")
 
 
+def _call_with_hash(
+    realization: str, algo: int, data: bytes | bytearray | memoryview
+) -> str:
+    """Invoke a `*_with_hash` entry point for `realization` under the σ-axis
+    `algo` (one of `HASH_SHA256` / `HASH_BLAKE3` / `HASH_SHA3_256` /
+    `HASH_KECCAK256`). The κ-label width depends on the axis, so the buffer
+    is sized to `MAX_LABEL_BYTES` and the result is truncated to what the C
+    side wrote."""
+    fn = _WITH_HASH_FUNCS[realization]
+    buf = bytes(data)
+    in_ptr = (ctypes.c_uint8 * len(buf)).from_buffer_copy(buf)
+    out_buf = (ctypes.c_uint8 * MAX_LABEL_BYTES)()
+    written = ctypes.c_size_t(0)
+    rc = fn(algo, in_ptr, len(buf), out_buf, MAX_LABEL_BYTES, ctypes.byref(written))
+    if rc != _OK:
+        raise AddressError(_ERR_KIND.get(rc, "pipeline-failure"))
+    return bytes(out_buf[: written.value]).decode("ascii")
+
+
 class _Kappa:
     """Bound facade exposing the C ABI realization functions."""
 
@@ -351,6 +414,40 @@ class _Kappa:
     def codemodule_address(self, data: bytes) -> str:
         """CCMAS canonical AST + SHA-256."""
         return _call(_FUNCS["codemodule_address"], data)
+
+    def cbor_address(self, data: bytes) -> str:
+        """RFC 8949 §4.2 deterministic-encoding CBOR + SHA-256."""
+        return _call(_FUNCS["cbor_address"], data)
+
+    # ─── σ-axis-selecting entry points (label only) ────────────────
+
+    def json_address_with_hash(self, data: bytes, algo: int = HASH_SHA256) -> str:
+        """JSON realization under a caller-selected σ-axis (`HASH_*`)."""
+        return _call_with_hash("json", algo, data)
+
+    def sexp_address_with_hash(self, data: bytes, algo: int = HASH_SHA256) -> str:
+        """S-expression realization under a caller-selected σ-axis."""
+        return _call_with_hash("sexp", algo, data)
+
+    def xml_address_with_hash(self, data: bytes, algo: int = HASH_SHA256) -> str:
+        """XML realization under a caller-selected σ-axis."""
+        return _call_with_hash("xml", algo, data)
+
+    def asn1_address_with_hash(self, data: bytes, algo: int = HASH_SHA256) -> str:
+        """ASN.1 realization under a caller-selected σ-axis."""
+        return _call_with_hash("asn1", algo, data)
+
+    def ring_address_with_hash(self, data: bytes, algo: int = HASH_SHA256) -> str:
+        """Ring realization under a caller-selected σ-axis."""
+        return _call_with_hash("ring", algo, data)
+
+    def codemodule_address_with_hash(self, data: bytes, algo: int = HASH_SHA256) -> str:
+        """Code-module realization under a caller-selected σ-axis."""
+        return _call_with_hash("codemodule", algo, data)
+
+    def cbor_address_with_hash(self, data: bytes, algo: int = HASH_SHA256) -> str:
+        """CBOR realization under a caller-selected σ-axis."""
+        return _call_with_hash("cbor", algo, data)
 
     def schema_photo_address(self, data: bytes) -> str:
         """schema.org/Photograph admission + JSON canonicalization."""
@@ -390,6 +487,10 @@ class _Kappa:
         """Code-module realization; returns a verifiable [`Grounded`] witness."""
         return _mint_with_witness("codemodule", data)
 
+    def cbor_address_with_witness(self, data: bytes) -> Grounded:
+        """CBOR realization; returns a verifiable [`Grounded`] witness."""
+        return _mint_with_witness("cbor", data)
+
     def schema_photo_address_with_witness(self, data: bytes) -> Grounded:
         """schema.org/Photograph; returns a verifiable [`Grounded`] witness."""
         return _mint_with_witness("schema_photo", data)
@@ -409,6 +510,11 @@ kappa: Final[_Kappa] = _Kappa()
 
 __all__ = [
     "ADDRESS_LABEL_BYTES",
+    "MAX_LABEL_BYTES",
+    "HASH_SHA256",
+    "HASH_BLAKE3",
+    "HASH_SHA3_256",
+    "HASH_KECCAK256",
     "AddressError",
     "Grounded",
     "VerifyError",

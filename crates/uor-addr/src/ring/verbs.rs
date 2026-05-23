@@ -9,15 +9,17 @@
 //! the structural shape of the term arena is the same across every
 //! UOR-ADDR realization.
 
-use prism::pipeline::verb;
-
-use crate::label::AddressLabel;
+use crate::label::{
+    AddressLabelBlake3, AddressLabelKeccak256, AddressLabelSha256, AddressLabelSha3_256,
+};
 use crate::ring::value::RingElement;
 
-verb! {
-    pub fn address_inference(input: RingElement) -> AddressLabel {
-        k_invariants(homotopy_groups(postnikov_tower(nerve(input))))
-    }
+addr_verbs! {
+    input: RingElement,
+    { shape: AddressLabelSha256, verb: address_inference },
+    { shape: AddressLabelBlake3, verb: address_inference_blake3 },
+    { shape: AddressLabelSha3_256, verb: address_inference_sha3_256 },
+    { shape: AddressLabelKeccak256, verb: address_inference_keccak256 },
 }
 
 #[cfg(test)]

@@ -8,7 +8,11 @@
 //!
 //! Run with `cargo run -p uor-addr --example common_surface`.
 
-fn show_outcome(name: &str, address: &uor_addr::KappaLabel, witness: &uor_addr::AddressWitness) {
+fn show_outcome(
+    name: &str,
+    address: &uor_addr::KappaLabel<71>,
+    witness: &uor_addr::AddressWitness<71>,
+) {
     println!("─── {name} ─────────────────────────────────────");
     println!("   κ-label:              {address}");
     println!(

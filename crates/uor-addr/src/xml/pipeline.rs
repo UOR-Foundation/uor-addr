@@ -25,24 +25,69 @@ pub enum AddressFailure {
     PipelineFailure,
 }
 
-/// **uor-addr's XML entry point** — one ψ-pipeline content-address
-/// inference per XML input.
+#[cfg(feature = "alloc")]
+use crate::xml::model::{
+    AddressModel, AddressModelBlake3, AddressModelKeccak256, AddressModelSha3_256,
+};
+#[cfg(feature = "alloc")]
+use crate::xml::value::{canonicalize, XmlValue};
+#[cfg(feature = "alloc")]
+use prism::pipeline::PrismModel;
+
+/// **uor-addr's xml entry point** (σ-axis `Sha256Hasher`) — one
+/// ψ-pipeline content-address inference, yielding a `sha256:<64hex>`
+/// κ-label.
 ///
 /// # Errors
 ///
-/// - [`AddressFailure::InvalidXml`] — `input_bytes` is not a well-formed
-///   document in the supported subset.
-/// - [`AddressFailure::PipelineFailure`] — defensive; unreachable in
-///   normal flow.
+/// - [`AddressFailure::InvalidXml`] — the input is not well-formed.
+/// - [`AddressFailure::PipelineFailure`] — defensive; unreachable.
 #[cfg(feature = "alloc")]
-pub fn address(input_bytes: &[u8]) -> Result<AddressOutcome, AddressFailure> {
-    use prism::pipeline::PrismModel;
-
-    use crate::xml::model::AddressModel;
-    use crate::xml::value::{canonicalize, XmlValue};
-
+pub fn address(input_bytes: &[u8]) -> Result<AddressOutcome<71>, AddressFailure> {
     let canonical = canonicalize(input_bytes).map_err(|_| AddressFailure::InvalidXml)?;
     let grounded = AddressModel::forward(XmlValue::new(&canonical))
         .map_err(|_| AddressFailure::PipelineFailure)?;
-    AddressOutcome::from_grounded(&grounded).map_err(|_| AddressFailure::PipelineFailure)
+    AddressOutcome::<71>::from_grounded(&grounded).map_err(|_| AddressFailure::PipelineFailure)
+}
+
+/// The xml entry point under σ-axis `Blake3Hasher` — yields a
+/// `blake3:<64hex>` κ-label. See [`address`] for the error contract.
+///
+/// # Errors
+///
+/// As [`address`].
+#[cfg(feature = "alloc")]
+pub fn address_blake3(input_bytes: &[u8]) -> Result<AddressOutcome<71>, AddressFailure> {
+    let canonical = canonicalize(input_bytes).map_err(|_| AddressFailure::InvalidXml)?;
+    let grounded = AddressModelBlake3::forward(XmlValue::new(&canonical))
+        .map_err(|_| AddressFailure::PipelineFailure)?;
+    AddressOutcome::<71>::from_grounded(&grounded).map_err(|_| AddressFailure::PipelineFailure)
+}
+
+/// The xml entry point under σ-axis `Sha3_256Hasher` — yields a
+/// `sha3-256:<64hex>` κ-label. See [`address`] for the error contract.
+///
+/// # Errors
+///
+/// As [`address`].
+#[cfg(feature = "alloc")]
+pub fn address_sha3_256(input_bytes: &[u8]) -> Result<AddressOutcome<73>, AddressFailure> {
+    let canonical = canonicalize(input_bytes).map_err(|_| AddressFailure::InvalidXml)?;
+    let grounded = AddressModelSha3_256::forward(XmlValue::new(&canonical))
+        .map_err(|_| AddressFailure::PipelineFailure)?;
+    AddressOutcome::<73>::from_grounded(&grounded).map_err(|_| AddressFailure::PipelineFailure)
+}
+
+/// The xml entry point under σ-axis `Keccak256Hasher` — yields a
+/// `keccak256:<64hex>` κ-label. See [`address`] for the error contract.
+///
+/// # Errors
+///
+/// As [`address`].
+#[cfg(feature = "alloc")]
+pub fn address_keccak256(input_bytes: &[u8]) -> Result<AddressOutcome<74>, AddressFailure> {
+    let canonical = canonicalize(input_bytes).map_err(|_| AddressFailure::InvalidXml)?;
+    let grounded = AddressModelKeccak256::forward(XmlValue::new(&canonical))
+        .map_err(|_| AddressFailure::PipelineFailure)?;
+    AddressOutcome::<74>::from_grounded(&grounded).map_err(|_| AddressFailure::PipelineFailure)
 }

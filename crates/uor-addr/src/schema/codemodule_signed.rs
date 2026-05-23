@@ -149,7 +149,7 @@ impl SignedCodeModuleValue {
 }
 
 /// Mint a κ-label over an in-toto-v1-Statement-admitted JSON value.
-pub fn address(raw: &[u8]) -> Result<crate::AddressOutcome, AddressFailure> {
+pub fn address(raw: &[u8]) -> Result<crate::AddressOutcome<71>, AddressFailure> {
     SignedCodeModuleValue::parse(raw).map_err(|_| AddressFailure::SchemaViolation)?;
     crate::json::address(raw).map_err(|e| match e {
         crate::json::AddressFailure::InvalidJson => AddressFailure::SchemaViolation,

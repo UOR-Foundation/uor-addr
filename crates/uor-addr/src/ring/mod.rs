@@ -41,8 +41,13 @@ pub mod shapes;
 pub mod value;
 pub mod verbs;
 
-pub use model::{AddressModel, AddressRoute};
-pub use pipeline::{address, AddressFailure, AddressOutcome, AddressWitness, VerifyError};
+pub use model::{
+    AddressModel, AddressModelBlake3, AddressModelKeccak256, AddressModelSha3_256, AddressRoute,
+};
+pub use pipeline::{
+    address, address_blake3, address_keccak256, address_sha3_256, AddressFailure, AddressOutcome,
+    AddressWitness, VerifyError,
+};
 pub use shapes::{MAX_WITT_LEVEL, RING_VALUE_MAX_BYTES};
 pub use value::RingElement;
 pub use verbs::{address_inference, VERB_TERMS_ADDRESS_INFERENCE};

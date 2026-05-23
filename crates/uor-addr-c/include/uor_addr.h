@@ -14,6 +14,18 @@
 #include <stdint.h>
 #include <stdlib.h>
 
+// σ-axis selector for the `*_with_hash` entry points: SHA-256 (default).
+#define UOR_ADDR_HASH_SHA256 0
+
+// σ-axis selector: BLAKE3.
+#define UOR_ADDR_HASH_BLAKE3 1
+
+// σ-axis selector: SHA3-256 (FIPS 202).
+#define UOR_ADDR_HASH_SHA3_256 2
+
+// σ-axis selector: Keccak-256 (pre-FIPS padding).
+#define UOR_ADDR_HASH_KECCAK256 3
+
 // Success.
 #define UOR_ADDR_OK 0
 
@@ -33,6 +45,10 @@
 
 // Defensive — substrate-level pipeline failure.
 #define UOR_ADDR_ERR_PIPELINE -5
+
+// Unknown σ-axis selector passed to a `*_with_hash` entry point (not one
+// of the `UOR_ADDR_HASH_*` constants).
+#define UOR_ADDR_ERR_UNKNOWN_HASH -6
 
 // Verify-error codes — 1:1 with WIT `verify-error` variants. **Reserved
 // forward-compat vocabulary**: under ADR-060 [`uor_addr_grounded_verify`]
@@ -63,15 +79,21 @@
 // (the underlying `Trace<256>` constructor is `pub(crate)` in
 // `uor-foundation`).
 typedef struct UorAddrGrounded {
-  AddressOutcome outcome;
+  AddressOutcome<71> outcome;
 } UorAddrGrounded;
 
 #ifdef __cplusplus
 extern "C" {
 #endif // __cplusplus
 
-// Wire-format κ-label byte width — `len("sha256:") + 64`.
+// Wire-format κ-label byte width under the default σ-axis (sha256) —
+// `len("sha256:") + 64 = 71`.
 extern const uintptr_t UOR_ADDR_LABEL_BYTES;
+
+// Widest κ-label byte width across the admissible σ-axes (keccak256 →
+// `len("keccak256:") + 64 = 74`). A `*_with_hash` output buffer sized to
+// this fits every algorithm.
+extern const uintptr_t UOR_ADDR_MAX_LABEL_BYTES;
 
 // JSON realization (RFC 8785 JCS + Unicode NFC + SHA-256).
 //
@@ -209,6 +231,108 @@ int32_t uor_addr_onnx(const uint8_t *input,
                       uintptr_t out_label_len,
                       uintptr_t *out_written);
 
+// CBOR realization (RFC 8949 §4.2 deterministic encoding + SHA-256).
+//
+// # Safety
+//
+// Same pointer-validity requirements as [`uor_addr_json`].
+int32_t uor_addr_cbor(const uint8_t *input,
+                      uintptr_t input_len,
+                      uint8_t *out_label,
+                      uintptr_t out_label_len,
+                      uintptr_t *out_written);
+
+// json realization with a caller-selected σ-axis (`UOR_ADDR_HASH_*`).
+//
+// # Safety
+//
+// Same pointer rules as [`uor_addr_json`]; `out_label` must be writable
+// for at least `UOR_ADDR_MAX_LABEL_BYTES` bytes.
+int32_t uor_addr_json_with_hash(uint8_t algo,
+                                const uint8_t *input,
+                                uintptr_t input_len,
+                                uint8_t *out_label,
+                                uintptr_t out_label_len,
+                                uintptr_t *out_written);
+
+// sexp realization with a caller-selected σ-axis (`UOR_ADDR_HASH_*`).
+//
+// # Safety
+//
+// Same pointer rules as [`uor_addr_json`]; `out_label` must be writable
+// for at least `UOR_ADDR_MAX_LABEL_BYTES` bytes.
+int32_t uor_addr_sexp_with_hash(uint8_t algo,
+                                const uint8_t *input,
+                                uintptr_t input_len,
+                                uint8_t *out_label,
+                                uintptr_t out_label_len,
+                                uintptr_t *out_written);
+
+// xml realization with a caller-selected σ-axis (`UOR_ADDR_HASH_*`).
+//
+// # Safety
+//
+// Same pointer rules as [`uor_addr_json`]; `out_label` must be writable
+// for at least `UOR_ADDR_MAX_LABEL_BYTES` bytes.
+int32_t uor_addr_xml_with_hash(uint8_t algo,
+                               const uint8_t *input,
+                               uintptr_t input_len,
+                               uint8_t *out_label,
+                               uintptr_t out_label_len,
+                               uintptr_t *out_written);
+
+// asn1 realization with a caller-selected σ-axis (`UOR_ADDR_HASH_*`).
+//
+// # Safety
+//
+// Same pointer rules as [`uor_addr_json`]; `out_label` must be writable
+// for at least `UOR_ADDR_MAX_LABEL_BYTES` bytes.
+int32_t uor_addr_asn1_with_hash(uint8_t algo,
+                                const uint8_t *input,
+                                uintptr_t input_len,
+                                uint8_t *out_label,
+                                uintptr_t out_label_len,
+                                uintptr_t *out_written);
+
+// ring realization with a caller-selected σ-axis (`UOR_ADDR_HASH_*`).
+//
+// # Safety
+//
+// Same pointer rules as [`uor_addr_json`]; `out_label` must be writable
+// for at least `UOR_ADDR_MAX_LABEL_BYTES` bytes.
+int32_t uor_addr_ring_with_hash(uint8_t algo,
+                                const uint8_t *input,
+                                uintptr_t input_len,
+                                uint8_t *out_label,
+                                uintptr_t out_label_len,
+                                uintptr_t *out_written);
+
+// codemodule realization with a caller-selected σ-axis (`UOR_ADDR_HASH_*`).
+//
+// # Safety
+//
+// Same pointer rules as [`uor_addr_json`]; `out_label` must be writable
+// for at least `UOR_ADDR_MAX_LABEL_BYTES` bytes.
+int32_t uor_addr_codemodule_with_hash(uint8_t algo,
+                                      const uint8_t *input,
+                                      uintptr_t input_len,
+                                      uint8_t *out_label,
+                                      uintptr_t out_label_len,
+                                      uintptr_t *out_written);
+
+// cbor realization with a caller-selected σ-axis (`UOR_ADDR_HASH_*`).
+//
+// # Safety
+//
+// Same pointer rules as [`uor_addr_json`]; `out_label` must be writable
+// for at least `UOR_ADDR_MAX_LABEL_BYTES` bytes.
+int32_t uor_addr_cbor_with_hash(uint8_t algo,
+                                const uint8_t *input,
+                                uintptr_t input_len,
+                                uint8_t *out_label,
+                                uintptr_t out_label_len,
+                                uintptr_t *out_written);
+
 // Free a Grounded handle. Calling with a null pointer is a no-op.
 // After this call returns, `handle` is invalid; any further use is
 // undefined behaviour.
@@ -319,6 +443,16 @@ int32_t uor_addr_ring_with_witness(const uint8_t *input,
 int32_t uor_addr_codemodule_with_witness(const uint8_t *input,
                                          uintptr_t input_len,
                                          struct UorAddrGrounded **out_handle);
+
+// CBOR realization (RFC 8949 §4.2 + SHA-256), returning a verifiable
+// witness handle.
+//
+// # Safety
+//
+// Same as [`uor_addr_json_with_witness`].
+int32_t uor_addr_cbor_with_witness(const uint8_t *input,
+                                   uintptr_t input_len,
+                                   struct UorAddrGrounded **out_handle);
 
 // schema.org/Photograph realization, returning a verifiable witness handle.
 //

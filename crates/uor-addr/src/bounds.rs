@@ -8,9 +8,10 @@
 //! through the pipeline as a source-polymorphic [`prism::operation::TermValue`]
 //! carrier (`Borrowed` / `Stream`) with no size cap. The remaining
 //! `HostBounds` constants are structural-count / catamorphism-trace caps,
-//! identical across realizations because every realization binds the same
-//! σ-axis ([`prism::crypto::Sha256Hasher`]) and the same 71-site
-//! `AddressLabel` output geometry.
+//! identical across realizations. Every admissible σ-axis ([`crate::hash`])
+//! is a `Hasher<32>`, so the fingerprint width is fixed at 32; the
+//! site-count ceilings admit the widest κ-label geometry (keccak256's
+//! 74-site shape).
 
 use prism::uor_foundation::pipeline::carrier_inline_bytes;
 use prism::vocabulary::HostBounds;
@@ -27,10 +28,10 @@ impl HostBounds for AddrBounds {
     const WITT_LEVEL_MAX_BITS: u32 = 32;
 
     const FOLD_UNROLL_THRESHOLD: usize = 8;
-    const BETTI_DIMENSION_MAX: usize = 71;
+    const BETTI_DIMENSION_MAX: usize = 74;
     const NERVE_CONSTRAINTS_MAX: usize = 128;
-    const NERVE_SITES_MAX: usize = 71;
-    const JACOBIAN_SITES_MAX: usize = 71;
+    const NERVE_SITES_MAX: usize = 74;
+    const JACOBIAN_SITES_MAX: usize = 74;
     const RECURSION_TRACE_DEPTH_MAX: usize = 16;
     const OP_CHAIN_DEPTH_MAX: usize = 8;
     const AFFINE_COEFFS_MAX: usize = 80;

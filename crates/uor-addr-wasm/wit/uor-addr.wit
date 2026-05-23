@@ -127,6 +127,12 @@ interface kappa {
     /// Code-module AST realization, returning the verifiable witness handle.
     codemodule-address-with-witness: func(input: list<u8>) -> result<grounded, address-error>;
 
+    /// CBOR realization (RFC 8949 §4.2 deterministic encoding + SHA-256).
+    cbor-address: func(input: list<u8>) -> result<kappa-label, address-error>;
+
+    /// CBOR realization, returning the verifiable witness handle.
+    cbor-address-with-witness: func(input: list<u8>) -> result<grounded, address-error>;
+
     /// schema.org/Photograph descendant — admits only schema.org/Photograph
     /// JSON-LD inputs.
     schema-photo-address: func(input: list<u8>) -> result<kappa-label, address-error>;

@@ -27,23 +27,69 @@ pub enum AddressFailure {
     PipelineFailure,
 }
 
-/// **uor-addr's ONNX entry point** — one ψ-pipeline content-address
-/// inference per ONNX `ModelProto`.
+#[cfg(feature = "alloc")]
+use crate::onnx::model::{
+    AddressModel, AddressModelBlake3, AddressModelKeccak256, AddressModelSha3_256,
+};
+#[cfg(feature = "alloc")]
+use crate::onnx::value::{canonicalize, OnnxCarrier};
+#[cfg(feature = "alloc")]
+use prism::pipeline::PrismModel;
+
+/// **uor-addr's onnx entry point** (σ-axis `Sha256Hasher`) — one
+/// ψ-pipeline content-address inference, yielding a `sha256:<64hex>`
+/// κ-label.
 ///
 /// # Errors
 ///
-/// - [`AddressFailure::InvalidOnnx`] — malformed ONNX `ModelProto` input.
-/// - [`AddressFailure::PipelineFailure`] — defensive; unreachable in
-///   normal flow.
+/// - [`AddressFailure::InvalidOnnx`] — the input is not well-formed.
+/// - [`AddressFailure::PipelineFailure`] — defensive; unreachable.
 #[cfg(feature = "alloc")]
-pub fn address(input_bytes: &[u8]) -> Result<AddressOutcome, AddressFailure> {
-    use prism::pipeline::PrismModel;
-
-    use crate::onnx::model::AddressModel;
-    use crate::onnx::value::{canonicalize, OnnxCarrier};
-
+pub fn address(input_bytes: &[u8]) -> Result<AddressOutcome<71>, AddressFailure> {
     let skeleton = canonicalize(input_bytes).map_err(|_| AddressFailure::InvalidOnnx)?;
     let grounded = AddressModel::forward(OnnxCarrier::new(&skeleton))
         .map_err(|_| AddressFailure::PipelineFailure)?;
-    AddressOutcome::from_grounded(&grounded).map_err(|_| AddressFailure::PipelineFailure)
+    AddressOutcome::<71>::from_grounded(&grounded).map_err(|_| AddressFailure::PipelineFailure)
+}
+
+/// The onnx entry point under σ-axis `Blake3Hasher` — yields a
+/// `blake3:<64hex>` κ-label. See [`address`] for the error contract.
+///
+/// # Errors
+///
+/// As [`address`].
+#[cfg(feature = "alloc")]
+pub fn address_blake3(input_bytes: &[u8]) -> Result<AddressOutcome<71>, AddressFailure> {
+    let skeleton = canonicalize(input_bytes).map_err(|_| AddressFailure::InvalidOnnx)?;
+    let grounded = AddressModelBlake3::forward(OnnxCarrier::new(&skeleton))
+        .map_err(|_| AddressFailure::PipelineFailure)?;
+    AddressOutcome::<71>::from_grounded(&grounded).map_err(|_| AddressFailure::PipelineFailure)
+}
+
+/// The onnx entry point under σ-axis `Sha3_256Hasher` — yields a
+/// `sha3-256:<64hex>` κ-label. See [`address`] for the error contract.
+///
+/// # Errors
+///
+/// As [`address`].
+#[cfg(feature = "alloc")]
+pub fn address_sha3_256(input_bytes: &[u8]) -> Result<AddressOutcome<73>, AddressFailure> {
+    let skeleton = canonicalize(input_bytes).map_err(|_| AddressFailure::InvalidOnnx)?;
+    let grounded = AddressModelSha3_256::forward(OnnxCarrier::new(&skeleton))
+        .map_err(|_| AddressFailure::PipelineFailure)?;
+    AddressOutcome::<73>::from_grounded(&grounded).map_err(|_| AddressFailure::PipelineFailure)
+}
+
+/// The onnx entry point under σ-axis `Keccak256Hasher` — yields a
+/// `keccak256:<64hex>` κ-label. See [`address`] for the error contract.
+///
+/// # Errors
+///
+/// As [`address`].
+#[cfg(feature = "alloc")]
+pub fn address_keccak256(input_bytes: &[u8]) -> Result<AddressOutcome<74>, AddressFailure> {
+    let skeleton = canonicalize(input_bytes).map_err(|_| AddressFailure::InvalidOnnx)?;
+    let grounded = AddressModelKeccak256::forward(OnnxCarrier::new(&skeleton))
+        .map_err(|_| AddressFailure::PipelineFailure)?;
+    AddressOutcome::<74>::from_grounded(&grounded).map_err(|_| AddressFailure::PipelineFailure)
 }
