@@ -16,8 +16,9 @@ interface kappa {
     ///
     /// - `invalid-input`: input bytes rejected by the host-boundary
     ///   parser (not valid JSON / S-expression / XML / DER / …).
-    /// - `too-large`: input exceeded a typed-input ceiling (depth,
-    ///   string width, container arity, total byte count).
+    /// - `too-large`: **reserved** — never returned under ADR-060
+    ///   (inputs are unbounded; the per-realization caps were removed).
+    ///   Retained as forward-compat contract surface.
     /// - `pipeline-failure`: defensive — substrate-level shape
     ///   violation. Unreachable for well-formed inputs.
     variant address-error {
@@ -26,10 +27,12 @@ interface kappa {
         pipeline-failure,
     }
 
-    /// Failure modes from `grounded.verify()`. 1:1 with
-    /// `prism_verify::ReplayError` variants the underlying
-    /// `certify_from_trace` may emit. All five are *defensive*
-    /// against substrate corruption — they are unreachable for a
+    /// Failure modes from `grounded.verify()`. **Reserved forward-compat
+    /// vocabulary** mirroring `prism::replay::ReplayError`: under ADR-060
+    /// `verify()` re-certifies through the owned witness and surfaces a
+    /// coarse replay-failure (mapped to `empty-trace`) or fingerprint
+    /// divergence (mapped to `out-of-order-event`); all five variants are
+    /// *defensive* against substrate corruption and are unreachable for a
     /// `grounded` resource the component itself emitted.
     ///
     /// - `empty-trace`: derivation produced no events.

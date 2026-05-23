@@ -32,7 +32,8 @@
 //! - `UOR_ADDR_ERR_NULL_POINTER` (`-1`) — invalid pointer.
 //! - `UOR_ADDR_ERR_BUFFER_TOO_SMALL` (`-2`) — output buffer too small.
 //! - `UOR_ADDR_ERR_INVALID_INPUT` (`-3`) — input rejected by parser.
-//! - `UOR_ADDR_ERR_TOO_LARGE` (`-4`) — input exceeded a bound.
+//! - `UOR_ADDR_ERR_TOO_LARGE` (`-4`) — **reserved**; never returned under
+//!   ADR-060 (inputs are unbounded). Retained for error-code stability.
 //! - `UOR_ADDR_ERR_PIPELINE` (`-5`) — substrate-level failure.
 
 #![cfg_attr(not(feature = "std"), no_std)]
@@ -59,7 +60,9 @@ pub const UOR_ADDR_ERR_NULL_POINTER: i32 = -1;
 pub const UOR_ADDR_ERR_BUFFER_TOO_SMALL: i32 = -2;
 /// Input failed the realization's host-boundary parser.
 pub const UOR_ADDR_ERR_INVALID_INPUT: i32 = -3;
-/// Input exceeded a typed-input ceiling.
+/// **Reserved** — never returned under ADR-060 (inputs are unbounded;
+/// the per-realization size/count caps were removed). Retained so
+/// existing `-4` handlers in downstream C consumers keep compiling.
 pub const UOR_ADDR_ERR_TOO_LARGE: i32 = -4;
 /// Defensive — substrate-level pipeline failure.
 pub const UOR_ADDR_ERR_PIPELINE: i32 = -5;
@@ -356,12 +359,12 @@ pub unsafe extern "C" fn uor_addr_schema_codemodule_signed(
 
 // ─── GGUF realization ──────────────────────────────────────────────
 
-/// GGUF v3 realization (spec-canonical structural commitment + SHA-256).
+/// GGUF v3 realization (spec-canonical flat Merkle skeleton + SHA-256).
 ///
 /// The κ-label binds every metadata byte and every tensor weight (the
-/// latter via streamed per-tensor digests). Uses the crate's
-/// `GgufAddrBounds` encoding profile; applications needing different
-/// ceilings use the Rust crate directly with their own `GgufHostBounds`.
+/// latter via streamed per-tensor digests). Under ADR-060 the canonical
+/// form is the full flat skeleton (no two-level commitment); KV / tensor
+/// counts and value widths are unbounded.
 ///
 /// # Safety
 ///
@@ -422,19 +425,22 @@ pub unsafe extern "C" fn uor_addr_onnx(
 // Mirrors the WIT `resource grounded` exposed by the WASM Component
 // Model surface. Each `uor_addr_<realization>_with_witness` mint
 // produces an opaque heap-allocated handle the caller owns; the
-// caller verifies via `uor_addr_grounded_verify` (which replays
-// through `prism_verify::certify_from_trace` without re-invoking
-// SHA-256) and releases via `uor_addr_grounded_free`.
+// caller verifies via `uor_addr_grounded_verify` (which re-certifies the
+// owned witness through `prism::replay::certify_from_trace` without
+// re-invoking SHA-256) and releases via `uor_addr_grounded_free`.
 //
 // The witness API requires an allocator and is gated behind the
 // `alloc` feature. Embedded bare-metal builds (`--no-default-features
 // --target thumbv7em-none-eabihf`) get only the κ-label-only
 // functions above.
 
-/// Verify-error codes — 1:1 with WIT `verify-error` variants. Returned
-/// by [`uor_addr_grounded_verify`]. All five are *defensive* against
-/// substrate corruption; unreachable for a handle the C ABI itself
-/// minted.
+/// Verify-error codes — 1:1 with WIT `verify-error` variants. **Reserved
+/// forward-compat vocabulary**: under ADR-060 [`uor_addr_grounded_verify`]
+/// re-certifies through the owned witness ([`uor_addr::AddressWitness::verify`])
+/// and returns `UOR_ADDR_OK` or `UOR_ADDR_ERR_PIPELINE` only — the
+/// granular replay-failure codes below are retained for error-code
+/// stability and a future stricter verifier, and are unreachable for a
+/// handle the C ABI itself minted.
 pub const UOR_ADDR_ERR_VERIFY_EMPTY_TRACE: i32 = -10;
 pub const UOR_ADDR_ERR_VERIFY_OUT_OF_ORDER_EVENT: i32 = -11;
 pub const UOR_ADDR_ERR_VERIFY_ZERO_TARGET: i32 = -12;
@@ -579,8 +585,9 @@ pub unsafe extern "C" fn uor_addr_grounded_content_fingerprint(
     UOR_ADDR_OK
 }
 
-/// Verify the witness by replaying its derivation through
-/// `prism_verify::certify_from_trace` and writing the recovered
+/// Verify the witness by re-certifying its owned replay trace through
+/// `prism::replay::certify_from_trace` (via
+/// [`uor_addr::AddressWitness::verify`]) and writing the recovered
 /// κ-label into `out_label`. SHA-256 is **not** re-invoked.
 ///
 /// On `UOR_ADDR_OK` the bytes in `out_label[..71]` are byte-identical

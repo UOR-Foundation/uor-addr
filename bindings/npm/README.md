@@ -24,7 +24,7 @@ console.log(label);
 
 ## API
 
-Nine `*-address` functions, one per realization. Each takes a `Uint8Array` and returns a 71-byte ASCII string of the form `sha256:<64-lowercase-hex>`. Failures throw with a wasm-runtime error carrying the realization's `address-error` variant (`invalid-input` / `too-large` / `pipeline-failure`).
+Eleven `*-address` functions, one per realization (json, sexp, xml, asn1, ring, codemodule, the three `schema-*` descendants, gguf, onnx). Each takes a `Uint8Array` and returns a 71-byte ASCII string of the form `sha256:<64-lowercase-hex>`. Failures throw with a wasm-runtime error carrying the realization's `address-error` variant — `invalid-input` or `pipeline-failure` (`too-large` is reserved and never thrown under ADR-060: inputs are unbounded).
 
 | Function | Realization | Imported spec |
 |---|---|---|

@@ -20,15 +20,12 @@
 //!   The κ-label's emission carries a typed-bandwidth admission of
 //!   the κ-label into the storage tier (the threshold selects which
 //!   κ-labels admit to the cost-bearing tier).
-//!
-//! ## Deferred variants
-//!
-//! Per ARCHITECTURE.md, the documented `uor-addr-signed` variant
-//! (signature-required-on-emission) requires an
-//! `ObservablePredicate` for signature commitment that's not yet
-//! published in `prism::pipeline`'s built-in predicate roster; it
-//! lands when the signature predicate is added per ADR-049's
-//! demand-driven discipline.
+//! - [`signed`] — signature-required-on-emission variant binding
+//!   `C = SingletonCommitment<UltrametricCloseTo<2>>`. The published
+//!   `UltrametricCloseTo` predicate admits κ-labels whose σ-projection
+//!   digest is ultrametrically close (2-adic-prefix-aligned) to the
+//!   signature reference — the byte-shape property an ADR-049
+//!   `axis::cryptanalyze` signature witness validates.
 
 pub mod signed;
 pub mod storage;

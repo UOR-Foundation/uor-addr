@@ -839,7 +839,6 @@ dependencies = [
  "uor-foundation-sdk",
  "uor-prism",
  "uor-prism-tensor",
- "uor-prism-verify",
  "ureq",
 ]
 
@@ -849,7 +848,6 @@ version = "0.1.0"
 dependencies = [
  "cbindgen",
  "uor-addr",
- "uor-prism-verify",
 ]
 
 [[package]]
@@ -936,16 +934,6 @@ dependencies = [
  "uor-foundation",
  "uor-foundation-sdk",
  "uor-prism-numerics",
-]
-
-[[package]]
-name = "uor-prism-verify"
-version = "0.3.1"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "0c86b1b2f6f2c17bcd973836eff77000ebd6a545edfe6cc5b084b3c57f5d5ef2"
-dependencies = [
- "uor-foundation",
- "uor-prism",
 ]
 
 [[package]]

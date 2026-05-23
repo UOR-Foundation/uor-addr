@@ -16,15 +16,18 @@
 //! ## Canonical form
 //!
 //! The GGUF spec defines no canonical form; this realization defines one
-//! (canonical form v1 — [`CANONICAL_FORM_VERSION`]). It is a **Merkle
-//! skeleton**: a bounded structural form (header, metadata KVs sorted by
-//! key bytes, tensor info sorted by name bytes with recomputed canonical
-//! offsets) in which every variable-length leaf — tensor data, metadata
-//! array payloads, long strings — is represented by its 32-byte streamed
-//! SHA-256 digest. Tensor data is streamed through the hash axis at the
-//! host boundary (true incremental SHA-256), so arbitrarily large weights
-//! bind into the κ-label without flowing through the bounded ψ-pipeline
-//! carrier. See [`crate::gguf::value`] for the full byte layout.
+//! (canonical form v2 — [`CANONICAL_FORM_VERSION`]). It is the **full
+//! flat Merkle skeleton** (ADR-060): a structural form (header, metadata
+//! KVs sorted by key bytes, tensor info sorted by name bytes with
+//! recomputed canonical offsets) in which every variable-length leaf —
+//! tensor data, metadata array payloads, long strings — is represented by
+//! its 32-byte streamed SHA-256 digest. The skeleton's size grows only
+//! with the KV / tensor counts (never with model size) and flows through
+//! the pipeline as a `Borrowed` carrier that ψ₉ folds; tensor data is
+//! streamed through the hash axis at the host boundary (true incremental
+//! SHA-256) with bounded resident memory. There is no two-level
+//! commitment and no count / width ceiling. See [`crate::gguf::value`]
+//! for the full byte layout.
 //!
 //! Two GGUF files that decode to the same logical content (modulo
 //! metadata-KV order, tensor order, and tensor-data layout) canonicalize

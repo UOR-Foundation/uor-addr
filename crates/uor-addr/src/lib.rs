@@ -113,9 +113,11 @@ pub mod outcome;
 pub mod resolvers;
 
 // ── Format-specific realizations. ──
-// MIGRATION (foundation 0.5.1 / prism 0.3.1, ADR-060): realizations are
-// re-enabled here one at a time as each is reshaped to the carrier-
-// producing-handle pattern. `ring` is the validated template.
+// Each binds the shared `bounds::AddrBounds` + `resolvers` ψ-tower and
+// supplies a canonical-form input handle whose `as_binding_value`
+// produces the ADR-060 carrier (Inline / Borrowed / Stream). `gguf` and
+// `onnx` are feature-gated (they pull the `uor-prism-tensor` dtype dep
+// and need `alloc` for their skeleton buffers).
 pub mod asn1;
 pub mod codemodule;
 #[cfg(feature = "gguf")]
