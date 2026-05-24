@@ -80,6 +80,7 @@ conformance:
 	# (RFC 8949 §4.2 / Appendix A).
 	cargo test -p uor-addr --release --test hash_kat
 	cargo test -p uor-addr --release --test cbor_rfc8949
+	cargo test -p uor-addr --release --test composition
 	# Cross-realization
 	cargo test -p uor-addr --release --test all_realizations
 

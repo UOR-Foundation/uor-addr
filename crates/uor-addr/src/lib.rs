@@ -47,6 +47,11 @@
 //! - **Cost-model-bearing variants** — [`variant::storage`]
 //!   (`AndCommitment<…, LexicographicLessEqThreshold>`),
 //!   [`variant::signed`] (`SingletonCommitment<UltrametricCloseTo<2>>`).
+//! - **Categorical composition** — [`composition`] (ADR-061): the five
+//!   operations on the Atlas image inside E₈ — `g2` (commutative binary
+//!   product), `f4` (± involution quotient), `e6` (degree-partition
+//!   filtration), `e7` (S₄-orbit augmentation), `e8` (direct embedding) —
+//!   each on all five σ-axes, composing operand κ-labels into a new one.
 //!
 //! ## What's shipped
 //!
@@ -130,6 +135,11 @@ pub mod resolvers;
 pub mod asn1;
 pub mod cbor;
 pub mod codemodule;
+// Categorical composition of κ-labels (ADR-061): the five operations on
+// the Atlas image inside E₈. Builds `Vec` canonical forms from operand
+// digests, so the whole module is `alloc`-gated.
+#[cfg(feature = "alloc")]
+pub mod composition;
 #[cfg(feature = "gguf")]
 pub mod gguf;
 pub mod json;
