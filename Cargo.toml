@@ -16,7 +16,7 @@ members = ["crates/uor-addr", "crates/uor-addr-c", "crates/uor-addr-wasm"]
 # then `python3 tools/sync-versions.py`, then commit. Tag and push;
 # the release workflow validates that the pushed tag matches.
 [workspace.package]
-version       = "0.1.1"
+version       = "0.2.0"
 edition       = "2021"
 authors       = ["The UOR Foundation <https://uor.foundation>"]
 license       = "Apache-2.0"
@@ -35,9 +35,9 @@ rust-version  = "1.83"
 # silently ignore consumers' `default-features = false` declarations).
 # Each downstream crate opts into the features it needs through its
 # own `features = […]` clause or via its own feature graph.
-uor-addr      = { path = "crates/uor-addr",      version = "0.1.1", default-features = false }
-uor-addr-c    = { path = "crates/uor-addr-c",    version = "0.1.1", default-features = false }
-uor-addr-wasm = { path = "crates/uor-addr-wasm", version = "0.1.1", default-features = false }
+uor-addr      = { path = "crates/uor-addr",      version = "0.2.0", default-features = false }
+uor-addr-c    = { path = "crates/uor-addr-c",    version = "0.2.0", default-features = false }
+uor-addr-wasm = { path = "crates/uor-addr-wasm", version = "0.2.0", default-features = false }
 
 # External UOR-Foundation crates.
 # Façade — re-exports the foundation substrate plus the four Layer-3
@@ -45,12 +45,12 @@ uor-addr-wasm = { path = "crates/uor-addr-wasm", version = "0.1.1", default-feat
 # `prism::fhe`) and the TC-05 replay surface (`prism::replay`,
 # `prism::seal`). Per ADR-031, downstream Prism applications consume
 # this façade rather than the substrate directly.
-uor-prism          = { version = "0.3.3", default-features = false }
+uor-prism          = { version = "0.4", default-features = false }
 # Explicit dep for the GGUF / ONNX realizations' tensor element-type
 # alphabet (`prism::tensor::dtype::TensorDtypeRegistry` + the per-dtype
 # `BLOCK_BYTES` / `BLOCK_ELEMS` metadata). Pulled in only when the
 # `gguf` or `onnx` feature is enabled.
-uor-prism-tensor   = { version = "0.3.3", default-features = false }
+uor-prism-tensor   = { version = "0.4", default-features = false }
 # Substrate kept as a direct dep because the SDK macros emit code
 # referencing absolute `::uor_foundation::*` paths. This is the same
 # dependency posture every Prism application that uses the SDK macros

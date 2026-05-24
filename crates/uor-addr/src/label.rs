@@ -107,6 +107,235 @@ output_shape! {
 /// / `address_keccak256` bind the corresponding per-axis shape.
 pub type AddressLabel = AddressLabelSha256;
 
+// ── Composition output shapes (ADR-061 §(2)): one per categorical
+//    operation × σ-axis. The composed κ-label is a standard axis-width
+//    label distinguished from its operands by the per-op realization IRI. ──
+
+output_shape! {
+    pub struct CompositionLabelG2Sha256;
+    impl ConstrainedTypeShape for CompositionLabelG2Sha256 {
+        const IRI: &'static str = "https://uor.foundation/addr/composition/g2-product/sha256";
+        const SITE_COUNT: usize = 71;
+        const CONSTRAINTS: &'static [ConstraintRef] = &SHA256_SITES;
+    }
+}
+
+output_shape! {
+    pub struct CompositionLabelG2Blake3;
+    impl ConstrainedTypeShape for CompositionLabelG2Blake3 {
+        const IRI: &'static str = "https://uor.foundation/addr/composition/g2-product/blake3";
+        const SITE_COUNT: usize = 71;
+        const CONSTRAINTS: &'static [ConstraintRef] = &BLAKE3_SITES;
+    }
+}
+
+output_shape! {
+    pub struct CompositionLabelG2Sha3_256;
+    impl ConstrainedTypeShape for CompositionLabelG2Sha3_256 {
+        const IRI: &'static str = "https://uor.foundation/addr/composition/g2-product/sha3-256";
+        const SITE_COUNT: usize = 73;
+        const CONSTRAINTS: &'static [ConstraintRef] = &SHA3_256_SITES;
+    }
+}
+
+output_shape! {
+    pub struct CompositionLabelG2Keccak256;
+    impl ConstrainedTypeShape for CompositionLabelG2Keccak256 {
+        const IRI: &'static str = "https://uor.foundation/addr/composition/g2-product/keccak256";
+        const SITE_COUNT: usize = 74;
+        const CONSTRAINTS: &'static [ConstraintRef] = &KECCAK256_SITES;
+    }
+}
+
+output_shape! {
+    pub struct CompositionLabelG2Sha512;
+    impl ConstrainedTypeShape for CompositionLabelG2Sha512 {
+        const IRI: &'static str = "https://uor.foundation/addr/composition/g2-product/sha512";
+        const SITE_COUNT: usize = 135;
+        const CONSTRAINTS: &'static [ConstraintRef] = &SHA512_SITES;
+    }
+}
+
+output_shape! {
+    pub struct CompositionLabelF4Sha256;
+    impl ConstrainedTypeShape for CompositionLabelF4Sha256 {
+        const IRI: &'static str = "https://uor.foundation/addr/composition/f4-quotient/sha256";
+        const SITE_COUNT: usize = 71;
+        const CONSTRAINTS: &'static [ConstraintRef] = &SHA256_SITES;
+    }
+}
+
+output_shape! {
+    pub struct CompositionLabelF4Blake3;
+    impl ConstrainedTypeShape for CompositionLabelF4Blake3 {
+        const IRI: &'static str = "https://uor.foundation/addr/composition/f4-quotient/blake3";
+        const SITE_COUNT: usize = 71;
+        const CONSTRAINTS: &'static [ConstraintRef] = &BLAKE3_SITES;
+    }
+}
+
+output_shape! {
+    pub struct CompositionLabelF4Sha3_256;
+    impl ConstrainedTypeShape for CompositionLabelF4Sha3_256 {
+        const IRI: &'static str = "https://uor.foundation/addr/composition/f4-quotient/sha3-256";
+        const SITE_COUNT: usize = 73;
+        const CONSTRAINTS: &'static [ConstraintRef] = &SHA3_256_SITES;
+    }
+}
+
+output_shape! {
+    pub struct CompositionLabelF4Keccak256;
+    impl ConstrainedTypeShape for CompositionLabelF4Keccak256 {
+        const IRI: &'static str = "https://uor.foundation/addr/composition/f4-quotient/keccak256";
+        const SITE_COUNT: usize = 74;
+        const CONSTRAINTS: &'static [ConstraintRef] = &KECCAK256_SITES;
+    }
+}
+
+output_shape! {
+    pub struct CompositionLabelF4Sha512;
+    impl ConstrainedTypeShape for CompositionLabelF4Sha512 {
+        const IRI: &'static str = "https://uor.foundation/addr/composition/f4-quotient/sha512";
+        const SITE_COUNT: usize = 135;
+        const CONSTRAINTS: &'static [ConstraintRef] = &SHA512_SITES;
+    }
+}
+
+output_shape! {
+    pub struct CompositionLabelE6Sha256;
+    impl ConstrainedTypeShape for CompositionLabelE6Sha256 {
+        const IRI: &'static str = "https://uor.foundation/addr/composition/e6-filtration/sha256";
+        const SITE_COUNT: usize = 71;
+        const CONSTRAINTS: &'static [ConstraintRef] = &SHA256_SITES;
+    }
+}
+
+output_shape! {
+    pub struct CompositionLabelE6Blake3;
+    impl ConstrainedTypeShape for CompositionLabelE6Blake3 {
+        const IRI: &'static str = "https://uor.foundation/addr/composition/e6-filtration/blake3";
+        const SITE_COUNT: usize = 71;
+        const CONSTRAINTS: &'static [ConstraintRef] = &BLAKE3_SITES;
+    }
+}
+
+output_shape! {
+    pub struct CompositionLabelE6Sha3_256;
+    impl ConstrainedTypeShape for CompositionLabelE6Sha3_256 {
+        const IRI: &'static str = "https://uor.foundation/addr/composition/e6-filtration/sha3-256";
+        const SITE_COUNT: usize = 73;
+        const CONSTRAINTS: &'static [ConstraintRef] = &SHA3_256_SITES;
+    }
+}
+
+output_shape! {
+    pub struct CompositionLabelE6Keccak256;
+    impl ConstrainedTypeShape for CompositionLabelE6Keccak256 {
+        const IRI: &'static str = "https://uor.foundation/addr/composition/e6-filtration/keccak256";
+        const SITE_COUNT: usize = 74;
+        const CONSTRAINTS: &'static [ConstraintRef] = &KECCAK256_SITES;
+    }
+}
+
+output_shape! {
+    pub struct CompositionLabelE6Sha512;
+    impl ConstrainedTypeShape for CompositionLabelE6Sha512 {
+        const IRI: &'static str = "https://uor.foundation/addr/composition/e6-filtration/sha512";
+        const SITE_COUNT: usize = 135;
+        const CONSTRAINTS: &'static [ConstraintRef] = &SHA512_SITES;
+    }
+}
+
+output_shape! {
+    pub struct CompositionLabelE7Sha256;
+    impl ConstrainedTypeShape for CompositionLabelE7Sha256 {
+        const IRI: &'static str = "https://uor.foundation/addr/composition/e7-augmentation/sha256";
+        const SITE_COUNT: usize = 71;
+        const CONSTRAINTS: &'static [ConstraintRef] = &SHA256_SITES;
+    }
+}
+
+output_shape! {
+    pub struct CompositionLabelE7Blake3;
+    impl ConstrainedTypeShape for CompositionLabelE7Blake3 {
+        const IRI: &'static str = "https://uor.foundation/addr/composition/e7-augmentation/blake3";
+        const SITE_COUNT: usize = 71;
+        const CONSTRAINTS: &'static [ConstraintRef] = &BLAKE3_SITES;
+    }
+}
+
+output_shape! {
+    pub struct CompositionLabelE7Sha3_256;
+    impl ConstrainedTypeShape for CompositionLabelE7Sha3_256 {
+        const IRI: &'static str = "https://uor.foundation/addr/composition/e7-augmentation/sha3-256";
+        const SITE_COUNT: usize = 73;
+        const CONSTRAINTS: &'static [ConstraintRef] = &SHA3_256_SITES;
+    }
+}
+
+output_shape! {
+    pub struct CompositionLabelE7Keccak256;
+    impl ConstrainedTypeShape for CompositionLabelE7Keccak256 {
+        const IRI: &'static str = "https://uor.foundation/addr/composition/e7-augmentation/keccak256";
+        const SITE_COUNT: usize = 74;
+        const CONSTRAINTS: &'static [ConstraintRef] = &KECCAK256_SITES;
+    }
+}
+
+output_shape! {
+    pub struct CompositionLabelE7Sha512;
+    impl ConstrainedTypeShape for CompositionLabelE7Sha512 {
+        const IRI: &'static str = "https://uor.foundation/addr/composition/e7-augmentation/sha512";
+        const SITE_COUNT: usize = 135;
+        const CONSTRAINTS: &'static [ConstraintRef] = &SHA512_SITES;
+    }
+}
+
+output_shape! {
+    pub struct CompositionLabelE8Sha256;
+    impl ConstrainedTypeShape for CompositionLabelE8Sha256 {
+        const IRI: &'static str = "https://uor.foundation/addr/composition/e8-embedding/sha256";
+        const SITE_COUNT: usize = 71;
+        const CONSTRAINTS: &'static [ConstraintRef] = &SHA256_SITES;
+    }
+}
+
+output_shape! {
+    pub struct CompositionLabelE8Blake3;
+    impl ConstrainedTypeShape for CompositionLabelE8Blake3 {
+        const IRI: &'static str = "https://uor.foundation/addr/composition/e8-embedding/blake3";
+        const SITE_COUNT: usize = 71;
+        const CONSTRAINTS: &'static [ConstraintRef] = &BLAKE3_SITES;
+    }
+}
+
+output_shape! {
+    pub struct CompositionLabelE8Sha3_256;
+    impl ConstrainedTypeShape for CompositionLabelE8Sha3_256 {
+        const IRI: &'static str = "https://uor.foundation/addr/composition/e8-embedding/sha3-256";
+        const SITE_COUNT: usize = 73;
+        const CONSTRAINTS: &'static [ConstraintRef] = &SHA3_256_SITES;
+    }
+}
+
+output_shape! {
+    pub struct CompositionLabelE8Keccak256;
+    impl ConstrainedTypeShape for CompositionLabelE8Keccak256 {
+        const IRI: &'static str = "https://uor.foundation/addr/composition/e8-embedding/keccak256";
+        const SITE_COUNT: usize = 74;
+        const CONSTRAINTS: &'static [ConstraintRef] = &KECCAK256_SITES;
+    }
+}
+
+output_shape! {
+    pub struct CompositionLabelE8Sha512;
+    impl ConstrainedTypeShape for CompositionLabelE8Sha512 {
+        const IRI: &'static str = "https://uor.foundation/addr/composition/e8-embedding/sha512";
+        const SITE_COUNT: usize = 135;
+        const CONSTRAINTS: &'static [ConstraintRef] = &SHA512_SITES;
+    }
+}
+
 /// **The runtime κ-label carrier** — the `N`-byte ASCII
 /// `<algorithm>:<lowercase-hex>` wire-format byte sequence.
 ///
@@ -169,6 +398,22 @@ impl<const N: usize> KappaLabel<N> {
     #[must_use]
     pub fn as_bytes(&self) -> &[u8] {
         &self.0
+    }
+
+    /// The σ-axis token at the head of the κ-label — the substring before
+    /// the `:` separator (`"sha256"`, `"blake3"`, `"sha3-256"`,
+    /// `"keccak256"`, `"sha512"`). Returns `None` if the label carries no
+    /// `:` (unreachable for a pipeline-emitted κ-label).
+    #[must_use]
+    pub fn sigma_axis(&self) -> Option<&str> {
+        self.as_str().split_once(':').map(|(axis, _)| axis)
+    }
+
+    /// The lowercase-hex digest body — the substring after the `:`
+    /// separator. Returns `None` if the label carries no `:`.
+    #[must_use]
+    pub fn sigma_axis_digest_hex(&self) -> Option<&str> {
+        self.as_str().split_once(':').map(|(_, hex)| hex)
     }
 }
 

@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "uor-addr"
-version = "0.1.1"
+version = "0.2.0"
 description = "Typed content-addressing — deterministic, verifiable sha256:<64hex> κ-labels from JSON / S-expressions / XML / ASN.1 DER / schema.org / in-toto. Wraps the uor-addr-c native library via ctypes."
 readme = "README.md"
 requires-python = ">=3.10"

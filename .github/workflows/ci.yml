@@ -130,6 +130,8 @@ jobs:
       # CBOR realization against RFC 8949 §4.2 (Appendix A vectors).
       - run: cargo test -p uor-addr --release --test hash_kat
       - run: cargo test -p uor-addr --release --test cbor_rfc8949
+      # ADR-061 categorical composition of κ-labels (CS-G2/F4/E6/E7/E8 laws).
+      - run: cargo test -p uor-addr --release --test composition
       # GGUF v3 + ONNX flat-skeleton conformance (canonical-*.py byte-identity).
       - run: cargo test -p uor-addr --release --test gguf_conformance --test gguf_byte_identity
       - run: cargo test -p uor-addr --release --test onnx_conformance --test onnx_byte_identity
