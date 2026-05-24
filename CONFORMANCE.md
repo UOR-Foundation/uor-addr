@@ -143,6 +143,34 @@ Verified by **source-grep + compile-time invariants + unit tests** under
 | CS-S01   | `unsafe` blocks: zero                                                                     | `#![forbid(unsafe_code)]` at lib root + `tests::conformance::no_unsafe_anywhere`                |
 | CS-S02   | `unwrap()` / `expect()` in non-test code paths: zero in `src/{verbs,resolvers,pipeline}.rs` | `tests::conformance::no_panic_paths_in_pipeline`                                              |
 
+### CX — Composition class — ADR-061 categorical operations
+
+Verified by **behavior tests over the five categorical operations on
+the Atlas image inside E₈** (`crates/uor-addr/tests/composition.rs`).
+Each operation composes operand κ-labels into a new κ-label on the same
+σ-axis (CA-3 σ-axis homogeneity); the test asserts the named algebraic
+law (ADR-061 §(3)) holds structurally. Composition is exposed across
+every binding (CX-FFI rows). The CS-F4/CS-E7 → CS-E8 digest
+coincidence for "positive" operands (an operand lex-≤ its mirror is its
+own CS-F4 representative, and an already-ascending quarter layout is its
+own CS-E7 lex-min — both equal to CS-E8's identity) is a documented
+property, not a defect: the κ-label digests `H(canonical_form)` while
+the realization IRI distinguishes the typed shape.
+
+| ID       | Invariant                                                                                 | Pinned by                                                                  |
+|----------|-------------------------------------------------------------------------------------------|----------------------------------------------------------------------------|
+| CX-G2    | CS-G2 is commutative through the pipeline: `g2(a,b) == g2(b,a)`                            | `tests::composition::g2_product_is_commutative_through_the_pipeline`       |
+| CX-F4    | CS-F4 collapses the ± mirror pair to one composed κ-label                                  | `tests::composition::f4_quotient_collapses_the_mirror_pair`                |
+| CX-E6E7  | CS-E6 / CS-E7 compose well-formed κ-labels deterministically                              | `tests::composition::e6_e7_are_well_formed_and_deterministic`              |
+| CX-E8    | CS-E8 composed κ-label is distinguished from its operand                                  | `tests::composition::e8_embedding_is_distinguished_from_its_operand`       |
+| CX-D01   | Operations with distinct canonical-form lengths (g2/e6/e8) yield distinct κ-labels        | `tests::composition::operations_with_distinct_canonical_forms_yield_distinct_labels` |
+| CX-A01   | σ-axis homogeneity (CA-3) is enforced: a cross-axis operand is rejected                    | `tests::composition::sigma_axis_homogeneity_is_enforced`                   |
+| CX-AX    | Composition holds on the blake3 and sha512 σ-axes (sha512 fingerprint = 64 bytes)          | `tests::composition::composition_axes_blake3_and_sha512`                   |
+| CX-FFI-C | C ABI `uor_addr_compose_*[_with_witness]`: label parity with the in-crate path, G2 commutativity, witness TC-05 round-trip, error paths | `uor_addr_c::tests::composition::cl_c_ffi_0{1,2,3,4}__*` |
+| CX-FFI-PY | Python `kappa.compose_*[_with_witness]`: well-formed labels, G2 commutativity, witness round-trip, blake3 axis | `bindings/python/tests/test_composition.py` |
+| CX-FFI-W | WASM/npm `compose-*` / `composeG2…`: G2 commutativity + witness round-trip per op          | `bindings/npm/scripts/test.mjs` (`composeG2` … `composeE8`)                |
+| CX-L01   | Lean: canonical-form widths (g2=2N, e6=N+1, f4/e7/e8=N), G2 commutativity, S₄ orbit = 24 distinct, E6 8:1 partition, F4 involution | `UorAddr/CompositionLaws.lean` |
+
 ### CD — Deterministic class — per-input byte identity
 
 Verified by **runtime tests over a fixed fixture set** under

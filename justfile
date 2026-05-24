@@ -116,7 +116,11 @@ examples:
 	# Cost-model variants
 	cargo run -p uor-addr --example storage_variant
 	cargo run -p uor-addr --example signed_variant
+	# Model-file realizations (real-world: registry / provenance)
+	cargo run -p uor-addr --example gguf_model_registry
+	cargo run -p uor-addr --example onnx_provenance
 	# Cross-realization showcase
+	cargo run -p uor-addr --example composition
 	cargo run -p uor-addr --example multi_realization
 
 # Axis 8 — rustdoc with broken-intra-doc-links denied.

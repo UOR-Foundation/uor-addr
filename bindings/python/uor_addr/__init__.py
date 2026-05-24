@@ -406,6 +406,165 @@ def _call_with_hash(
     return bytes(out_buf[: written.value]).decode("ascii")
 
 
+# ─── κ-label composition (ADR-061) ─────────────────────────────────
+
+# σ-axis mismatch between operands (mirrors
+# UOR_ADDR_ERR_SIGMA_AXIS_MISMATCH in uor_addr.h).
+_ERR_SIGMA_AXIS_MISMATCH = -7
+_ERR_KIND[_ERR_SIGMA_AXIS_MISMATCH] = "sigma-axis-mismatch"
+
+# The five categorical operations on the Atlas image inside E₈. `g2`
+# (commutative product) is binary; the rest (`f4` ± involution quotient,
+# `e6` degree-partition filtration, `e7` S₄-orbit augmentation, `e8`
+# direct embedding) are unary.
+_COMPOSITION_OPS: Final[tuple[str, ...]] = ("g2", "f4", "e6", "e7", "e8")
+
+
+def _bind_compose_unary(symbol: str) -> ctypes._NamedFuncPointer:
+    """`uor_addr_compose_<op>` (unary) ABI:
+    (algo, operand, operand_len, out_label, out_label_len, out_written) -> i32."""
+    fn = getattr(_lib, symbol)
+    fn.argtypes = [
+        ctypes.c_uint8,                   # uint8_t algo
+        ctypes.POINTER(ctypes.c_uint8),  # const uint8_t *operand
+        ctypes.c_size_t,                  # size_t operand_len
+        ctypes.POINTER(ctypes.c_uint8),  # uint8_t *out_label
+        ctypes.c_size_t,                  # size_t out_label_len
+        ctypes.POINTER(ctypes.c_size_t), # size_t *out_written
+    ]
+    fn.restype = ctypes.c_int32
+    return fn
+
+
+def _bind_compose_binary(symbol: str) -> ctypes._NamedFuncPointer:
+    """`uor_addr_compose_g2` (binary) ABI:
+    (algo, left, left_len, right, right_len, out_label, out_label_len, out_written) -> i32."""
+    fn = getattr(_lib, symbol)
+    fn.argtypes = [
+        ctypes.c_uint8,                   # uint8_t algo
+        ctypes.POINTER(ctypes.c_uint8),  # const uint8_t *left
+        ctypes.c_size_t,                  # size_t left_len
+        ctypes.POINTER(ctypes.c_uint8),  # const uint8_t *right
+        ctypes.c_size_t,                  # size_t right_len
+        ctypes.POINTER(ctypes.c_uint8),  # uint8_t *out_label
+        ctypes.c_size_t,                  # size_t out_label_len
+        ctypes.POINTER(ctypes.c_size_t), # size_t *out_written
+    ]
+    fn.restype = ctypes.c_int32
+    return fn
+
+
+def _bind_compose_unary_witness(symbol: str) -> ctypes._NamedFuncPointer:
+    """`uor_addr_compose_<op>_with_witness` (unary) ABI:
+    (algo, operand, operand_len, out_handle) -> i32."""
+    fn = getattr(_lib, symbol)
+    fn.argtypes = [
+        ctypes.c_uint8,
+        ctypes.POINTER(ctypes.c_uint8),
+        ctypes.c_size_t,
+        ctypes.POINTER(ctypes.c_void_p),
+    ]
+    fn.restype = ctypes.c_int32
+    return fn
+
+
+def _bind_compose_binary_witness(symbol: str) -> ctypes._NamedFuncPointer:
+    """`uor_addr_compose_g2_with_witness` (binary) ABI:
+    (algo, left, left_len, right, right_len, out_handle) -> i32."""
+    fn = getattr(_lib, symbol)
+    fn.argtypes = [
+        ctypes.c_uint8,
+        ctypes.POINTER(ctypes.c_uint8),
+        ctypes.c_size_t,
+        ctypes.POINTER(ctypes.c_uint8),
+        ctypes.c_size_t,
+        ctypes.POINTER(ctypes.c_void_p),
+    ]
+    fn.restype = ctypes.c_int32
+    return fn
+
+
+_COMPOSE_FUNCS: Final[dict[str, ctypes._NamedFuncPointer]] = {}
+_COMPOSE_WITNESS_FUNCS: Final[dict[str, ctypes._NamedFuncPointer]] = {}
+for _op in _COMPOSITION_OPS:
+    if _op == "g2":
+        _COMPOSE_FUNCS[_op] = _bind_compose_binary(f"uor_addr_compose_{_op}")
+        _COMPOSE_WITNESS_FUNCS[_op] = _bind_compose_binary_witness(
+            f"uor_addr_compose_{_op}_with_witness"
+        )
+    else:
+        _COMPOSE_FUNCS[_op] = _bind_compose_unary(f"uor_addr_compose_{_op}")
+        _COMPOSE_WITNESS_FUNCS[_op] = _bind_compose_unary_witness(
+            f"uor_addr_compose_{_op}_with_witness"
+        )
+
+
+def _label_bytes(label: str | bytes | bytearray | memoryview) -> bytes:
+    """Normalize a κ-label operand (a `str` like `'sha256:…'` or raw
+    ASCII bytes) to the byte string the C ABI expects."""
+    if isinstance(label, str):
+        return label.encode("ascii")
+    return bytes(label)
+
+
+def _compose_unary(op: str, algo: int, operand: str | bytes) -> str:
+    buf = _label_bytes(operand)
+    in_ptr = (ctypes.c_uint8 * len(buf)).from_buffer_copy(buf)
+    out_buf = (ctypes.c_uint8 * MAX_LABEL_BYTES)()
+    written = ctypes.c_size_t(0)
+    rc = _COMPOSE_FUNCS[op](
+        algo, in_ptr, len(buf), out_buf, MAX_LABEL_BYTES, ctypes.byref(written)
+    )
+    if rc != _OK:
+        raise AddressError(_ERR_KIND.get(rc, "pipeline-failure"))
+    return bytes(out_buf[: written.value]).decode("ascii")
+
+
+def _compose_binary(op: str, algo: int, left: str | bytes, right: str | bytes) -> str:
+    lb = _label_bytes(left)
+    rb = _label_bytes(right)
+    l_ptr = (ctypes.c_uint8 * len(lb)).from_buffer_copy(lb)
+    r_ptr = (ctypes.c_uint8 * len(rb)).from_buffer_copy(rb)
+    out_buf = (ctypes.c_uint8 * MAX_LABEL_BYTES)()
+    written = ctypes.c_size_t(0)
+    rc = _COMPOSE_FUNCS[op](
+        algo, l_ptr, len(lb), r_ptr, len(rb), out_buf, MAX_LABEL_BYTES, ctypes.byref(written)
+    )
+    if rc != _OK:
+        raise AddressError(_ERR_KIND.get(rc, "pipeline-failure"))
+    return bytes(out_buf[: written.value]).decode("ascii")
+
+
+def _compose_unary_witness(op: str, algo: int, operand: str | bytes) -> Grounded:
+    buf = _label_bytes(operand)
+    in_ptr = (ctypes.c_uint8 * len(buf)).from_buffer_copy(buf)
+    out_handle = ctypes.c_void_p()
+    rc = _COMPOSE_WITNESS_FUNCS[op](algo, in_ptr, len(buf), ctypes.byref(out_handle))
+    if rc != _OK:
+        raise AddressError(_ERR_KIND.get(rc, "pipeline-failure"))
+    if out_handle.value is None:
+        raise AddressError("pipeline-failure", "C ABI returned OK without a handle")
+    return Grounded(out_handle.value)
+
+
+def _compose_binary_witness(
+    op: str, algo: int, left: str | bytes, right: str | bytes
+) -> Grounded:
+    lb = _label_bytes(left)
+    rb = _label_bytes(right)
+    l_ptr = (ctypes.c_uint8 * len(lb)).from_buffer_copy(lb)
+    r_ptr = (ctypes.c_uint8 * len(rb)).from_buffer_copy(rb)
+    out_handle = ctypes.c_void_p()
+    rc = _COMPOSE_WITNESS_FUNCS[op](
+        algo, l_ptr, len(lb), r_ptr, len(rb), ctypes.byref(out_handle)
+    )
+    if rc != _OK:
+        raise AddressError(_ERR_KIND.get(rc, "pipeline-failure"))
+    if out_handle.value is None:
+        raise AddressError("pipeline-failure", "C ABI returned OK without a handle")
+    return Grounded(out_handle.value)
+
+
 class _Kappa:
     """Bound facade exposing the C ABI realization functions."""
 
@@ -520,6 +679,64 @@ class _Kappa:
     def schema_codemodule_signed_address_with_witness(self, data: bytes) -> Grounded:
         """in-toto Statement v1; returns a verifiable [`Grounded`] witness."""
         return _mint_with_witness("schema_codemodule_signed", data)
+
+    # ─── κ-label composition (ADR-061) ─────────────────────────────
+    # Operands are κ-labels (a `str` like `'sha256:…'` or raw ASCII
+    # bytes) under the σ-axis named by `algo`; the composed label shares
+    # that axis. CS-G2 is a commutative binary product; the other four
+    # are unary endomorphisms on the Atlas image inside E₈.
+
+    def compose_g2(
+        self, left: str | bytes, right: str | bytes, algo: int = HASH_SHA256
+    ) -> str:
+        """CS-G2 commutative binary product of two κ-labels."""
+        return _compose_binary("g2", algo, left, right)
+
+    def compose_f4(self, operand: str | bytes, algo: int = HASH_SHA256) -> str:
+        """CS-F4 ± involution quotient of a κ-label."""
+        return _compose_unary("f4", algo, operand)
+
+    def compose_e6(self, operand: str | bytes, algo: int = HASH_SHA256) -> str:
+        """CS-E6 degree-partition filtration of a κ-label."""
+        return _compose_unary("e6", algo, operand)
+
+    def compose_e7(self, operand: str | bytes, algo: int = HASH_SHA256) -> str:
+        """CS-E7 S₄-orbit augmentation of a κ-label."""
+        return _compose_unary("e7", algo, operand)
+
+    def compose_e8(self, operand: str | bytes, algo: int = HASH_SHA256) -> str:
+        """CS-E8 direct embedding of a κ-label."""
+        return _compose_unary("e8", algo, operand)
+
+    def compose_g2_with_witness(
+        self, left: str | bytes, right: str | bytes, algo: int = HASH_SHA256
+    ) -> Grounded:
+        """CS-G2 product; returns a verifiable [`Grounded`] witness."""
+        return _compose_binary_witness("g2", algo, left, right)
+
+    def compose_f4_with_witness(
+        self, operand: str | bytes, algo: int = HASH_SHA256
+    ) -> Grounded:
+        """CS-F4 quotient; returns a verifiable [`Grounded`] witness."""
+        return _compose_unary_witness("f4", algo, operand)
+
+    def compose_e6_with_witness(
+        self, operand: str | bytes, algo: int = HASH_SHA256
+    ) -> Grounded:
+        """CS-E6 filtration; returns a verifiable [`Grounded`] witness."""
+        return _compose_unary_witness("e6", algo, operand)
+
+    def compose_e7_with_witness(
+        self, operand: str | bytes, algo: int = HASH_SHA256
+    ) -> Grounded:
+        """CS-E7 augmentation; returns a verifiable [`Grounded`] witness."""
+        return _compose_unary_witness("e7", algo, operand)
+
+    def compose_e8_with_witness(
+        self, operand: str | bytes, algo: int = HASH_SHA256
+    ) -> Grounded:
+        """CS-E8 embedding; returns a verifiable [`Grounded`] witness."""
+        return _compose_unary_witness("e8", algo, operand)
 
 
 

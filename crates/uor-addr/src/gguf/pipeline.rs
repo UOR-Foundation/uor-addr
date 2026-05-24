@@ -1,6 +1,6 @@
 //! `gguf::address` — the GGUF realization's public entry point.
 //!
-//! 1. [`canonicalize`](crate::gguf::value::canonicalize) parses the GGUF
+//! 1. [`canonicalize`] parses the GGUF
 //!    v3 file and emits the flat canonical skeleton into an `alloc`
 //!    buffer (no count / width caps).
 //! 2. `AddressModel::forward` runs the shared ψ-tower: the skeleton

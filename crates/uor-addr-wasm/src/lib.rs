@@ -215,6 +215,96 @@ mod component {
         };
     }
 
+    // ─── κ-label composition helpers (ADR-061) ─────────────────────
+    //
+    // Operands arrive as κ-label strings; each axis fixes the
+    // `KappaLabel<N>` width. A parse failure or a `CompositionFailure`
+    // other than `PipelineFailure` (malformed operand / σ-axis mismatch)
+    // maps to `invalid-input`; the WIT `address-error` surface is
+    // unchanged.
+    fn map_compose_failure(e: uor_addr::composition::CompositionFailure) -> AddressError {
+        match e {
+            uor_addr::composition::CompositionFailure::PipelineFailure => {
+                AddressError::PipelineFailure
+            }
+            _ => AddressError::InvalidInput,
+        }
+    }
+
+    /// Unary composition → κ-label.
+    fn compose1_label<const N: usize, const FP: usize>(
+        operand: &str,
+        f: impl Fn(
+            &uor_addr::KappaLabel<N>,
+        )
+            -> Result<uor_addr::AddressOutcome<N, FP>, uor_addr::composition::CompositionFailure>,
+    ) -> Result<KappaLabel, AddressError> {
+        let l = uor_addr::KappaLabel::<N>::from_bytes(operand.as_bytes())
+            .map_err(|_| AddressError::InvalidInput)?;
+        f(&l)
+            .map(|o| o.address.as_str().to_string())
+            .map_err(map_compose_failure)
+    }
+
+    /// Unary composition → verifiable witness.
+    fn compose1_witness<const N: usize, const FP: usize>(
+        operand: &str,
+        f: impl Fn(
+            &uor_addr::KappaLabel<N>,
+        )
+            -> Result<uor_addr::AddressOutcome<N, FP>, uor_addr::composition::CompositionFailure>,
+    ) -> Result<Grounded, AddressError>
+    where
+        AnyOutcome: From<uor_addr::AddressOutcome<N, FP>>,
+    {
+        let l = uor_addr::KappaLabel::<N>::from_bytes(operand.as_bytes())
+            .map_err(|_| AddressError::InvalidInput)?;
+        f(&l)
+            .map(|o| Grounded::new(GroundedImpl { outcome: o.into() }))
+            .map_err(map_compose_failure)
+    }
+
+    /// Binary (CS-G2) composition → κ-label.
+    fn compose2_label<const N: usize, const FP: usize>(
+        left: &str,
+        right: &str,
+        f: impl Fn(
+            &uor_addr::KappaLabel<N>,
+            &uor_addr::KappaLabel<N>,
+        )
+            -> Result<uor_addr::AddressOutcome<N, FP>, uor_addr::composition::CompositionFailure>,
+    ) -> Result<KappaLabel, AddressError> {
+        let la = uor_addr::KappaLabel::<N>::from_bytes(left.as_bytes())
+            .map_err(|_| AddressError::InvalidInput)?;
+        let ra = uor_addr::KappaLabel::<N>::from_bytes(right.as_bytes())
+            .map_err(|_| AddressError::InvalidInput)?;
+        f(&la, &ra)
+            .map(|o| o.address.as_str().to_string())
+            .map_err(map_compose_failure)
+    }
+
+    /// Binary (CS-G2) composition → verifiable witness.
+    fn compose2_witness<const N: usize, const FP: usize>(
+        left: &str,
+        right: &str,
+        f: impl Fn(
+            &uor_addr::KappaLabel<N>,
+            &uor_addr::KappaLabel<N>,
+        )
+            -> Result<uor_addr::AddressOutcome<N, FP>, uor_addr::composition::CompositionFailure>,
+    ) -> Result<Grounded, AddressError>
+    where
+        AnyOutcome: From<uor_addr::AddressOutcome<N, FP>>,
+    {
+        let la = uor_addr::KappaLabel::<N>::from_bytes(left.as_bytes())
+            .map_err(|_| AddressError::InvalidInput)?;
+        let ra = uor_addr::KappaLabel::<N>::from_bytes(right.as_bytes())
+            .map_err(|_| AddressError::InvalidInput)?;
+        f(&la, &ra)
+            .map(|o| Grounded::new(GroundedImpl { outcome: o.into() }))
+            .map_err(map_compose_failure)
+    }
+
     impl Guest for UorAddrComponent {
         type Grounded = GroundedImpl;
 
@@ -1211,6 +1301,209 @@ mod component {
                     uor_addr::onnx::AddressFailure,
                     uor_addr::onnx::AddressFailure::InvalidOnnx
                 ),
+            }
+        }
+
+        // ─── κ-label composition (ADR-061) ──────────────────────────
+        // CS-G2 (binary commutative product) + four unary endomorphisms.
+
+        fn compose_g2(
+            left: KappaLabel,
+            right: KappaLabel,
+            algo: HashAlgorithm,
+        ) -> Result<KappaLabel, AddressError> {
+            use uor_addr::composition as c;
+            match algo {
+                HashAlgorithm::Sha256 => compose2_label(&left, &right, c::compose_g2_product),
+                HashAlgorithm::Blake3 => {
+                    compose2_label(&left, &right, c::compose_g2_product_blake3)
+                }
+                HashAlgorithm::Sha3256 => {
+                    compose2_label(&left, &right, c::compose_g2_product_sha3_256)
+                }
+                HashAlgorithm::Keccak256 => {
+                    compose2_label(&left, &right, c::compose_g2_product_keccak256)
+                }
+                HashAlgorithm::Sha512 => {
+                    compose2_label(&left, &right, c::compose_g2_product_sha512)
+                }
+            }
+        }
+
+        fn compose_g2_with_witness(
+            left: KappaLabel,
+            right: KappaLabel,
+            algo: HashAlgorithm,
+        ) -> Result<Grounded, AddressError> {
+            use uor_addr::composition as c;
+            match algo {
+                HashAlgorithm::Sha256 => compose2_witness(&left, &right, c::compose_g2_product),
+                HashAlgorithm::Blake3 => {
+                    compose2_witness(&left, &right, c::compose_g2_product_blake3)
+                }
+                HashAlgorithm::Sha3256 => {
+                    compose2_witness(&left, &right, c::compose_g2_product_sha3_256)
+                }
+                HashAlgorithm::Keccak256 => {
+                    compose2_witness(&left, &right, c::compose_g2_product_keccak256)
+                }
+                HashAlgorithm::Sha512 => {
+                    compose2_witness(&left, &right, c::compose_g2_product_sha512)
+                }
+            }
+        }
+
+        fn compose_f4(
+            operand: KappaLabel,
+            algo: HashAlgorithm,
+        ) -> Result<KappaLabel, AddressError> {
+            use uor_addr::composition as c;
+            match algo {
+                HashAlgorithm::Sha256 => compose1_label(&operand, c::compose_f4_quotient),
+                HashAlgorithm::Blake3 => compose1_label(&operand, c::compose_f4_quotient_blake3),
+                HashAlgorithm::Sha3256 => compose1_label(&operand, c::compose_f4_quotient_sha3_256),
+                HashAlgorithm::Keccak256 => {
+                    compose1_label(&operand, c::compose_f4_quotient_keccak256)
+                }
+                HashAlgorithm::Sha512 => compose1_label(&operand, c::compose_f4_quotient_sha512),
+            }
+        }
+
+        fn compose_f4_with_witness(
+            operand: KappaLabel,
+            algo: HashAlgorithm,
+        ) -> Result<Grounded, AddressError> {
+            use uor_addr::composition as c;
+            match algo {
+                HashAlgorithm::Sha256 => compose1_witness(&operand, c::compose_f4_quotient),
+                HashAlgorithm::Blake3 => compose1_witness(&operand, c::compose_f4_quotient_blake3),
+                HashAlgorithm::Sha3256 => {
+                    compose1_witness(&operand, c::compose_f4_quotient_sha3_256)
+                }
+                HashAlgorithm::Keccak256 => {
+                    compose1_witness(&operand, c::compose_f4_quotient_keccak256)
+                }
+                HashAlgorithm::Sha512 => compose1_witness(&operand, c::compose_f4_quotient_sha512),
+            }
+        }
+
+        fn compose_e6(
+            operand: KappaLabel,
+            algo: HashAlgorithm,
+        ) -> Result<KappaLabel, AddressError> {
+            use uor_addr::composition as c;
+            match algo {
+                HashAlgorithm::Sha256 => compose1_label(&operand, c::compose_e6_filtration),
+                HashAlgorithm::Blake3 => compose1_label(&operand, c::compose_e6_filtration_blake3),
+                HashAlgorithm::Sha3256 => {
+                    compose1_label(&operand, c::compose_e6_filtration_sha3_256)
+                }
+                HashAlgorithm::Keccak256 => {
+                    compose1_label(&operand, c::compose_e6_filtration_keccak256)
+                }
+                HashAlgorithm::Sha512 => compose1_label(&operand, c::compose_e6_filtration_sha512),
+            }
+        }
+
+        fn compose_e6_with_witness(
+            operand: KappaLabel,
+            algo: HashAlgorithm,
+        ) -> Result<Grounded, AddressError> {
+            use uor_addr::composition as c;
+            match algo {
+                HashAlgorithm::Sha256 => compose1_witness(&operand, c::compose_e6_filtration),
+                HashAlgorithm::Blake3 => {
+                    compose1_witness(&operand, c::compose_e6_filtration_blake3)
+                }
+                HashAlgorithm::Sha3256 => {
+                    compose1_witness(&operand, c::compose_e6_filtration_sha3_256)
+                }
+                HashAlgorithm::Keccak256 => {
+                    compose1_witness(&operand, c::compose_e6_filtration_keccak256)
+                }
+                HashAlgorithm::Sha512 => {
+                    compose1_witness(&operand, c::compose_e6_filtration_sha512)
+                }
+            }
+        }
+
+        fn compose_e7(
+            operand: KappaLabel,
+            algo: HashAlgorithm,
+        ) -> Result<KappaLabel, AddressError> {
+            use uor_addr::composition as c;
+            match algo {
+                HashAlgorithm::Sha256 => compose1_label(&operand, c::compose_e7_augmentation),
+                HashAlgorithm::Blake3 => {
+                    compose1_label(&operand, c::compose_e7_augmentation_blake3)
+                }
+                HashAlgorithm::Sha3256 => {
+                    compose1_label(&operand, c::compose_e7_augmentation_sha3_256)
+                }
+                HashAlgorithm::Keccak256 => {
+                    compose1_label(&operand, c::compose_e7_augmentation_keccak256)
+                }
+                HashAlgorithm::Sha512 => {
+                    compose1_label(&operand, c::compose_e7_augmentation_sha512)
+                }
+            }
+        }
+
+        fn compose_e7_with_witness(
+            operand: KappaLabel,
+            algo: HashAlgorithm,
+        ) -> Result<Grounded, AddressError> {
+            use uor_addr::composition as c;
+            match algo {
+                HashAlgorithm::Sha256 => compose1_witness(&operand, c::compose_e7_augmentation),
+                HashAlgorithm::Blake3 => {
+                    compose1_witness(&operand, c::compose_e7_augmentation_blake3)
+                }
+                HashAlgorithm::Sha3256 => {
+                    compose1_witness(&operand, c::compose_e7_augmentation_sha3_256)
+                }
+                HashAlgorithm::Keccak256 => {
+                    compose1_witness(&operand, c::compose_e7_augmentation_keccak256)
+                }
+                HashAlgorithm::Sha512 => {
+                    compose1_witness(&operand, c::compose_e7_augmentation_sha512)
+                }
+            }
+        }
+
+        fn compose_e8(
+            operand: KappaLabel,
+            algo: HashAlgorithm,
+        ) -> Result<KappaLabel, AddressError> {
+            use uor_addr::composition as c;
+            match algo {
+                HashAlgorithm::Sha256 => compose1_label(&operand, c::compose_e8_embedding),
+                HashAlgorithm::Blake3 => compose1_label(&operand, c::compose_e8_embedding_blake3),
+                HashAlgorithm::Sha3256 => {
+                    compose1_label(&operand, c::compose_e8_embedding_sha3_256)
+                }
+                HashAlgorithm::Keccak256 => {
+                    compose1_label(&operand, c::compose_e8_embedding_keccak256)
+                }
+                HashAlgorithm::Sha512 => compose1_label(&operand, c::compose_e8_embedding_sha512),
+            }
+        }
+
+        fn compose_e8_with_witness(
+            operand: KappaLabel,
+            algo: HashAlgorithm,
+        ) -> Result<Grounded, AddressError> {
+            use uor_addr::composition as c;
+            match algo {
+                HashAlgorithm::Sha256 => compose1_witness(&operand, c::compose_e8_embedding),
+                HashAlgorithm::Blake3 => compose1_witness(&operand, c::compose_e8_embedding_blake3),
+                HashAlgorithm::Sha3256 => {
+                    compose1_witness(&operand, c::compose_e8_embedding_sha3_256)
+                }
+                HashAlgorithm::Keccak256 => {
+                    compose1_witness(&operand, c::compose_e8_embedding_keccak256)
+                }
+                HashAlgorithm::Sha512 => compose1_witness(&operand, c::compose_e8_embedding_sha512),
             }
         }
     }

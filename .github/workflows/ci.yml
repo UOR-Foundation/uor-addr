@@ -208,6 +208,9 @@ jobs:
       - run: cargo run -p uor-addr --example codemodule_signed_schema
       - run: cargo run -p uor-addr --example storage_variant
       - run: cargo run -p uor-addr --example signed_variant
+      - run: cargo run -p uor-addr --example gguf_model_registry
+      - run: cargo run -p uor-addr --example onnx_provenance
+      - run: cargo run -p uor-addr --example composition
       - run: cargo run -p uor-addr --example multi_realization
 
   doc:

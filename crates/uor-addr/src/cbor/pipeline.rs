@@ -1,7 +1,7 @@
 //! `cbor::address*` — the CBOR realization's public entry points, one per
 //! admissible σ-axis ([`crate::hash`]).
 //!
-//! 1. [`canonicalize`](crate::cbor::value::canonicalize) re-encodes the
+//! 1. [`canonicalize`] re-encodes the
 //!    input under RFC 8949 §4.2 Deterministic Encoding into an `alloc`
 //!    buffer (shortest ints/floats, definite lengths, sorted map keys).
 //! 2. The selected axis's `AddressModel*::forward` runs the shared ψ-tower:

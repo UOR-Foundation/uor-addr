@@ -9,6 +9,7 @@ import UorAddr.AlgebraicClosure
 import UorAddr.NfcIdempotence
 import UorAddr.VerbDiscipline
 import UorAddr.TypedInput
+import UorAddr.CompositionLaws
 
 -- GGUF realization theorems
 import UorAddr.Gguf.Bounds

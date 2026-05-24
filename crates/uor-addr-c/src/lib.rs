@@ -46,7 +46,7 @@ use uor_addr::{asn1, codemodule, ring, sexp, AddressOutcome, ADDRESS_LABEL_BYTES
 // attribute / map-key sorting), so their C entry points — and these
 // imports — are `alloc`-gated under ADR-060.
 #[cfg(feature = "alloc")]
-use uor_addr::{cbor, json, schema, xml};
+use uor_addr::{cbor, composition, json, schema, xml, KappaLabel};
 
 /// Wire-format κ-label byte width under the default σ-axis (sha256) —
 /// `len("sha256:") + 64 = 71`.
@@ -87,6 +87,22 @@ pub const UOR_ADDR_ERR_PIPELINE: i32 = -5;
 /// Unknown σ-axis selector passed to a `*_with_hash` entry point (not one
 /// of the `UOR_ADDR_HASH_*` constants).
 pub const UOR_ADDR_ERR_UNKNOWN_HASH: i32 = -6;
+/// A composition operand's σ-axis does not match the operation's axis
+/// (CA-3 σ-axis homogeneity), or — for the binary product — the two
+/// operands carry different axes.
+pub const UOR_ADDR_ERR_SIGMA_AXIS_MISMATCH: i32 = -7;
+
+/// Map a [`composition::CompositionFailure`] to a C status code.
+#[cfg(feature = "alloc")]
+fn compose_code(e: composition::CompositionFailure) -> i32 {
+    match e {
+        composition::CompositionFailure::MalformedOperand => UOR_ADDR_ERR_INVALID_INPUT,
+        composition::CompositionFailure::OperandSigmaAxisMismatch { .. } => {
+            UOR_ADDR_ERR_SIGMA_AXIS_MISMATCH
+        }
+        composition::CompositionFailure::PipelineFailure => UOR_ADDR_ERR_PIPELINE,
+    }
+}
 
 /// Marshal a successful `AddressOutcome` into the caller's output
 /// buffer. Returns the appropriate error code on buffer overflow / null
@@ -2088,6 +2104,664 @@ pub unsafe extern "C" fn uor_addr_onnx_with_witness_hash(
         UOR_ADDR_HASH_SHA512 => match uor_addr::onnx::address_sha512(s) {
             Ok(o) => unsafe { write_grounded_any(AnyOutcome::W512(o), out_handle) },
             Err(e) => e.c_code(),
+        },
+        _ => UOR_ADDR_ERR_UNKNOWN_HASH,
+    }
+}
+
+// ═══ κ-label composition (ADR-061) C entry points ══════════════════
+//
+// Operands are κ-label byte strings; `algo` (a `UOR_ADDR_HASH_*` selector)
+// fixes the operand width and the composed axis. Each op offers a label
+// entry point and a witness entry point. CS-G2 is binary; the rest unary.
+
+/// CS-G2 composition (label). `algo` selects the σ-axis (operand
+/// width + composed axis); `out_label` must be writable for at least
+/// `UOR_ADDR_MAX_LABEL_BYTES` bytes.
+///
+/// # Safety
+///
+/// Operand pointers are null (with len 0) or readable for their lengths;
+/// `out_label` writable for `out_label_len`; `out_written` if non-null
+/// writable.
+#[cfg(feature = "alloc")]
+#[no_mangle]
+pub unsafe extern "C" fn uor_addr_compose_g2(
+    algo: u8,
+    left: *const u8,
+    left_len: usize,
+    right: *const u8,
+    right_len: usize,
+    out_label: *mut u8,
+    out_label_len: usize,
+    out_written: *mut usize,
+) -> i32 {
+    let l = match unsafe { borrow_input(left, left_len) } {
+        Ok(s) => s,
+        Err(c) => return c,
+    };
+    let r = match unsafe { borrow_input(right, right_len) } {
+        Ok(s) => s,
+        Err(c) => return c,
+    };
+    match algo {
+        UOR_ADDR_HASH_SHA256 => match (
+            KappaLabel::<71>::from_bytes(l),
+            KappaLabel::<71>::from_bytes(r),
+        ) {
+            (Ok(la), Ok(ra)) => match composition::compose_g2_product(&la, &ra) {
+                Ok(o) => unsafe { write_outcome(o, out_label, out_label_len, out_written) },
+                Err(e) => compose_code(e),
+            },
+            _ => UOR_ADDR_ERR_INVALID_INPUT,
+        },
+        UOR_ADDR_HASH_BLAKE3 => match (
+            KappaLabel::<71>::from_bytes(l),
+            KappaLabel::<71>::from_bytes(r),
+        ) {
+            (Ok(la), Ok(ra)) => match composition::compose_g2_product_blake3(&la, &ra) {
+                Ok(o) => unsafe { write_outcome(o, out_label, out_label_len, out_written) },
+                Err(e) => compose_code(e),
+            },
+            _ => UOR_ADDR_ERR_INVALID_INPUT,
+        },
+        UOR_ADDR_HASH_SHA3_256 => match (
+            KappaLabel::<73>::from_bytes(l),
+            KappaLabel::<73>::from_bytes(r),
+        ) {
+            (Ok(la), Ok(ra)) => match composition::compose_g2_product_sha3_256(&la, &ra) {
+                Ok(o) => unsafe { write_outcome(o, out_label, out_label_len, out_written) },
+                Err(e) => compose_code(e),
+            },
+            _ => UOR_ADDR_ERR_INVALID_INPUT,
+        },
+        UOR_ADDR_HASH_KECCAK256 => match (
+            KappaLabel::<74>::from_bytes(l),
+            KappaLabel::<74>::from_bytes(r),
+        ) {
+            (Ok(la), Ok(ra)) => match composition::compose_g2_product_keccak256(&la, &ra) {
+                Ok(o) => unsafe { write_outcome(o, out_label, out_label_len, out_written) },
+                Err(e) => compose_code(e),
+            },
+            _ => UOR_ADDR_ERR_INVALID_INPUT,
+        },
+        UOR_ADDR_HASH_SHA512 => match (
+            KappaLabel::<135>::from_bytes(l),
+            KappaLabel::<135>::from_bytes(r),
+        ) {
+            (Ok(la), Ok(ra)) => match composition::compose_g2_product_sha512(&la, &ra) {
+                Ok(o) => unsafe { write_outcome(o, out_label, out_label_len, out_written) },
+                Err(e) => compose_code(e),
+            },
+            _ => UOR_ADDR_ERR_INVALID_INPUT,
+        },
+        _ => UOR_ADDR_ERR_UNKNOWN_HASH,
+    }
+}
+
+/// CS-G2 composition (verifiable witness handle). See
+/// [`uor_addr_compose_g2`].
+///
+/// # Safety
+///
+/// As [`uor_addr_compose_g2`]; `out_handle` is a valid writable
+/// `*mut UorAddrGrounded`.
+#[cfg(feature = "alloc")]
+#[no_mangle]
+pub unsafe extern "C" fn uor_addr_compose_g2_with_witness(
+    algo: u8,
+    left: *const u8,
+    left_len: usize,
+    right: *const u8,
+    right_len: usize,
+    out_handle: *mut *mut UorAddrGrounded,
+) -> i32 {
+    let l = match unsafe { borrow_input(left, left_len) } {
+        Ok(s) => s,
+        Err(c) => return c,
+    };
+    let r = match unsafe { borrow_input(right, right_len) } {
+        Ok(s) => s,
+        Err(c) => return c,
+    };
+    match algo {
+        UOR_ADDR_HASH_SHA256 => match (
+            KappaLabel::<71>::from_bytes(l),
+            KappaLabel::<71>::from_bytes(r),
+        ) {
+            (Ok(la), Ok(ra)) => match composition::compose_g2_product(&la, &ra) {
+                Ok(o) => unsafe { write_grounded_any(AnyOutcome::W71(o), out_handle) },
+                Err(e) => compose_code(e),
+            },
+            _ => UOR_ADDR_ERR_INVALID_INPUT,
+        },
+        UOR_ADDR_HASH_BLAKE3 => match (
+            KappaLabel::<71>::from_bytes(l),
+            KappaLabel::<71>::from_bytes(r),
+        ) {
+            (Ok(la), Ok(ra)) => match composition::compose_g2_product_blake3(&la, &ra) {
+                Ok(o) => unsafe { write_grounded_any(AnyOutcome::W71(o), out_handle) },
+                Err(e) => compose_code(e),
+            },
+            _ => UOR_ADDR_ERR_INVALID_INPUT,
+        },
+        UOR_ADDR_HASH_SHA3_256 => match (
+            KappaLabel::<73>::from_bytes(l),
+            KappaLabel::<73>::from_bytes(r),
+        ) {
+            (Ok(la), Ok(ra)) => match composition::compose_g2_product_sha3_256(&la, &ra) {
+                Ok(o) => unsafe { write_grounded_any(AnyOutcome::W73(o), out_handle) },
+                Err(e) => compose_code(e),
+            },
+            _ => UOR_ADDR_ERR_INVALID_INPUT,
+        },
+        UOR_ADDR_HASH_KECCAK256 => match (
+            KappaLabel::<74>::from_bytes(l),
+            KappaLabel::<74>::from_bytes(r),
+        ) {
+            (Ok(la), Ok(ra)) => match composition::compose_g2_product_keccak256(&la, &ra) {
+                Ok(o) => unsafe { write_grounded_any(AnyOutcome::W74(o), out_handle) },
+                Err(e) => compose_code(e),
+            },
+            _ => UOR_ADDR_ERR_INVALID_INPUT,
+        },
+        UOR_ADDR_HASH_SHA512 => match (
+            KappaLabel::<135>::from_bytes(l),
+            KappaLabel::<135>::from_bytes(r),
+        ) {
+            (Ok(la), Ok(ra)) => match composition::compose_g2_product_sha512(&la, &ra) {
+                Ok(o) => unsafe { write_grounded_any(AnyOutcome::W512(o), out_handle) },
+                Err(e) => compose_code(e),
+            },
+            _ => UOR_ADDR_ERR_INVALID_INPUT,
+        },
+        _ => UOR_ADDR_ERR_UNKNOWN_HASH,
+    }
+}
+
+/// CS-F4 composition (label). `algo` selects the σ-axis (operand
+/// width + composed axis); `out_label` must be writable for at least
+/// `UOR_ADDR_MAX_LABEL_BYTES` bytes.
+///
+/// # Safety
+///
+/// Operand pointers are null (with len 0) or readable for their lengths;
+/// `out_label` writable for `out_label_len`; `out_written` if non-null
+/// writable.
+#[cfg(feature = "alloc")]
+#[no_mangle]
+pub unsafe extern "C" fn uor_addr_compose_f4(
+    algo: u8,
+    operand: *const u8,
+    operand_len: usize,
+    out_label: *mut u8,
+    out_label_len: usize,
+    out_written: *mut usize,
+) -> i32 {
+    let s = match unsafe { borrow_input(operand, operand_len) } {
+        Ok(s) => s,
+        Err(c) => return c,
+    };
+    match algo {
+        UOR_ADDR_HASH_SHA256 => match KappaLabel::<71>::from_bytes(s) {
+            Ok(l) => match composition::compose_f4_quotient(&l) {
+                Ok(o) => unsafe { write_outcome(o, out_label, out_label_len, out_written) },
+                Err(e) => compose_code(e),
+            },
+            Err(_) => UOR_ADDR_ERR_INVALID_INPUT,
+        },
+        UOR_ADDR_HASH_BLAKE3 => match KappaLabel::<71>::from_bytes(s) {
+            Ok(l) => match composition::compose_f4_quotient_blake3(&l) {
+                Ok(o) => unsafe { write_outcome(o, out_label, out_label_len, out_written) },
+                Err(e) => compose_code(e),
+            },
+            Err(_) => UOR_ADDR_ERR_INVALID_INPUT,
+        },
+        UOR_ADDR_HASH_SHA3_256 => match KappaLabel::<73>::from_bytes(s) {
+            Ok(l) => match composition::compose_f4_quotient_sha3_256(&l) {
+                Ok(o) => unsafe { write_outcome(o, out_label, out_label_len, out_written) },
+                Err(e) => compose_code(e),
+            },
+            Err(_) => UOR_ADDR_ERR_INVALID_INPUT,
+        },
+        UOR_ADDR_HASH_KECCAK256 => match KappaLabel::<74>::from_bytes(s) {
+            Ok(l) => match composition::compose_f4_quotient_keccak256(&l) {
+                Ok(o) => unsafe { write_outcome(o, out_label, out_label_len, out_written) },
+                Err(e) => compose_code(e),
+            },
+            Err(_) => UOR_ADDR_ERR_INVALID_INPUT,
+        },
+        UOR_ADDR_HASH_SHA512 => match KappaLabel::<135>::from_bytes(s) {
+            Ok(l) => match composition::compose_f4_quotient_sha512(&l) {
+                Ok(o) => unsafe { write_outcome(o, out_label, out_label_len, out_written) },
+                Err(e) => compose_code(e),
+            },
+            Err(_) => UOR_ADDR_ERR_INVALID_INPUT,
+        },
+        _ => UOR_ADDR_ERR_UNKNOWN_HASH,
+    }
+}
+
+/// CS-F4 composition (verifiable witness handle). See
+/// [`uor_addr_compose_f4`].
+///
+/// # Safety
+///
+/// As [`uor_addr_compose_f4`]; `out_handle` is a valid writable
+/// `*mut UorAddrGrounded`.
+#[cfg(feature = "alloc")]
+#[no_mangle]
+pub unsafe extern "C" fn uor_addr_compose_f4_with_witness(
+    algo: u8,
+    operand: *const u8,
+    operand_len: usize,
+    out_handle: *mut *mut UorAddrGrounded,
+) -> i32 {
+    let s = match unsafe { borrow_input(operand, operand_len) } {
+        Ok(s) => s,
+        Err(c) => return c,
+    };
+    match algo {
+        UOR_ADDR_HASH_SHA256 => match KappaLabel::<71>::from_bytes(s) {
+            Ok(l) => match composition::compose_f4_quotient(&l) {
+                Ok(o) => unsafe { write_grounded_any(AnyOutcome::W71(o), out_handle) },
+                Err(e) => compose_code(e),
+            },
+            Err(_) => UOR_ADDR_ERR_INVALID_INPUT,
+        },
+        UOR_ADDR_HASH_BLAKE3 => match KappaLabel::<71>::from_bytes(s) {
+            Ok(l) => match composition::compose_f4_quotient_blake3(&l) {
+                Ok(o) => unsafe { write_grounded_any(AnyOutcome::W71(o), out_handle) },
+                Err(e) => compose_code(e),
+            },
+            Err(_) => UOR_ADDR_ERR_INVALID_INPUT,
+        },
+        UOR_ADDR_HASH_SHA3_256 => match KappaLabel::<73>::from_bytes(s) {
+            Ok(l) => match composition::compose_f4_quotient_sha3_256(&l) {
+                Ok(o) => unsafe { write_grounded_any(AnyOutcome::W73(o), out_handle) },
+                Err(e) => compose_code(e),
+            },
+            Err(_) => UOR_ADDR_ERR_INVALID_INPUT,
+        },
+        UOR_ADDR_HASH_KECCAK256 => match KappaLabel::<74>::from_bytes(s) {
+            Ok(l) => match composition::compose_f4_quotient_keccak256(&l) {
+                Ok(o) => unsafe { write_grounded_any(AnyOutcome::W74(o), out_handle) },
+                Err(e) => compose_code(e),
+            },
+            Err(_) => UOR_ADDR_ERR_INVALID_INPUT,
+        },
+        UOR_ADDR_HASH_SHA512 => match KappaLabel::<135>::from_bytes(s) {
+            Ok(l) => match composition::compose_f4_quotient_sha512(&l) {
+                Ok(o) => unsafe { write_grounded_any(AnyOutcome::W512(o), out_handle) },
+                Err(e) => compose_code(e),
+            },
+            Err(_) => UOR_ADDR_ERR_INVALID_INPUT,
+        },
+        _ => UOR_ADDR_ERR_UNKNOWN_HASH,
+    }
+}
+
+/// CS-E6 composition (label). `algo` selects the σ-axis (operand
+/// width + composed axis); `out_label` must be writable for at least
+/// `UOR_ADDR_MAX_LABEL_BYTES` bytes.
+///
+/// # Safety
+///
+/// Operand pointers are null (with len 0) or readable for their lengths;
+/// `out_label` writable for `out_label_len`; `out_written` if non-null
+/// writable.
+#[cfg(feature = "alloc")]
+#[no_mangle]
+pub unsafe extern "C" fn uor_addr_compose_e6(
+    algo: u8,
+    operand: *const u8,
+    operand_len: usize,
+    out_label: *mut u8,
+    out_label_len: usize,
+    out_written: *mut usize,
+) -> i32 {
+    let s = match unsafe { borrow_input(operand, operand_len) } {
+        Ok(s) => s,
+        Err(c) => return c,
+    };
+    match algo {
+        UOR_ADDR_HASH_SHA256 => match KappaLabel::<71>::from_bytes(s) {
+            Ok(l) => match composition::compose_e6_filtration(&l) {
+                Ok(o) => unsafe { write_outcome(o, out_label, out_label_len, out_written) },
+                Err(e) => compose_code(e),
+            },
+            Err(_) => UOR_ADDR_ERR_INVALID_INPUT,
+        },
+        UOR_ADDR_HASH_BLAKE3 => match KappaLabel::<71>::from_bytes(s) {
+            Ok(l) => match composition::compose_e6_filtration_blake3(&l) {
+                Ok(o) => unsafe { write_outcome(o, out_label, out_label_len, out_written) },
+                Err(e) => compose_code(e),
+            },
+            Err(_) => UOR_ADDR_ERR_INVALID_INPUT,
+        },
+        UOR_ADDR_HASH_SHA3_256 => match KappaLabel::<73>::from_bytes(s) {
+            Ok(l) => match composition::compose_e6_filtration_sha3_256(&l) {
+                Ok(o) => unsafe { write_outcome(o, out_label, out_label_len, out_written) },
+                Err(e) => compose_code(e),
+            },
+            Err(_) => UOR_ADDR_ERR_INVALID_INPUT,
+        },
+        UOR_ADDR_HASH_KECCAK256 => match KappaLabel::<74>::from_bytes(s) {
+            Ok(l) => match composition::compose_e6_filtration_keccak256(&l) {
+                Ok(o) => unsafe { write_outcome(o, out_label, out_label_len, out_written) },
+                Err(e) => compose_code(e),
+            },
+            Err(_) => UOR_ADDR_ERR_INVALID_INPUT,
+        },
+        UOR_ADDR_HASH_SHA512 => match KappaLabel::<135>::from_bytes(s) {
+            Ok(l) => match composition::compose_e6_filtration_sha512(&l) {
+                Ok(o) => unsafe { write_outcome(o, out_label, out_label_len, out_written) },
+                Err(e) => compose_code(e),
+            },
+            Err(_) => UOR_ADDR_ERR_INVALID_INPUT,
+        },
+        _ => UOR_ADDR_ERR_UNKNOWN_HASH,
+    }
+}
+
+/// CS-E6 composition (verifiable witness handle). See
+/// [`uor_addr_compose_e6`].
+///
+/// # Safety
+///
+/// As [`uor_addr_compose_e6`]; `out_handle` is a valid writable
+/// `*mut UorAddrGrounded`.
+#[cfg(feature = "alloc")]
+#[no_mangle]
+pub unsafe extern "C" fn uor_addr_compose_e6_with_witness(
+    algo: u8,
+    operand: *const u8,
+    operand_len: usize,
+    out_handle: *mut *mut UorAddrGrounded,
+) -> i32 {
+    let s = match unsafe { borrow_input(operand, operand_len) } {
+        Ok(s) => s,
+        Err(c) => return c,
+    };
+    match algo {
+        UOR_ADDR_HASH_SHA256 => match KappaLabel::<71>::from_bytes(s) {
+            Ok(l) => match composition::compose_e6_filtration(&l) {
+                Ok(o) => unsafe { write_grounded_any(AnyOutcome::W71(o), out_handle) },
+                Err(e) => compose_code(e),
+            },
+            Err(_) => UOR_ADDR_ERR_INVALID_INPUT,
+        },
+        UOR_ADDR_HASH_BLAKE3 => match KappaLabel::<71>::from_bytes(s) {
+            Ok(l) => match composition::compose_e6_filtration_blake3(&l) {
+                Ok(o) => unsafe { write_grounded_any(AnyOutcome::W71(o), out_handle) },
+                Err(e) => compose_code(e),
+            },
+            Err(_) => UOR_ADDR_ERR_INVALID_INPUT,
+        },
+        UOR_ADDR_HASH_SHA3_256 => match KappaLabel::<73>::from_bytes(s) {
+            Ok(l) => match composition::compose_e6_filtration_sha3_256(&l) {
+                Ok(o) => unsafe { write_grounded_any(AnyOutcome::W73(o), out_handle) },
+                Err(e) => compose_code(e),
+            },
+            Err(_) => UOR_ADDR_ERR_INVALID_INPUT,
+        },
+        UOR_ADDR_HASH_KECCAK256 => match KappaLabel::<74>::from_bytes(s) {
+            Ok(l) => match composition::compose_e6_filtration_keccak256(&l) {
+                Ok(o) => unsafe { write_grounded_any(AnyOutcome::W74(o), out_handle) },
+                Err(e) => compose_code(e),
+            },
+            Err(_) => UOR_ADDR_ERR_INVALID_INPUT,
+        },
+        UOR_ADDR_HASH_SHA512 => match KappaLabel::<135>::from_bytes(s) {
+            Ok(l) => match composition::compose_e6_filtration_sha512(&l) {
+                Ok(o) => unsafe { write_grounded_any(AnyOutcome::W512(o), out_handle) },
+                Err(e) => compose_code(e),
+            },
+            Err(_) => UOR_ADDR_ERR_INVALID_INPUT,
+        },
+        _ => UOR_ADDR_ERR_UNKNOWN_HASH,
+    }
+}
+
+/// CS-E7 composition (label). `algo` selects the σ-axis (operand
+/// width + composed axis); `out_label` must be writable for at least
+/// `UOR_ADDR_MAX_LABEL_BYTES` bytes.
+///
+/// # Safety
+///
+/// Operand pointers are null (with len 0) or readable for their lengths;
+/// `out_label` writable for `out_label_len`; `out_written` if non-null
+/// writable.
+#[cfg(feature = "alloc")]
+#[no_mangle]
+pub unsafe extern "C" fn uor_addr_compose_e7(
+    algo: u8,
+    operand: *const u8,
+    operand_len: usize,
+    out_label: *mut u8,
+    out_label_len: usize,
+    out_written: *mut usize,
+) -> i32 {
+    let s = match unsafe { borrow_input(operand, operand_len) } {
+        Ok(s) => s,
+        Err(c) => return c,
+    };
+    match algo {
+        UOR_ADDR_HASH_SHA256 => match KappaLabel::<71>::from_bytes(s) {
+            Ok(l) => match composition::compose_e7_augmentation(&l) {
+                Ok(o) => unsafe { write_outcome(o, out_label, out_label_len, out_written) },
+                Err(e) => compose_code(e),
+            },
+            Err(_) => UOR_ADDR_ERR_INVALID_INPUT,
+        },
+        UOR_ADDR_HASH_BLAKE3 => match KappaLabel::<71>::from_bytes(s) {
+            Ok(l) => match composition::compose_e7_augmentation_blake3(&l) {
+                Ok(o) => unsafe { write_outcome(o, out_label, out_label_len, out_written) },
+                Err(e) => compose_code(e),
+            },
+            Err(_) => UOR_ADDR_ERR_INVALID_INPUT,
+        },
+        UOR_ADDR_HASH_SHA3_256 => match KappaLabel::<73>::from_bytes(s) {
+            Ok(l) => match composition::compose_e7_augmentation_sha3_256(&l) {
+                Ok(o) => unsafe { write_outcome(o, out_label, out_label_len, out_written) },
+                Err(e) => compose_code(e),
+            },
+            Err(_) => UOR_ADDR_ERR_INVALID_INPUT,
+        },
+        UOR_ADDR_HASH_KECCAK256 => match KappaLabel::<74>::from_bytes(s) {
+            Ok(l) => match composition::compose_e7_augmentation_keccak256(&l) {
+                Ok(o) => unsafe { write_outcome(o, out_label, out_label_len, out_written) },
+                Err(e) => compose_code(e),
+            },
+            Err(_) => UOR_ADDR_ERR_INVALID_INPUT,
+        },
+        UOR_ADDR_HASH_SHA512 => match KappaLabel::<135>::from_bytes(s) {
+            Ok(l) => match composition::compose_e7_augmentation_sha512(&l) {
+                Ok(o) => unsafe { write_outcome(o, out_label, out_label_len, out_written) },
+                Err(e) => compose_code(e),
+            },
+            Err(_) => UOR_ADDR_ERR_INVALID_INPUT,
+        },
+        _ => UOR_ADDR_ERR_UNKNOWN_HASH,
+    }
+}
+
+/// CS-E7 composition (verifiable witness handle). See
+/// [`uor_addr_compose_e7`].
+///
+/// # Safety
+///
+/// As [`uor_addr_compose_e7`]; `out_handle` is a valid writable
+/// `*mut UorAddrGrounded`.
+#[cfg(feature = "alloc")]
+#[no_mangle]
+pub unsafe extern "C" fn uor_addr_compose_e7_with_witness(
+    algo: u8,
+    operand: *const u8,
+    operand_len: usize,
+    out_handle: *mut *mut UorAddrGrounded,
+) -> i32 {
+    let s = match unsafe { borrow_input(operand, operand_len) } {
+        Ok(s) => s,
+        Err(c) => return c,
+    };
+    match algo {
+        UOR_ADDR_HASH_SHA256 => match KappaLabel::<71>::from_bytes(s) {
+            Ok(l) => match composition::compose_e7_augmentation(&l) {
+                Ok(o) => unsafe { write_grounded_any(AnyOutcome::W71(o), out_handle) },
+                Err(e) => compose_code(e),
+            },
+            Err(_) => UOR_ADDR_ERR_INVALID_INPUT,
+        },
+        UOR_ADDR_HASH_BLAKE3 => match KappaLabel::<71>::from_bytes(s) {
+            Ok(l) => match composition::compose_e7_augmentation_blake3(&l) {
+                Ok(o) => unsafe { write_grounded_any(AnyOutcome::W71(o), out_handle) },
+                Err(e) => compose_code(e),
+            },
+            Err(_) => UOR_ADDR_ERR_INVALID_INPUT,
+        },
+        UOR_ADDR_HASH_SHA3_256 => match KappaLabel::<73>::from_bytes(s) {
+            Ok(l) => match composition::compose_e7_augmentation_sha3_256(&l) {
+                Ok(o) => unsafe { write_grounded_any(AnyOutcome::W73(o), out_handle) },
+                Err(e) => compose_code(e),
+            },
+            Err(_) => UOR_ADDR_ERR_INVALID_INPUT,
+        },
+        UOR_ADDR_HASH_KECCAK256 => match KappaLabel::<74>::from_bytes(s) {
+            Ok(l) => match composition::compose_e7_augmentation_keccak256(&l) {
+                Ok(o) => unsafe { write_grounded_any(AnyOutcome::W74(o), out_handle) },
+                Err(e) => compose_code(e),
+            },
+            Err(_) => UOR_ADDR_ERR_INVALID_INPUT,
+        },
+        UOR_ADDR_HASH_SHA512 => match KappaLabel::<135>::from_bytes(s) {
+            Ok(l) => match composition::compose_e7_augmentation_sha512(&l) {
+                Ok(o) => unsafe { write_grounded_any(AnyOutcome::W512(o), out_handle) },
+                Err(e) => compose_code(e),
+            },
+            Err(_) => UOR_ADDR_ERR_INVALID_INPUT,
+        },
+        _ => UOR_ADDR_ERR_UNKNOWN_HASH,
+    }
+}
+
+/// CS-E8 composition (label). `algo` selects the σ-axis (operand
+/// width + composed axis); `out_label` must be writable for at least
+/// `UOR_ADDR_MAX_LABEL_BYTES` bytes.
+///
+/// # Safety
+///
+/// Operand pointers are null (with len 0) or readable for their lengths;
+/// `out_label` writable for `out_label_len`; `out_written` if non-null
+/// writable.
+#[cfg(feature = "alloc")]
+#[no_mangle]
+pub unsafe extern "C" fn uor_addr_compose_e8(
+    algo: u8,
+    operand: *const u8,
+    operand_len: usize,
+    out_label: *mut u8,
+    out_label_len: usize,
+    out_written: *mut usize,
+) -> i32 {
+    let s = match unsafe { borrow_input(operand, operand_len) } {
+        Ok(s) => s,
+        Err(c) => return c,
+    };
+    match algo {
+        UOR_ADDR_HASH_SHA256 => match KappaLabel::<71>::from_bytes(s) {
+            Ok(l) => match composition::compose_e8_embedding(&l) {
+                Ok(o) => unsafe { write_outcome(o, out_label, out_label_len, out_written) },
+                Err(e) => compose_code(e),
+            },
+            Err(_) => UOR_ADDR_ERR_INVALID_INPUT,
+        },
+        UOR_ADDR_HASH_BLAKE3 => match KappaLabel::<71>::from_bytes(s) {
+            Ok(l) => match composition::compose_e8_embedding_blake3(&l) {
+                Ok(o) => unsafe { write_outcome(o, out_label, out_label_len, out_written) },
+                Err(e) => compose_code(e),
+            },
+            Err(_) => UOR_ADDR_ERR_INVALID_INPUT,
+        },
+        UOR_ADDR_HASH_SHA3_256 => match KappaLabel::<73>::from_bytes(s) {
+            Ok(l) => match composition::compose_e8_embedding_sha3_256(&l) {
+                Ok(o) => unsafe { write_outcome(o, out_label, out_label_len, out_written) },
+                Err(e) => compose_code(e),
+            },
+            Err(_) => UOR_ADDR_ERR_INVALID_INPUT,
+        },
+        UOR_ADDR_HASH_KECCAK256 => match KappaLabel::<74>::from_bytes(s) {
+            Ok(l) => match composition::compose_e8_embedding_keccak256(&l) {
+                Ok(o) => unsafe { write_outcome(o, out_label, out_label_len, out_written) },
+                Err(e) => compose_code(e),
+            },
+            Err(_) => UOR_ADDR_ERR_INVALID_INPUT,
+        },
+        UOR_ADDR_HASH_SHA512 => match KappaLabel::<135>::from_bytes(s) {
+            Ok(l) => match composition::compose_e8_embedding_sha512(&l) {
+                Ok(o) => unsafe { write_outcome(o, out_label, out_label_len, out_written) },
+                Err(e) => compose_code(e),
+            },
+            Err(_) => UOR_ADDR_ERR_INVALID_INPUT,
+        },
+        _ => UOR_ADDR_ERR_UNKNOWN_HASH,
+    }
+}
+
+/// CS-E8 composition (verifiable witness handle). See
+/// [`uor_addr_compose_e8`].
+///
+/// # Safety
+///
+/// As [`uor_addr_compose_e8`]; `out_handle` is a valid writable
+/// `*mut UorAddrGrounded`.
+#[cfg(feature = "alloc")]
+#[no_mangle]
+pub unsafe extern "C" fn uor_addr_compose_e8_with_witness(
+    algo: u8,
+    operand: *const u8,
+    operand_len: usize,
+    out_handle: *mut *mut UorAddrGrounded,
+) -> i32 {
+    let s = match unsafe { borrow_input(operand, operand_len) } {
+        Ok(s) => s,
+        Err(c) => return c,
+    };
+    match algo {
+        UOR_ADDR_HASH_SHA256 => match KappaLabel::<71>::from_bytes(s) {
+            Ok(l) => match composition::compose_e8_embedding(&l) {
+                Ok(o) => unsafe { write_grounded_any(AnyOutcome::W71(o), out_handle) },
+                Err(e) => compose_code(e),
+            },
+            Err(_) => UOR_ADDR_ERR_INVALID_INPUT,
+        },
+        UOR_ADDR_HASH_BLAKE3 => match KappaLabel::<71>::from_bytes(s) {
+            Ok(l) => match composition::compose_e8_embedding_blake3(&l) {
+                Ok(o) => unsafe { write_grounded_any(AnyOutcome::W71(o), out_handle) },
+                Err(e) => compose_code(e),
+            },
+            Err(_) => UOR_ADDR_ERR_INVALID_INPUT,
+        },
+        UOR_ADDR_HASH_SHA3_256 => match KappaLabel::<73>::from_bytes(s) {
+            Ok(l) => match composition::compose_e8_embedding_sha3_256(&l) {
+                Ok(o) => unsafe { write_grounded_any(AnyOutcome::W73(o), out_handle) },
+                Err(e) => compose_code(e),
+            },
+            Err(_) => UOR_ADDR_ERR_INVALID_INPUT,
+        },
+        UOR_ADDR_HASH_KECCAK256 => match KappaLabel::<74>::from_bytes(s) {
+            Ok(l) => match composition::compose_e8_embedding_keccak256(&l) {
+                Ok(o) => unsafe { write_grounded_any(AnyOutcome::W74(o), out_handle) },
+                Err(e) => compose_code(e),
+            },
+            Err(_) => UOR_ADDR_ERR_INVALID_INPUT,
+        },
+        UOR_ADDR_HASH_SHA512 => match KappaLabel::<135>::from_bytes(s) {
+            Ok(l) => match composition::compose_e8_embedding_sha512(&l) {
+                Ok(o) => unsafe { write_grounded_any(AnyOutcome::W512(o), out_handle) },
+                Err(e) => compose_code(e),
+            },
+            Err(_) => UOR_ADDR_ERR_INVALID_INPUT,
         },
         _ => UOR_ADDR_ERR_UNKNOWN_HASH,
     }

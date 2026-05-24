@@ -25,7 +25,9 @@ their docstrings.
 | ADR-049 (`axis::cryptanalyze` witness) | <https://github.com/UOR-Foundation/UOR-Framework/wiki/ADR-049> |
 | ADR-054 (fold-fusion principle) | <https://github.com/UOR-Foundation/UOR-Framework/wiki/ADR-054> |
 | ADR-057 (bounded recursive structural typing) | <https://github.com/UOR-Foundation/UOR-Framework/wiki/ADR-057> |
+| ADR-059 (Atlas vertex-degree partition / S₄ orbit) | <https://github.com/UOR-Foundation/UOR-Framework/wiki/ADR-059> |
 | ADR-060 (unbounded source-polymorphic carrier) | <https://github.com/UOR-Foundation/UOR-Framework/wiki/ADR-060> |
+| ADR-061 (categorical composition on the E₈ Atlas image) | <https://github.com/UOR-Foundation/UOR-Framework/wiki/ADR-061> |
 | Amendment 43 (ring element canonical bytes) | <https://github.com/UOR-Foundation/UOR-Framework/wiki/Amendment-43> |
 | TC-05 (replay round-trip) | <https://github.com/UOR-Foundation/UOR-Framework/wiki/TC-05> |
 | FIPS 180-4 (SHA-256) | <https://nvlpubs.nist.gov/nistpubs/FIPS/NIST.FIPS.180-4.pdf> |
@@ -266,6 +268,38 @@ Conformance:
 [`uor_addr::variant::signed::tests`](crates/uor-addr/src/variant/signed.rs)
 plus
 [crates/uor-addr/tests/all_realizations.rs](crates/uor-addr/tests/all_realizations.rs).
+
+## Categorical composition (`uor_addr::composition`)
+
+The five categorical operations on the Atlas image inside E₈ per
+ADR-061. The framework (ADR-061 §(3)) names each operation's algebraic
+structure; the realization (per CA-5) commits the specific byte-level
+canonicalize discipline that implements it. Each composes operand
+κ-labels into a new κ-label on the same σ-axis (CA-3 σ-axis
+homogeneity).
+
+| Operation | Algebraic structure (ADR-061 §(3) / ADR-059) | Realization commitment (canonical form) |
+|---|---|---|
+| CS-G2 `compose_g2_product` | commutative binary product | lex-min-first concatenation `lo ‖ hi` (2N bytes) |
+| CS-F4 `compose_f4_quotient` | 2-element ± involution equivalence | lex-min of `{raw, ~raw}`, re-emitted as `<axis>:<hex>` (N bytes) |
+| CS-E6 `compose_e6_filtration` | 2-class degree partition, 8:1 population (ADR-059 64:8) | `[degree_tag] ‖ operand`, tag = `first_byte mod 9 → {0x05,0x06}` (N+1 bytes) |
+| CS-E7 `compose_e7_augmentation` | 24-element S₄ quarter-permutation orbit | lex-min of the 24-element orbit over 4 digest quarters (N bytes) |
+| CS-E8 `compose_e8_embedding` | identity (each operand its own class) | identity on canonical-form bytes; distinguished by realization-IRI provenance (N bytes) |
+
+| Concern | Authoritative source |
+|---|---|
+| ADR-061 categorical composition | <https://github.com/UOR-Foundation/UOR-Framework/wiki/ADR-061> |
+| ADR-059 vertex-degree partition + S₄ orbit | <https://github.com/UOR-Foundation/UOR-Framework/wiki/ADR-059> |
+
+Conformance:
+[crates/uor-addr/tests/composition.rs](crates/uor-addr/tests/composition.rs);
+example [crates/uor-addr/examples/composition.rs](crates/uor-addr/examples/composition.rs);
+Lean width / orbit / partition / commutativity proofs in
+[uor-addr-lean/UorAddr/CompositionLaws.lean](uor-addr-lean/UorAddr/CompositionLaws.lean).
+Exposed across every binding: C
+(`uor_addr_compose_{g2,f4,e6,e7,e8}[_with_witness]`), Python
+(`kappa.compose_*`), and the WASM Component Model / npm
+(`compose-g2` … / `composeG2` …).
 
 ## GGUF realization (`uor_addr::gguf`)
 

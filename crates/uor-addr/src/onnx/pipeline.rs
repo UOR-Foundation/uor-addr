@@ -1,6 +1,6 @@
 //! `onnx::address` — the ONNX realization's public entry point.
 //!
-//! 1. [`canonicalize`](crate::onnx::value::canonicalize) parses the ONNX
+//! 1. [`canonicalize`] parses the ONNX
 //!    `ModelProto` and emits the flat canonical skeleton into an `alloc`
 //!    buffer (no count / width caps).
 //! 2. `AddressModel::forward` runs the shared ψ-tower: the skeleton
