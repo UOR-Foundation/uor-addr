@@ -53,6 +53,11 @@
 // of the `UOR_ADDR_HASH_*` constants).
 #define UOR_ADDR_ERR_UNKNOWN_HASH -6
 
+// A composition operand's σ-axis does not match the operation's axis
+// (CA-3 σ-axis homogeneity), or — for the binary product — the two
+// operands carry different axes.
+#define UOR_ADDR_ERR_SIGMA_AXIS_MISMATCH -7
+
 // `verify()` failed: empty trace. **Reserved** — the live verify path maps
 // every failure to `UOR_ADDR_ERR_PIPELINE`; retained for ABI stability.
 #define UOR_ADDR_ERR_VERIFY_EMPTY_TRACE -10
@@ -699,6 +704,150 @@ int32_t uor_addr_onnx_with_witness_hash(uint8_t algo,
                                         const uint8_t *input,
                                         uintptr_t input_len,
                                         struct UorAddrGrounded **out_handle);
+
+// CS-G2 composition (label). `algo` selects the σ-axis (operand
+// width + composed axis); `out_label` must be writable for at least
+// `UOR_ADDR_MAX_LABEL_BYTES` bytes.
+//
+// # Safety
+//
+// Operand pointers are null (with len 0) or readable for their lengths;
+// `out_label` writable for `out_label_len`; `out_written` if non-null
+// writable.
+int32_t uor_addr_compose_g2(uint8_t algo,
+                            const uint8_t *left,
+                            uintptr_t left_len,
+                            const uint8_t *right,
+                            uintptr_t right_len,
+                            uint8_t *out_label,
+                            uintptr_t out_label_len,
+                            uintptr_t *out_written);
+
+// CS-G2 composition (verifiable witness handle). See
+// [`uor_addr_compose_g2`].
+//
+// # Safety
+//
+// As [`uor_addr_compose_g2`]; `out_handle` is a valid writable
+// `*mut UorAddrGrounded`.
+int32_t uor_addr_compose_g2_with_witness(uint8_t algo,
+                                         const uint8_t *left,
+                                         uintptr_t left_len,
+                                         const uint8_t *right,
+                                         uintptr_t right_len,
+                                         struct UorAddrGrounded **out_handle);
+
+// CS-F4 composition (label). `algo` selects the σ-axis (operand
+// width + composed axis); `out_label` must be writable for at least
+// `UOR_ADDR_MAX_LABEL_BYTES` bytes.
+//
+// # Safety
+//
+// Operand pointers are null (with len 0) or readable for their lengths;
+// `out_label` writable for `out_label_len`; `out_written` if non-null
+// writable.
+int32_t uor_addr_compose_f4(uint8_t algo,
+                            const uint8_t *operand,
+                            uintptr_t operand_len,
+                            uint8_t *out_label,
+                            uintptr_t out_label_len,
+                            uintptr_t *out_written);
+
+// CS-F4 composition (verifiable witness handle). See
+// [`uor_addr_compose_f4`].
+//
+// # Safety
+//
+// As [`uor_addr_compose_f4`]; `out_handle` is a valid writable
+// `*mut UorAddrGrounded`.
+int32_t uor_addr_compose_f4_with_witness(uint8_t algo,
+                                         const uint8_t *operand,
+                                         uintptr_t operand_len,
+                                         struct UorAddrGrounded **out_handle);
+
+// CS-E6 composition (label). `algo` selects the σ-axis (operand
+// width + composed axis); `out_label` must be writable for at least
+// `UOR_ADDR_MAX_LABEL_BYTES` bytes.
+//
+// # Safety
+//
+// Operand pointers are null (with len 0) or readable for their lengths;
+// `out_label` writable for `out_label_len`; `out_written` if non-null
+// writable.
+int32_t uor_addr_compose_e6(uint8_t algo,
+                            const uint8_t *operand,
+                            uintptr_t operand_len,
+                            uint8_t *out_label,
+                            uintptr_t out_label_len,
+                            uintptr_t *out_written);
+
+// CS-E6 composition (verifiable witness handle). See
+// [`uor_addr_compose_e6`].
+//
+// # Safety
+//
+// As [`uor_addr_compose_e6`]; `out_handle` is a valid writable
+// `*mut UorAddrGrounded`.
+int32_t uor_addr_compose_e6_with_witness(uint8_t algo,
+                                         const uint8_t *operand,
+                                         uintptr_t operand_len,
+                                         struct UorAddrGrounded **out_handle);
+
+// CS-E7 composition (label). `algo` selects the σ-axis (operand
+// width + composed axis); `out_label` must be writable for at least
+// `UOR_ADDR_MAX_LABEL_BYTES` bytes.
+//
+// # Safety
+//
+// Operand pointers are null (with len 0) or readable for their lengths;
+// `out_label` writable for `out_label_len`; `out_written` if non-null
+// writable.
+int32_t uor_addr_compose_e7(uint8_t algo,
+                            const uint8_t *operand,
+                            uintptr_t operand_len,
+                            uint8_t *out_label,
+                            uintptr_t out_label_len,
+                            uintptr_t *out_written);
+
+// CS-E7 composition (verifiable witness handle). See
+// [`uor_addr_compose_e7`].
+//
+// # Safety
+//
+// As [`uor_addr_compose_e7`]; `out_handle` is a valid writable
+// `*mut UorAddrGrounded`.
+int32_t uor_addr_compose_e7_with_witness(uint8_t algo,
+                                         const uint8_t *operand,
+                                         uintptr_t operand_len,
+                                         struct UorAddrGrounded **out_handle);
+
+// CS-E8 composition (label). `algo` selects the σ-axis (operand
+// width + composed axis); `out_label` must be writable for at least
+// `UOR_ADDR_MAX_LABEL_BYTES` bytes.
+//
+// # Safety
+//
+// Operand pointers are null (with len 0) or readable for their lengths;
+// `out_label` writable for `out_label_len`; `out_written` if non-null
+// writable.
+int32_t uor_addr_compose_e8(uint8_t algo,
+                            const uint8_t *operand,
+                            uintptr_t operand_len,
+                            uint8_t *out_label,
+                            uintptr_t out_label_len,
+                            uintptr_t *out_written);
+
+// CS-E8 composition (verifiable witness handle). See
+// [`uor_addr_compose_e8`].
+//
+// # Safety
+//
+// As [`uor_addr_compose_e8`]; `out_handle` is a valid writable
+// `*mut UorAddrGrounded`.
+int32_t uor_addr_compose_e8_with_witness(uint8_t algo,
+                                         const uint8_t *operand,
+                                         uintptr_t operand_len,
+                                         struct UorAddrGrounded **out_handle);
 
 #ifdef __cplusplus
 }  // extern "C"

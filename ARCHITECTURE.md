@@ -435,3 +435,43 @@ two-level commitment and no count / width cap. GGUF's
 `CANONICAL_FORM_VERSION` is **2**. The exact byte layouts are documented
 in the [`gguf::value`](crates/uor-addr/src/gguf/value.rs) and
 [`onnx::value`](crates/uor-addr/src/onnx/value.rs) module headers.
+
+## Categorical composition of κ-labels (ADR-061)
+
+[`uor_addr::composition`](crates/uor-addr/src/composition/mod.rs)
+realizes the five categorical operations on the Atlas image inside E₈.
+Each takes operand κ-labels (themselves the output of any realization,
+or of a prior composition — the surface is closed) and produces a new
+κ-label on the same σ-axis (CA-3 σ-axis homogeneity, enforced by
+[`canonicalize::check_axis`](crates/uor-addr/src/composition/canonicalize.rs)).
+
+The split mirrors the wiki: ADR-061 §(3) names each operation's
+**algebraic structure**, and the realization commits (per CA-5) the
+specific **byte-level canonicalize discipline** that implements it —
+all in
+[`composition::canonicalize`](crates/uor-addr/src/composition/canonicalize.rs):
+
+| Operation | Algebraic structure | Canonical form |
+|---|---|---|
+| CS-G2 product | commutative binary product | lex-min-first concat `lo ‖ hi` (2N) |
+| CS-F4 quotient | 2-element ± involution class | lex-min of `{raw, ~raw}` re-emitted (N) |
+| CS-E6 filtration | 2-class degree partition, 8:1 (ADR-059) | `[tag] ‖ operand`, `tag = first_byte mod 9` (N+1) |
+| CS-E7 augmentation | 24-element S₄ quarter orbit | lex-min of the orbit over 4 digest quarters (N) |
+| CS-E8 embedding | identity | identity bytes; distinguished by realization IRI (N) |
+
+Each canonical form flows through a per-axis composition shape's
+ψ-pipeline (the same `addr_verbs!` / `addr_models!` surface every
+realization binds), so the composed κ-label carries a replayable
+[`AddressWitness`] (TC-05) exactly like a leaf κ-label. The module is
+`alloc`-gated (it builds `Vec` canonical forms). Because `H(canonical_form)`
+depends only on the bytes, an operand that is already its own canonical
+representative under CS-F4 / CS-E7 composes to the same digest as under
+CS-E8 — a documented property (CX class in CONFORMANCE.md), since the
+realization IRI, not the digest, carries the typed distinction.
+
+Composition is exposed across every binding: C
+(`uor_addr_compose_{g2,f4,e6,e7,e8}[_with_witness]`), Python
+(`kappa.compose_*`), and the WASM Component Model / npm
+(`compose-g2` … / `composeG2` …). Lean width / orbit / partition /
+commutativity proofs live in
+[`UorAddr/CompositionLaws.lean`](uor-addr-lean/UorAddr/CompositionLaws.lean).

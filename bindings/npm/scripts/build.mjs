@@ -98,6 +98,16 @@ export type VerifyError =
   | "non-contiguous-steps"
   | "capacity-exceeded";
 
+/** σ-axis selector for the composition entry points. Mirrors the WIT
+ * \`hash-algorithm\` enum; \`sha3256\` is the SHA3-256 axis (the κ-label
+ * prefix it produces is still \`sha3-256\`). */
+export type HashAlgorithm =
+  | "sha256"
+  | "blake3"
+  | "sha3256"
+  | "keccak256"
+  | "sha512";
+
 /** Opaque foreign-managed witness handle to a Rust-side
  * \`Grounded<AddressLabel>\` value carrying the ψ-pipeline's emitted
  * derivation.
@@ -168,6 +178,32 @@ export interface Kappa {
   ggufAddressWithWitness(input: Uint8Array): Grounded;
   /** ONNX IR v13 realization; returns a verifiable [\`Grounded\`] witness. */
   onnxAddressWithWitness(input: Uint8Array): Grounded;
+
+  // ── κ-label composition (ADR-061) ──
+  // Operands are κ-labels under the σ-axis \`algo\`; the composed label
+  // shares that axis. CS-G2 is a commutative binary product; the other
+  // four are unary endomorphisms on the Atlas image inside E₈.
+
+  /** CS-G2 commutative binary product of two κ-labels. */
+  composeG2(left: KappaLabel, right: KappaLabel, algo: HashAlgorithm): KappaLabel;
+  /** CS-G2 product; returns a verifiable [\`Grounded\`] witness. */
+  composeG2WithWitness(left: KappaLabel, right: KappaLabel, algo: HashAlgorithm): Grounded;
+  /** CS-F4 ± involution quotient of a κ-label. */
+  composeF4(operand: KappaLabel, algo: HashAlgorithm): KappaLabel;
+  /** CS-F4 quotient; returns a verifiable witness. */
+  composeF4WithWitness(operand: KappaLabel, algo: HashAlgorithm): Grounded;
+  /** CS-E6 degree-partition filtration of a κ-label. */
+  composeE6(operand: KappaLabel, algo: HashAlgorithm): KappaLabel;
+  /** CS-E6 filtration; returns a verifiable witness. */
+  composeE6WithWitness(operand: KappaLabel, algo: HashAlgorithm): Grounded;
+  /** CS-E7 S₄-orbit augmentation of a κ-label. */
+  composeE7(operand: KappaLabel, algo: HashAlgorithm): KappaLabel;
+  /** CS-E7 augmentation; returns a verifiable witness. */
+  composeE7WithWitness(operand: KappaLabel, algo: HashAlgorithm): Grounded;
+  /** CS-E8 direct embedding of a κ-label. */
+  composeE8(operand: KappaLabel, algo: HashAlgorithm): KappaLabel;
+  /** CS-E8 embedding; returns a verifiable witness. */
+  composeE8WithWitness(operand: KappaLabel, algo: HashAlgorithm): Grounded;
 }
 
 export const kappa: Kappa;

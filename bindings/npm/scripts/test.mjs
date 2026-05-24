@@ -108,10 +108,53 @@ for (const [fnName, input] of witnessCases) {
   console.log(`ok:   ${fnName} → mint==verify (TC-05) → ${mintLabel}`);
 }
 
+// ADR-061 κ-label composition: compose two operand κ-labels through
+// each of the five categorical operations, asserting the named laws.
+let composeChecks = 0;
+{
+  const a = kappa.jsonAddress(new TextEncoder().encode('{"role":"left"}'));
+  const b = kappa.jsonAddress(new TextEncoder().encode('{"role":"right"}'));
+
+  // CS-G2 commutativity.
+  try {
+    const ab = kappa.composeG2(a, b, "sha256");
+    const ba = kappa.composeG2(b, a, "sha256");
+    if (!KAPPA_LABEL_RE.test(ab)) throw new Error(`g2 not well-formed: ${ab}`);
+    if (ab !== ba) throw new Error(`g2 not commutative: ${ab} != ${ba}`);
+    console.log(`ok:   composeG2 (commutative) → ${ab}`);
+    composeChecks += 1;
+  } catch (e) {
+    console.error(`fail: composeG2: ${e.message}`);
+    failed += 1;
+  }
+
+  // The four unary ops, each well-formed + witness round-trip.
+  const unary = [
+    ["composeF4", "composeF4WithWitness"],
+    ["composeE6", "composeE6WithWitness"],
+    ["composeE7", "composeE7WithWitness"],
+    ["composeE8", "composeE8WithWitness"],
+  ];
+  for (const [labelFn, witnessFn] of unary) {
+    try {
+      const label = kappa[labelFn](a, "sha256");
+      if (!KAPPA_LABEL_RE.test(label)) throw new Error(`not well-formed: ${label}`);
+      const g = kappa[witnessFn](a, "sha256");
+      if (g.kappaLabel() !== label) throw new Error("witness label mismatch");
+      if (g.verify() !== label) throw new Error("TC-05 round-trip mismatch");
+      console.log(`ok:   ${labelFn} → mint==verify (TC-05) → ${label}`);
+      composeChecks += 1;
+    } catch (e) {
+      console.error(`fail: ${labelFn}: ${e.message}`);
+      failed += 1;
+    }
+  }
+}
+
 if (failed > 0) {
   console.error(`\n${failed} failure(s)`);
   process.exit(1);
 }
 
-const total = cases.length + witnessCases.length;
+const total = cases.length + witnessCases.length + composeChecks;
 console.log(`\nall ${total} smoke tests passed`);

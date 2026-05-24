@@ -9,7 +9,7 @@
 //! canonical-form definition and the selected κ-axis `H` is applied on top
 //! (κ = `H(skeleton)`); the sha256 κ-labels are byte-identical to prior
 //! releases. Admits any known IR revision
-//! (`ir_version` in `1..=`[`ONNX_IR_VERSION_MAX`](shapes::bounds::ONNX_IR_VERSION_MAX)`
+//! (`ir_version` in `1..=`[`ONNX_IR_VERSION_MAX`]`
 //! = 13`, the latest in `onnx.proto`); the `ir_version` is bound into the
 //! canonical form, so distinct revisions of the same logical model
 //! address distinctly.

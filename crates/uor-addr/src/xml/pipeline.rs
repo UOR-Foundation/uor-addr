@@ -1,6 +1,6 @@
 //! `xml::address` — the XML realization's public entry point.
 //!
-//! 1. [`canonicalize`](crate::xml::value::canonicalize) parses + emits
+//! 1. [`canonicalize`] parses + emits
 //!    the W3C XML-C14N 1.1 (subset) canonical form into an `alloc` buffer
 //!    (no width / count caps).
 //! 2. `AddressModel::forward` runs the shared ψ-tower: the canonical

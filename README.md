@@ -42,7 +42,7 @@ println!("{}", outcome.address);
 ```bash
 cargo add uor-addr
 cargo run -p uor-addr --example address_value
-just examples       # 16 runnable demos covering every realization
+just examples       # 20 runnable demos covering every realization
 ```
 
 ## Install (per ecosystem)
@@ -107,7 +107,8 @@ WIT Component Model `list<u8>` → `Vec<u8>`).
   published-spec conformance suite, plus 19,074 vectors × 5 identities
   from UCD 15.1.0 `NormalizationTest.txt` exercising the in-crate NFC
   normalizer.
-- 16 runnable examples (`just examples`).
+- 20 runnable examples (`just examples`), including content-addressed
+  GGUF/ONNX model registry + provenance and κ-label composition.
 - `#![forbid(unsafe_code)]` for the core crate; `no_std` by default,
   with the ring/sexp/asn1/codemodule realizations `no_alloc` (verified
   by `cargo build --no-default-features --target thumbv7em-none-eabihf`).

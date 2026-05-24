@@ -242,6 +242,40 @@ interface kappa {
     onnx-address-with-hash: func(input: list<u8>, algo: hash-algorithm) -> result<kappa-label, address-error>;
     /// `onnx` realization, σ-axis-selected, returning a verifiable witness.
     onnx-address-with-witness-hash: func(input: list<u8>, algo: hash-algorithm) -> result<grounded, address-error>;
+
+    // ─── κ-label composition (ADR-061) ───────────────────────────────
+    //
+    // The five categorical operations on the Atlas image inside E₈.
+    // Operands are κ-labels (the `kappa-label` string carried by a prior
+    // `*-address` call) under the σ-axis named by `algo`; the composed
+    // κ-label shares that axis (CA-3 σ-axis homogeneity). CS-G2 is a
+    // commutative binary product; the rest are unary endomorphisms. A
+    // malformed operand or a σ-axis mismatch surfaces as `invalid-input`.
+
+    /// CS-G2 commutative binary product of two κ-labels.
+    compose-g2: func(left: kappa-label, right: kappa-label, algo: hash-algorithm) -> result<kappa-label, address-error>;
+    /// CS-G2 product, returning a verifiable witness handle.
+    compose-g2-with-witness: func(left: kappa-label, right: kappa-label, algo: hash-algorithm) -> result<grounded, address-error>;
+
+    /// CS-F4 ± involution quotient of a κ-label.
+    compose-f4: func(operand: kappa-label, algo: hash-algorithm) -> result<kappa-label, address-error>;
+    /// CS-F4 quotient, returning a verifiable witness handle.
+    compose-f4-with-witness: func(operand: kappa-label, algo: hash-algorithm) -> result<grounded, address-error>;
+
+    /// CS-E6 degree-partition filtration of a κ-label.
+    compose-e6: func(operand: kappa-label, algo: hash-algorithm) -> result<kappa-label, address-error>;
+    /// CS-E6 filtration, returning a verifiable witness handle.
+    compose-e6-with-witness: func(operand: kappa-label, algo: hash-algorithm) -> result<grounded, address-error>;
+
+    /// CS-E7 S₄-orbit augmentation of a κ-label.
+    compose-e7: func(operand: kappa-label, algo: hash-algorithm) -> result<kappa-label, address-error>;
+    /// CS-E7 augmentation, returning a verifiable witness handle.
+    compose-e7-with-witness: func(operand: kappa-label, algo: hash-algorithm) -> result<grounded, address-error>;
+
+    /// CS-E8 direct embedding of a κ-label.
+    compose-e8: func(operand: kappa-label, algo: hash-algorithm) -> result<kappa-label, address-error>;
+    /// CS-E8 embedding, returning a verifiable witness handle.
+    compose-e8-with-witness: func(operand: kappa-label, algo: hash-algorithm) -> result<grounded, address-error>;
 }
 
 /// The `uor-addr` component world — exports the `kappa` interface.
