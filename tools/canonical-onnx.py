@@ -332,7 +332,13 @@ def topo_order(nodes):
                     break
             if not ready:
                 continue
-            key = (first_bytes(n, 3), first_bytes(n, 4), first_bytes(n, 7))
+            key = (
+                first_bytes(n, 3),
+                first_bytes(n, 4),
+                first_bytes(n, 7),
+                tuple(each(n, 2)),
+                canonical_proto_digest(n),
+            )
             if best is None or key < best[1]:
                 best = (cand, key)
         if best is None:

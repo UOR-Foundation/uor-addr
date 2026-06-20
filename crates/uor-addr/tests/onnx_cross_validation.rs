@@ -16,7 +16,11 @@ fn python_matches_rust_for_fixtures() {
         return;
     }
     let dir = concat!(env!("CARGO_MANIFEST_DIR"), "/tests/fixtures/onnx");
-    let fixtures = ["synthetic.onnx", "synthetic-typed.onnx"];
+    let fixtures = [
+        "synthetic.onnx",
+        "synthetic-typed.onnx",
+        "empty-name-tiebreak.onnx",
+    ];
     for name in fixtures {
         let path = format!("{dir}/{name}");
         let bytes = std::fs::read(&path).unwrap();

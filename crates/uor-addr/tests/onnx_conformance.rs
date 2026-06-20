@@ -166,6 +166,23 @@ fn invariant_under_node_reorder() {
 }
 
 #[test]
+fn invariant_under_reorder_with_empty_name_tie_break() {
+    // Two ready nodes with empty names and identical op/domain must still
+    // canonicalize deterministically. Output tensor names are the
+    // discriminator in the tie-break.
+    let left = node("", "Relu", &["x1"], &["y1"]);
+    let right = node("", "Relu", &["x2"], &["y2"]);
+    let merge = node("m", "Add", &["y1", "y2"], &["z"]);
+    let graph_lr = model_with(13, &graph(&[&left, &right, &merge], &[]));
+    let graph_rl = model_with(13, &graph(&[&right, &left, &merge], &[]));
+    assert_eq!(
+        label(&graph_lr),
+        label(&graph_rl),
+        "empty node names must not make κ depend on input node order"
+    );
+}
+
+#[test]
 fn raw_data_and_typed_data_equivalent() {
     let (a, b) = sample_nodes();
     let raw = init_raw("w", &[1.0, 2.0]);

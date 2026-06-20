@@ -10,8 +10,8 @@ function congruence and whose totality is Lean totality.
 namespace UorAddr.Onnx
 
 /-- A node identity used for the lexicographic tie-break:
-`(name, op_type, domain)` byte keys. -/
-abbrev NodeKey := List UInt8 × List UInt8 × List UInt8
+`(name, op_type, domain, outputs..., canonical_node_digest)` byte keys. -/
+abbrev NodeKey := List UInt8 × List UInt8 × List UInt8 × List (List UInt8) × List UInt8
 
 /-- The canonical node order — a deterministic function of the input
 node-key list (the implementation is Kahn + lex tie-break; here we model
