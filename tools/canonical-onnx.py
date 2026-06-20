@@ -320,7 +320,9 @@ def topo_order(nodes):
     emitted = [False] * len(nodes)
     order = []
     for _ in range(len(nodes)):
-        best = None
+        best_idx = None
+        best_prefix = None
+        best_digest = None
         for cand, n in enumerate(nodes):
             if emitted[cand]:
                 continue
@@ -332,19 +334,30 @@ def topo_order(nodes):
                     break
             if not ready:
                 continue
-            key = (
+            prefix = (
                 first_bytes(n, 3),
                 first_bytes(n, 4),
                 first_bytes(n, 7),
                 tuple(each(n, 2)),
-                canonical_proto_digest(n),
             )
-            if best is None or key < best[1]:
-                best = (cand, key)
-        if best is None:
+            if best_idx is None or prefix < best_prefix:
+                best_idx = cand
+                best_prefix = prefix
+                best_digest = None
+                continue
+            if prefix > best_prefix:
+                continue
+
+            cand_digest = canonical_proto_digest(n)
+            if best_digest is None:
+                best_digest = canonical_proto_digest(nodes[best_idx])
+            if cand_digest < best_digest:
+                best_idx = cand
+                best_digest = cand_digest
+        if best_idx is None:
             raise ValueError("graph cycle")
-        emitted[best[0]] = True
-        order.append(best[0])
+        emitted[best_idx] = True
+        order.append(best_idx)
     return [nodes[i] for i in order]
 
 
