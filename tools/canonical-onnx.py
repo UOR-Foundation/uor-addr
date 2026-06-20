@@ -319,8 +319,17 @@ def topo_order(nodes):
             producers.setdefault(bytes(o), idx)
     emitted = [False] * len(nodes)
     order = []
+    def prefix_key(node):
+        return (
+            first_bytes(node, 3),
+            first_bytes(node, 4),
+            first_bytes(node, 7),
+            tuple(each(node, 2)),
+        )
+
     for _ in range(len(nodes)):
         best_idx = None
+        best_node = None
         best_prefix = None
         best_digest = None
         for cand, n in enumerate(nodes):
@@ -334,14 +343,17 @@ def topo_order(nodes):
                     break
             if not ready:
                 continue
-            prefix = (
-                first_bytes(n, 3),
-                first_bytes(n, 4),
-                first_bytes(n, 7),
-                tuple(each(n, 2)),
-            )
-            if best_idx is None or prefix < best_prefix:
+            if best_idx is None:
                 best_idx = cand
+                best_node = n
+                best_digest = None
+                continue
+            if best_prefix is None:
+                best_prefix = prefix_key(best_node)
+            prefix = prefix_key(n)
+            if prefix < best_prefix:
+                best_idx = cand
+                best_node = n
                 best_prefix = prefix
                 best_digest = None
                 continue
@@ -350,9 +362,10 @@ def topo_order(nodes):
 
             cand_digest = canonical_proto_digest(n)
             if best_digest is None:
-                best_digest = canonical_proto_digest(nodes[best_idx])
+                best_digest = canonical_proto_digest(best_node)
             if cand_digest < best_digest:
                 best_idx = cand
+                best_node = n
                 best_digest = cand_digest
         if best_idx is None:
             raise ValueError("graph cycle")
