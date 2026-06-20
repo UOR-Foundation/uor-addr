@@ -603,24 +603,28 @@ mod alloc_impl {
             return Ok(oa.len() <= ob.len());
         }
 
-        let da = match node_digest_cache[a_idx] {
-            Some(d) => d,
-            None => {
-                let d = canonical_proto_digest(ba, 0)?;
-                node_digest_cache[a_idx] = Some(d);
-                d
-            }
-        };
-        let db = match node_digest_cache[b_idx] {
-            Some(d) => d,
-            None => {
-                let d = canonical_proto_digest(bb, 0)?;
-                node_digest_cache[b_idx] = Some(d);
-                d
-            }
-        };
+        let da = cached_node_digest(graph, nodes, a_idx, node_digest_cache)?;
+        let db = cached_node_digest(graph, nodes, b_idx, node_digest_cache)?;
 
         Ok(da <= db)
+    }
+
+    fn cached_node_digest(
+        graph: &[u8],
+        nodes: &[Span],
+        idx: usize,
+        node_digest_cache: &mut [Option<[u8; 32]>],
+    ) -> Result<[u8; 32], ShapeViolation> {
+        match node_digest_cache[idx] {
+            Some(d) => Ok(d),
+            None => {
+                let node = &nodes[idx];
+                let body = &graph[node.off..node.off + node.len];
+                let d = canonical_proto_digest(body, 0)?;
+                node_digest_cache[idx] = Some(d);
+                Ok(d)
+            }
+        }
     }
 
     /// Emit a `NodeProto` inline: identity fields, positional inputs /

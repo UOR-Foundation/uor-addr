@@ -320,6 +320,7 @@ def topo_order(nodes):
     emitted = [False] * len(nodes)
     order = []
     def prefix_key(node):
+        """Return the non-digest tie-break prefix: (name, op_type, domain, outputs)."""
         return (
             first_bytes(node, 3),
             first_bytes(node, 4),
@@ -346,6 +347,8 @@ def topo_order(nodes):
             if best_idx is None:
                 best_idx = cand
                 best_node = n
+                best_prefix = None
+                best_digest = None
                 continue
             if best_prefix is None:
                 best_prefix = prefix_key(best_node)
