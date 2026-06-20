@@ -346,7 +346,6 @@ def topo_order(nodes):
             if best_idx is None:
                 best_idx = cand
                 best_node = n
-                best_digest = None
                 continue
             if best_prefix is None:
                 best_prefix = prefix_key(best_node)
