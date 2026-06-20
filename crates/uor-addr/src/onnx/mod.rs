@@ -56,7 +56,9 @@ pub mod verbs;
 /// Canonical-form version (see module docs). Bumped to 3 to make node
 /// ordering total when `NodeProto.name` is empty by extending the
 /// topological tie-break with output tensor names and a canonical node
-/// digest fallback.
+/// digest fallback. This is a compatibility break: models with previously
+/// ambiguous `(name, op_type, domain)` ties can now receive different
+/// κ-labels than canonical-form v2.
 pub const CANONICAL_FORM_VERSION: u32 = 3;
 
 pub use dtype::OnnxDataType;
