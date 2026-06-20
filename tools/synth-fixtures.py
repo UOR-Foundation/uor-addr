@@ -164,6 +164,16 @@ def main():
                + lf(11, onnx_value_info_typed("x")) + lf(12, lf(1, b"z")))
     mt = vf(1, 13) + lf(8, vf(2, 17)) + lf(7, graph_t)
     write(os.path.join(ONNX_DIR, "synthetic-typed.onnx"), mt, connx.kappa_label(mt))
+
+    # ONNX: empty node-name tie-break vector — two same-op ready nodes with
+    # empty names must canonicalize identically regardless of serialization.
+    l = onnx_node("", "Relu", ["x1"], ["y1"])
+    r = onnx_node("", "Relu", ["x2"], ["y2"])
+    mrg = onnx_node("m", "Add", ["y1", "y2"], ["z"])
+    graph_e = (lf(1, r) + lf(1, l) + lf(1, mrg) + lf(2, b"g")
+               + lf(11, lf(1, b"x1")) + lf(11, lf(1, b"x2")) + lf(12, lf(1, b"z")))
+    me = vf(1, 13) + lf(8, vf(2, 17)) + lf(7, graph_e)
+    write(os.path.join(ONNX_DIR, "empty-name-tiebreak.onnx"), me, connx.kappa_label(me))
     return 0
 
 

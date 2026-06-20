@@ -14,7 +14,8 @@
 //!   for op: sha256(domain) || LE_i64(version)
 //! ── graph (recursive) ──
 //!   sha256(graph_name)
-//!   nodes in Kahn-topological order (lex (name, op_type, domain) tie-break):
+//!   nodes in Kahn-topological order
+//!   (lex (name, op_type, domain, outputs..., canonical_node_digest) tie-break):
 //!     sha256(name) || sha256(op_type) || sha256(domain) || sha256(overload)
 //!       || LE_u32(n_in)  || (sha256(input_name)  × n_in)
 //!       || LE_u32(n_out) || (sha256(output_name) × n_out)
@@ -558,7 +559,8 @@ mod alloc_impl {
         Ok(ready)
     }
 
-    /// Lexicographic order on `(name, op_type, domain)`.
+    /// Lexicographic order on
+    /// `(name, op_type, domain, outputs..., canonical_node_digest)`.
     fn node_lex_le(graph: &[u8], a: &Span, b: &Span) -> Result<bool, ShapeViolation> {
         let ba = &graph[a.off..a.off + a.len];
         let bb = &graph[b.off..b.off + b.len];
@@ -572,7 +574,27 @@ mod alloc_impl {
             first_bytes(bb, 4)?,
             first_bytes(bb, 7)?,
         );
-        Ok(ka <= kb)
+        if ka != kb {
+            return Ok(ka <= kb);
+        }
+
+        let oa = collect_spans(ba, 2)?;
+        let ob = collect_spans(bb, 2)?;
+        let common = core::cmp::min(oa.len(), ob.len());
+        for i in 0..common {
+            let a_out = &ba[oa[i].off..oa[i].off + oa[i].len];
+            let b_out = &bb[ob[i].off..ob[i].off + ob[i].len];
+            match a_out.cmp(b_out) {
+                core::cmp::Ordering::Less => return Ok(true),
+                core::cmp::Ordering::Greater => return Ok(false),
+                core::cmp::Ordering::Equal => {}
+            }
+        }
+        if oa.len() != ob.len() {
+            return Ok(oa.len() <= ob.len());
+        }
+
+        Ok(canonical_proto_digest(ba, 0)? <= canonical_proto_digest(bb, 0)?)
     }
 
     /// Emit a `NodeProto` inline: identity fields, positional inputs /

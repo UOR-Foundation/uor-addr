@@ -34,3 +34,11 @@ fn synthetic_typed_matches_python_attestation() {
         include_str!("fixtures/onnx/synthetic-typed.kappa-label"),
     );
 }
+
+#[test]
+fn empty_name_tiebreak_matches_python_attestation() {
+    check(
+        include_bytes!("fixtures/onnx/empty-name-tiebreak.onnx"),
+        include_str!("fixtures/onnx/empty-name-tiebreak.kappa-label"),
+    );
+}

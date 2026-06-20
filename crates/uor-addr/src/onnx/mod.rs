@@ -26,10 +26,11 @@
 //!
 //! The ONNX spec defines no canonical form (protobuf v3 admits many
 //! byte-encodings of the same logical message); this realization defines
-//! one (canonical form v2 — [`CANONICAL_FORM_VERSION`]). It is a **flat
+//! one (canonical form v3 — [`CANONICAL_FORM_VERSION`]). It is a **flat
 //! skeleton**: the `ModelProto` structure emitted inline (opset imports
 //! sorted by `(domain, version)`, nodes in Kahn-topological order with
-//! lexicographic `(name, op_type, domain)` tie-break, name-sorted
+//! lexicographic `(name, op_type, domain, outputs..., canonical_node_digest)`
+//! tie-break, name-sorted
 //! initializers / IO, typed-data-to-`raw_data` reduction, depth-bounded
 //! subgraph recursion emitted inline), in which every variable-length
 //! leaf — tensor data, strings, opaque sub-message payloads — is
@@ -52,10 +53,11 @@ pub mod shapes;
 pub mod value;
 pub mod verbs;
 
-/// Canonical-form version (see module docs). Bumped to 2 under ADR-060:
-/// the canonical form is now the full flat skeleton (no two-level
-/// commitment), so v2 κ-labels differ from the v1 commitment's.
-pub const CANONICAL_FORM_VERSION: u32 = 2;
+/// Canonical-form version (see module docs). Bumped to 3 to make node
+/// ordering total when `NodeProto.name` is empty by extending the
+/// topological tie-break with output tensor names and a canonical node
+/// digest fallback.
+pub const CANONICAL_FORM_VERSION: u32 = 3;
 
 pub use dtype::OnnxDataType;
 pub use model::{
