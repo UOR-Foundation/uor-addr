@@ -486,6 +486,7 @@ mod alloc_impl {
         out.extend_from_slice(&(node_count as u32).to_le_bytes());
 
         let mut emitted: Vec<bool> = alloc::vec![false; node_count];
+        let mut node_digest_cache: Vec<Option<[u8; 32]>> = alloc::vec![None; node_count];
         for _ in 0..node_count {
             // Find the lex-min ready (all producers emitted), unemitted node.
             let mut best: Option<usize> = None;
@@ -499,7 +500,7 @@ mod alloc_impl {
                 best = Some(match best {
                     None => cand,
                     Some(b) => {
-                        if node_lex_le(graph, &nodes[cand], &nodes[b])? {
+                        if node_lex_le(graph, &nodes, cand, b, &mut node_digest_cache)? {
                             cand
                         } else {
                             b
@@ -561,7 +562,15 @@ mod alloc_impl {
 
     /// Lexicographic order on
     /// `(name, op_type, domain, outputs..., canonical_node_digest)`.
-    fn node_lex_le(graph: &[u8], a: &Span, b: &Span) -> Result<bool, ShapeViolation> {
+    fn node_lex_le(
+        graph: &[u8],
+        nodes: &[Span],
+        a_idx: usize,
+        b_idx: usize,
+        node_digest_cache: &mut [Option<[u8; 32]>],
+    ) -> Result<bool, ShapeViolation> {
+        let a = &nodes[a_idx];
+        let b = &nodes[b_idx];
         let ba = &graph[a.off..a.off + a.len];
         let bb = &graph[b.off..b.off + b.len];
         let ka = (
@@ -594,7 +603,24 @@ mod alloc_impl {
             return Ok(oa.len() <= ob.len());
         }
 
-        Ok(canonical_proto_digest(ba, 0)? <= canonical_proto_digest(bb, 0)?)
+        let da = match node_digest_cache[a_idx] {
+            Some(d) => d,
+            None => {
+                let d = canonical_proto_digest(ba, 0)?;
+                node_digest_cache[a_idx] = Some(d);
+                d
+            }
+        };
+        let db = match node_digest_cache[b_idx] {
+            Some(d) => d,
+            None => {
+                let d = canonical_proto_digest(bb, 0)?;
+                node_digest_cache[b_idx] = Some(d);
+                d
+            }
+        };
+
+        Ok(da <= db)
     }
 
     /// Emit a `NodeProto` inline: identity fields, positional inputs /
