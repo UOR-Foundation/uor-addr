@@ -151,10 +151,35 @@ let composeChecks = 0;
   }
 }
 
+// CT-B05 must-reject vectors: repeated member names fail as invalid
+// input, the same as in the Rust core and the C and Python bindings.
+const duplicateCases = [
+  ["plain",          '{"a":1,"a":2}'],
+  ["nfc-equivalent", '{"café":1,"café":2}'],
+  ["escape-spelled", '{"a":1,"\\u0061":2}'],
+  ["nested",         '{"outer":{"x":1,"x":2}}'],
+];
+for (const [name, json] of duplicateCases) {
+  let label;
+  try {
+    label = kappa.jsonAddress(new TextEncoder().encode(json));
+  } catch (e) {
+    if (e?.payload?.tag === "invalid-input") {
+      console.log(`ok:   jsonAddress rejects ${name} duplicate member names (CT-B05)`);
+    } else {
+      console.error(`fail: jsonAddress ${name} duplicate: expected invalid-input, got ${e?.payload?.tag ?? e?.message}`);
+      failed += 1;
+    }
+    continue;
+  }
+  console.error(`fail: jsonAddress accepted ${name} duplicate member names → ${label}`);
+  failed += 1;
+}
+
 if (failed > 0) {
   console.error(`\n${failed} failure(s)`);
   process.exit(1);
 }
 
-const total = cases.length + witnessCases.length + composeChecks;
+const total = cases.length + witnessCases.length + composeChecks + duplicateCases.length;
 console.log(`\nall ${total} smoke tests passed`);

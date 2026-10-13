@@ -86,6 +86,17 @@ removed the input-size ceiling) whose nesting depth is `≤ MAX_JSON_DEPTH`:
     (wiki ADR-048). The JSON realization carries no auxiliary cost
     surface; cost-model-bearing variants live in
     [`crate::variant`](crates/uor-addr/src/variant/).
+11. **No duplicate member names (CT-B05).** An object that repeats a
+    member name is rejected at `JsonValue::parse` with `InvalidJson`, at
+    any depth. Names are compared after escape decoding and NFC
+    normalization, so `{"a":1,"\u0061":2}` and a composed / decomposed
+    pair such as `caf\u{E9}` / `cafe\u{301}` count as duplicates (I-JSON,
+    RFC 7493 §2.3, as required by RFC 8785 §3.1; uor-jcs-nfc SPEC.md §3.4
+    and §4.3). The same name in sibling objects is admitted. Every binding
+    inherits the rule from the shared parser: the C ABI returns
+    `UOR_ADDR_ERR_INVALID_INPUT`, the Python binding raises
+    `AddressError('invalid-input')`, and the npm (WASM) package throws
+    the `invalid-input` address error.
 
 ## Conformance classes
 
@@ -234,6 +245,7 @@ to one κ-label.
 | CT-B02   | An over-wide string (any width) is **admitted** and yields a valid κ-label — ADR-060 removed the width cap | `tests::typed_input::ct_b02__wide_string_admitted`                    |
 | CT-B03   | Exactly-at-bound depth is accepted (the guard is `≤`, not `<`)                                    | `tests::typed_input::ct_b03__exactly_at_depth_bound_accepted`          |
 | CT-B04   | Invalid JSON syntax is rejected with `InvalidJson` (distinct from typed-input size violations)    | `tests::typed_input::ct_b04__invalid_json_rejected_distinct_from_size_bound` |
+| CT-B05   | Duplicate member names (plain, NFC-equivalent, escape-spelled, nested) are rejected with `InvalidJson`; sibling objects may share names | `tests::typed_input::ct_b05__duplicate_member_names_rejected`, `uor-addr-c` `ffi_parity::rejects_duplicate_member_names`, `bindings/python/tests/test_json_duplicates.py`, `bindings/npm/scripts/test.mjs` |
 | CT-C01   | The PrismModel's `TypedCommitment` is `EmptyCommitment` (wiki ADR-048; no auxiliary cost surface) | `tests::typed_input::ct_c01__cost_model_is_empty_commitment`           |
 | CT-P01   | `JsonValue::parse` returns Ok with non-empty tagged bytes for a valid input                       | `tests::typed_input::ct_p01__parse_returns_tagged_bytes`               |
 | CT-P02   | `JsonValue::parse` rejects invalid JSON with the `validUtf8Json` violation IRI                    | `tests::typed_input::ct_p02__parse_rejects_invalid_json`               |

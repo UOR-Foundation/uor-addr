@@ -160,6 +160,41 @@ fn ct_b04__invalid_json_rejected_distinct_from_size_bound() {
     assert!(matches!(err, AddressFailure::InvalidJson));
 }
 
+/// CT-B05 — an object that repeats a member name is rejected with
+/// InvalidJson, at any depth, including names that only become equal
+/// after escape decoding or NFC normalization. The same name in sibling
+/// objects is still admitted.
+#[test]
+fn ct_b05__duplicate_member_names_rejected() {
+    let cases: &[(&str, &[u8])] = &[
+        ("plain", br#"{"a":1,"a":2}"#),
+        (
+            "nfc_equivalent",
+            "{\"caf\u{00E9}\":1,\"cafe\u{0301}\":2}".as_bytes(),
+        ),
+        ("escape_spelled", br#"{"a":1,"a":2}"#),
+        ("nested", br#"{"outer":{"x":1,"x":2}}"#),
+        ("nested_in_array", br#"[{"k":true},{"k":1,"k":2}]"#),
+    ];
+    for (name, raw) in cases {
+        let err = address(raw).expect_err(name);
+        assert!(
+            matches!(err, AddressFailure::InvalidJson),
+            "{name}: {err:?}"
+        );
+        let parse_err = JsonValue::parse(raw).expect_err(name);
+        assert!(
+            parse_err.constraint_iri.contains("validUtf8Json"),
+            "{name}: {}",
+            parse_err.constraint_iri
+        );
+    }
+
+    // Repeating a name across different objects is not a duplicate.
+    address(br#"{"x":{"a":1},"y":{"a":2}}"#).expect("sibling objects may share names");
+    address(br#"[{"a":1},{"a":2}]"#).expect("array elements may share names");
+}
+
 // ───────────────────────────────────────────────────────────────────────────
 // CT-C — Cost-model commitment. The PrismModel declares
 // `EmptyCommitment` (ADR-048); the model's typed-iso surface carries no
