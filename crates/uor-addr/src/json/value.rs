@@ -137,6 +137,7 @@ mod alloc_impl {
     use super::*;
     use crate::canonical::nfc;
     use crate::json::shapes::bounds::MAX_JSON_DEPTH;
+    use alloc::collections::BTreeSet;
     use alloc::vec::Vec;
     use prism::pipeline::ShapeViolation;
 
@@ -167,7 +168,9 @@ mod alloc_impl {
         ///
         /// # Errors
         ///
-        /// - `validUtf8Json` — input is not valid UTF-8 JSON.
+        /// - `validUtf8Json` — input is not valid UTF-8 JSON, or an object
+        ///   repeats a member name (names are compared after escape
+        ///   decoding and NFC normalization).
         /// - `depthBound` — nesting exceeds the [`MAX_JSON_DEPTH`]
         ///   stack-safety bound.
         pub fn parse(raw: &[u8]) -> Result<Self, ShapeViolation> {
@@ -345,6 +348,13 @@ mod alloc_impl {
         let count_pos = out.bytes.len();
         out.push_u32_be(0);
         let mut count: u32 = 0;
+        // Member names already seen in this object. JCS input must be
+        // I-JSON (RFC 8785 §3.1, RFC 7493 §2.3), which forbids duplicate
+        // names; names that only become equal after NFC normalization are
+        // duplicates too (uor-jcs-nfc SPEC.md §3.4, §4.3). Keys come out of
+        // `decode_string_into_nfc` already normalized, so comparing the
+        // bytes covers escape-spelled and NFC-equivalent names.
+        let mut seen: BTreeSet<Vec<u8>> = BTreeSet::new();
         p.skip_ws();
         if p.peek()? == b'}' {
             p.pos += 1;
@@ -356,8 +366,12 @@ mod alloc_impl {
                 return Err(INVALID_JSON_VIOLATION);
             }
             let key = decode_string_into_nfc(p)?;
+            if seen.contains(&key) {
+                return Err(INVALID_JSON_VIOLATION);
+            }
             out.push_u32_be(key.len() as u32);
             out.extend(&key);
+            seen.insert(key);
             p.skip_ws();
             p.expect(b':')?;
             p.skip_ws();

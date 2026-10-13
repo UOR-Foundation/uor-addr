@@ -216,6 +216,24 @@ fn rejects_invalid_input() {
     assert_eq!(rc, UOR_ADDR_ERR_INVALID_INPUT);
 }
 
+/// CT-B05 across the C ABI: duplicate member names (plain, NFC-equivalent,
+/// escape-spelled, nested) are invalid input for every binding built on it.
+#[test]
+fn rejects_duplicate_member_names() {
+    let cases: &[&[u8]] = &[
+        br#"{"a":1,"a":2}"#,
+        "{\"caf\u{00E9}\":1,\"cafe\u{0301}\":2}".as_bytes(),
+        br#"{"a":1,"a":2}"#,
+        br#"{"outer":{"x":1,"x":2}}"#,
+    ];
+    for input in cases {
+        let rc = call_ffi(input, |i, il, o, ol, w| unsafe {
+            uor_addr_json(i, il, o, ol, w)
+        });
+        assert_eq!(rc, Err(UOR_ADDR_ERR_INVALID_INPUT), "{input:?}");
+    }
+}
+
 #[test]
 fn allows_null_out_written() {
     let input = br#"{"a":1}"#;
