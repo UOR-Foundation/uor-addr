@@ -97,6 +97,19 @@ removed the input-size ceiling) whose nesting depth is `≤ MAX_JSON_DEPTH`:
     `UOR_ADDR_ERR_INVALID_INPUT`, the Python binding raises
     `AddressError('invalid-input')`, and the npm (WASM) package throws
     the `invalid-input` address error.
+12. **Member order (CT-E05).** Object members are emitted in ascending
+    order of the UTF-16 code units of their NFC-normalized names (RFC 8785
+    §3.2.3), at every depth. This matches code-point order except where
+    the first differing characters of two sibling names are one in
+    U+E000–U+FFFF and one in an astral plane: UTF-16 encodes the astral
+    character as a surrogate pair starting at 0xD800–0xDBFF, so that name
+    comes first (`{"\u{FF11}":1,"\u{1D400}":2}` canonicalizes to
+    `{"\u{1D400}":2,"\u{FF11}":1}`).
+
+    **BREAKING (0.3.0).** Releases up to 0.2.0 sorted members by code
+    point. κ-labels change only for objects (at any depth) with two sibling
+    keys whose first differing character is in U+E000–U+FFFF in one and
+    astral-plane in the other; every other label is unchanged.
 
 ## Conformance classes
 
@@ -241,6 +254,7 @@ to one κ-label.
 | CT-E02   | Whitespace invariance (structural equivalence; restatement of CD-I01b)                            | `tests::typed_input::ct_e02__whitespace_invariance`                    |
 | CT-E03   | NFC invariance (composed `caf\u{E9}` ≡ decomposed `cafe\u{301}`; restatement of CD-I01c)         | `tests::typed_input::ct_e03__nfc_invariance`                           |
 | CT-E04   | Nested key-order invariance through depth 3                                                       | `tests::typed_input::ct_e04__nested_key_ordering_invariance`           |
+| CT-E05   | Members sort by UTF-16 code units (RFC 8785 §3.2.3) at any depth: both orders of `{"\u{FF11}":1,"\u{1D400}":2}` canonicalize to `{"\u{1D400}":2,"\u{FF11}":1}` → `sha256:05c7d52a…6c69`, with nested and shared-prefix cases pinned (BREAKING in 0.3.0) | `tests::typed_input::ct_e05__members_sort_by_utf16_code_units`, `tests::jcs_rfc8785::object_members_follow_reference_utf16_sort`, `uor-addr-c` `ffi_parity::json_members_sort_by_utf16_code_units`, `bindings/python/tests/test_json_member_order.py`, `bindings/npm/scripts/test.mjs` |
 | CT-B01   | Over-deep nesting (> `MAX_JSON_DEPTH`) is rejected at parse with `InvalidJson` (native stack-safety depth guard) | `tests::typed_input::ct_b01__over_deep_nesting_rejected_at_parse`      |
 | CT-B02   | An over-wide string (any width) is **admitted** and yields a valid κ-label — ADR-060 removed the width cap | `tests::typed_input::ct_b02__wide_string_admitted`                    |
 | CT-B03   | Exactly-at-bound depth is accepted (the guard is `≤`, not `<`)                                    | `tests::typed_input::ct_b03__exactly_at_depth_bound_accepted`          |

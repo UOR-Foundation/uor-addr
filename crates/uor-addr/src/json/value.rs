@@ -33,8 +33,9 @@
 //!
 //! All multi-byte length / count fields are big-endian. Strings and
 //! object keys are NFC-normalized at parse time, so the canonical-form
-//! emitter is purely structural — it sorts object entries by NFC byte
-//! order and emits JCS syntax around already-canonical content.
+//! emitter is purely structural — it sorts object entries by the UTF-16
+//! code units of their NFC keys (RFC 8785 §3.2.3) and emits JCS syntax
+//! around already-canonical content.
 
 use prism::operation::TermValue;
 use prism::pipeline::{
@@ -673,8 +674,8 @@ mod alloc_impl {
     ) -> Result<(), ShapeViolation> {
         let count = read_u32_be(tagged, pos)? as usize;
         // Collect each member's entry offset (start of its u32 keylen),
-        // then stable-sort by NFC key bytes (== lexicographic, strings are
-        // pre-normalized at parse time).
+        // then stable-sort by the UTF-16 code units of the NFC keys
+        // (RFC 8785 §3.2.3; strings are pre-normalized at parse time).
         let mut entries: Vec<usize> = Vec::with_capacity(count);
         for _ in 0..count {
             entries.push(*pos);
@@ -685,7 +686,7 @@ mod alloc_impl {
             }
             skip_value(tagged, pos)?;
         }
-        entries.sort_by(|&a, &b| entry_key(a, tagged).cmp(entry_key(b, tagged)));
+        entries.sort_by(|&a, &b| utf16_key_cmp(entry_key(a, tagged), entry_key(b, tagged)));
         out.push(b'{');
         for (i, &entry_off) in entries.iter().enumerate() {
             if i > 0 {
@@ -700,6 +701,29 @@ mod alloc_impl {
         }
         out.push(b'}');
         Ok(())
+    }
+
+    /// Orders two UTF-8 keys by their UTF-16 code units (RFC 8785 §3.2.3)
+    /// without decoding them. UTF-8 byte order is code-point order, and the
+    /// two orders disagree only where the first differing characters are a
+    /// U+E000..U+FFFF one (lead byte 0xEE or 0xEF) and an astral-plane one
+    /// (lead byte 0xF0..=0xF4): UTF-16 writes the astral character as a
+    /// surrogate pair starting at 0xD800..=0xDBFF, so it sorts first.
+    fn utf16_key_cmp(a: &[u8], b: &[u8]) -> core::cmp::Ordering {
+        let Some(i) = a.iter().zip(b).position(|(x, y)| x != y) else {
+            // One key is a prefix of the other: the shorter sorts first.
+            return a.len().cmp(&b.len());
+        };
+        let (x, y) = (a[i], b[i]);
+        let astral = |c: u8| c >= 0xF0;
+        let high_bmp = |c: u8| c == 0xEE || c == 0xEF;
+        if astral(x) && high_bmp(y) {
+            core::cmp::Ordering::Less
+        } else if high_bmp(x) && astral(y) {
+            core::cmp::Ordering::Greater
+        } else {
+            x.cmp(&y)
+        }
     }
 
     fn entry_key(off: usize, tagged: &[u8]) -> &[u8] {
