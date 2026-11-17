@@ -4,11 +4,11 @@
 //! b"SAFE" || LE_u32(CANONICAL_FORM_VERSION)
 //! LE_u64(tensor_count) || LE_u64(metadata_count)
 //! ── __metadata__ entries, sorted by key bytes ──
-//!   sha256(key) || LE_u64(len(value)) || sha256(value)
+//!   blake3(key) || LE_u64(len(value)) || blake3(value)
 //! ── tensors, sorted by name bytes ──
-//!   sha256(name) || LE_u32(dtype_id) || LE_u32(rank) || (LE_u64(dim) × rank)
+//!   blake3(name) || LE_u32(dtype_id) || LE_u32(rank) || (LE_u64(dim) × rank)
 //!       || LE_u64(canonical_offset)
-//!       || sha256(tensor data bytes)        ← binds the weights
+//!       || blake3(tensor data bytes)        ← binds the weights
 //! ```
 //!
 //! Keys, names and values are the UTF-8 bytes of the decoded JSON string:
@@ -32,7 +32,7 @@
 //! - tensors cover the buffer exactly: contiguous from offset 0, no holes,
 //!   no overlap, and no bytes after the last one.
 
-use prism::crypto::Sha256Hasher;
+use prism::crypto::Blake3Hasher;
 use prism::operation::TermValue;
 use prism::pipeline::{
     ConstrainedTypeShape, ConstraintRef, IntoBindingValue, PartitionProductFields, ShapeViolation,
@@ -105,8 +105,8 @@ violation!(
 );
 
 #[inline]
-fn sha256(bytes: &[u8]) -> [u8; 32] {
-    Sha256Hasher::initial().fold_bytes(bytes).finalize()
+fn blake3(bytes: &[u8]) -> [u8; 32] {
+    Blake3Hasher::initial().fold_bytes(bytes).finalize()
 }
 
 // ─── SafetensorsCarrier — the borrowed model-input handle ────────────────
@@ -483,13 +483,13 @@ impl SafetensorsValue {
         out.extend_from_slice(&(tensors.len() as u64).to_le_bytes());
         out.extend_from_slice(&(metadata.len() as u64).to_le_bytes());
         for (k, v) in &metadata {
-            out.extend_from_slice(&sha256(k));
+            out.extend_from_slice(&blake3(k));
             out.extend_from_slice(&(v.len() as u64).to_le_bytes());
-            out.extend_from_slice(&sha256(v));
+            out.extend_from_slice(&blake3(v));
         }
         let mut offset = 0u64;
         for t in &tensors {
-            out.extend_from_slice(&sha256(&t.name));
+            out.extend_from_slice(&blake3(&t.name));
             out.extend_from_slice(&t.dtype.id().to_le_bytes());
             out.extend_from_slice(&(t.shape.len() as u32).to_le_bytes());
             for d in &t.shape {
@@ -497,7 +497,7 @@ impl SafetensorsValue {
             }
             out.extend_from_slice(&offset.to_le_bytes());
             // Offsets were checked against the buffer length above.
-            out.extend_from_slice(&sha256(&data[t.begin as usize..t.end as usize]));
+            out.extend_from_slice(&blake3(&data[t.begin as usize..t.end as usize]));
             offset += t.end - t.begin;
         }
         Ok(Self { bytes: out })

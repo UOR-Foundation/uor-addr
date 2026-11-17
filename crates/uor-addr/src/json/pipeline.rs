@@ -10,7 +10,7 @@
 //! 3. [`AddressOutcome::from_grounded`] extracts the owned κ-label +
 //!    replayable TC-05 witness.
 //!
-//! [`address`] selects `H = Sha256Hasher` (the default); [`address_blake3`],
+//! [`address`] selects `H = Blake3Hasher` (the default); [`address_sha256`],
 //! [`address_sha3_256`], and [`address_keccak256`] select the other 32-byte
 //! axes. JSON canonicalization requires heap storage, so the entry points
 //! are gated behind the `alloc` feature.
@@ -27,9 +27,9 @@ pub enum AddressFailure {
     PipelineFailure,
 }
 
-/// **uor-addr's JSON entry point** (σ-axis `Sha256Hasher`) — one
+/// **uor-addr's JSON entry point** (σ-axis `Blake3Hasher`) — one
 /// ψ-pipeline content-address inference per JSON input, yielding a
-/// `sha256:<64hex>` κ-label.
+/// `blake3:<64hex>` κ-label.
 ///
 /// # Errors
 ///
@@ -48,21 +48,21 @@ pub fn address(input_bytes: &[u8]) -> Result<AddressOutcome<71>, AddressFailure>
     AddressOutcome::<71>::from_grounded(&grounded).map_err(|_| AddressFailure::PipelineFailure)
 }
 
-/// The JSON entry point under σ-axis `Blake3Hasher` — yields a
-/// `blake3:<64hex>` κ-label. See [`address`] for the error contract.
+/// The JSON entry point under σ-axis `Sha256Hasher` — yields a
+/// `sha256:<64hex>` κ-label. See [`address`] for the error contract.
 ///
 /// # Errors
 ///
 /// As [`address`].
 #[cfg(feature = "alloc")]
-pub fn address_blake3(input_bytes: &[u8]) -> Result<AddressOutcome<71>, AddressFailure> {
+pub fn address_sha256(input_bytes: &[u8]) -> Result<AddressOutcome<71>, AddressFailure> {
     use prism::pipeline::PrismModel;
 
-    use crate::json::model::AddressModelBlake3;
+    use crate::json::model::AddressModelSha256;
     use crate::json::value::{canonicalize, JsonCarrier};
 
     let canonical = canonicalize(input_bytes).map_err(|_| AddressFailure::InvalidJson)?;
-    let grounded = AddressModelBlake3::forward(JsonCarrier::new(&canonical))
+    let grounded = AddressModelSha256::forward(JsonCarrier::new(&canonical))
         .map_err(|_| AddressFailure::PipelineFailure)?;
     AddressOutcome::<71>::from_grounded(&grounded).map_err(|_| AddressFailure::PipelineFailure)
 }

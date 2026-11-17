@@ -5,7 +5,7 @@
 //!    buffer (no count / width caps).
 //! 2. `AddressModel::forward` runs the shared ψ-tower: the skeleton
 //!    flows in as an ADR-060 `Borrowed` carrier and ψ₉ folds it through
-//!    `H = Sha256Hasher` to mint the κ-label.
+//!    `H = Blake3Hasher` to mint the κ-label.
 //! 3. [`AddressOutcome::from_grounded`] extracts the owned κ-label +
 //!    replayable TC-05 witness.
 //!
@@ -29,7 +29,7 @@ pub enum AddressFailure {
 
 #[cfg(feature = "alloc")]
 use crate::onnx::model::{
-    AddressModel, AddressModelBlake3, AddressModelKeccak256, AddressModelSha3_256,
+    AddressModel, AddressModelKeccak256, AddressModelSha256, AddressModelSha3_256,
     AddressModelSha512,
 };
 #[cfg(feature = "alloc")]
@@ -37,8 +37,8 @@ use crate::onnx::value::{canonicalize, OnnxCarrier};
 #[cfg(feature = "alloc")]
 use prism::pipeline::PrismModel;
 
-/// **uor-addr's onnx entry point** (σ-axis `Sha256Hasher`) — one
-/// ψ-pipeline content-address inference, yielding a `sha256:<64hex>`
+/// **uor-addr's onnx entry point** (σ-axis `Blake3Hasher`) — one
+/// ψ-pipeline content-address inference, yielding a `blake3:<64hex>`
 /// κ-label.
 ///
 /// # Errors
@@ -53,16 +53,16 @@ pub fn address(input_bytes: &[u8]) -> Result<AddressOutcome<71>, AddressFailure>
     AddressOutcome::<71>::from_grounded(&grounded).map_err(|_| AddressFailure::PipelineFailure)
 }
 
-/// The onnx entry point under σ-axis `Blake3Hasher` — yields a
-/// `blake3:<64hex>` κ-label. See [`address`] for the error contract.
+/// The onnx entry point under σ-axis `Sha256Hasher` — yields a
+/// `sha256:<64hex>` κ-label. See [`address`] for the error contract.
 ///
 /// # Errors
 ///
 /// As [`address`].
 #[cfg(feature = "alloc")]
-pub fn address_blake3(input_bytes: &[u8]) -> Result<AddressOutcome<71>, AddressFailure> {
+pub fn address_sha256(input_bytes: &[u8]) -> Result<AddressOutcome<71>, AddressFailure> {
     let skeleton = canonicalize(input_bytes).map_err(|_| AddressFailure::InvalidOnnx)?;
-    let grounded = AddressModelBlake3::forward(OnnxCarrier::new(&skeleton))
+    let grounded = AddressModelSha256::forward(OnnxCarrier::new(&skeleton))
         .map_err(|_| AddressFailure::PipelineFailure)?;
     AddressOutcome::<71>::from_grounded(&grounded).map_err(|_| AddressFailure::PipelineFailure)
 }

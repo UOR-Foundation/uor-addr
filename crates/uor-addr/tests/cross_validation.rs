@@ -8,7 +8,9 @@
 
 #![allow(non_snake_case)]
 
-use uor_addr::json::address;
+// The public encoder mints sha256 κ-labels; JSON's canonical form is the
+// same on every axis, so the comparison is held on the sha256 axis.
+use uor_addr::json::address_sha256 as address;
 
 const ENDPOINT: &str = "https://mcp.uor.foundation/tools/encode_address";
 

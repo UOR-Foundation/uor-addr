@@ -11,19 +11,19 @@
 //! ```text
 //! LE_i64(ir_version)
 //! ── opset imports, sorted by (domain, version) ──
-//!   for op: sha256(domain) || LE_i64(version)
+//!   for op: blake3(domain) || LE_i64(version)
 //! ── graph (recursive) ──
-//!   sha256(graph_name)
+//!   blake3(graph_name)
 //!   nodes in Kahn-topological order
 //!   (lex (name, op_type, domain, outputs..., canonical_node_digest) tie-break):
-//!     sha256(name) || sha256(op_type) || sha256(domain) || sha256(overload)
-//!       || LE_u32(n_in)  || (sha256(input_name)  × n_in)
-//!       || LE_u32(n_out) || (sha256(output_name) × n_out)
+//!     blake3(name) || blake3(op_type) || blake3(domain) || blake3(overload)
+//!       || LE_u32(n_in)  || (blake3(input_name)  × n_in)
+//!       || LE_u32(n_out) || (blake3(output_name) × n_out)
 //!       || attributes, sorted by name (GRAPH/GRAPHS recurse inline)
 //!   initializers (#5), sorted by name, each a canonical TensorProto record
 //!   graph input (#11) / output (#12) / value_info (#13), sorted by name
 //! ── model metadata ──
-//!   sha256(producer_name) || sha256(producer_version) || sha256(domain)
+//!   blake3(producer_name) || blake3(producer_version) || blake3(domain)
 //!     || LE_i64(model_version) || metadata_props sorted by key
 //! ```
 //!
@@ -32,7 +32,7 @@
 //! there is no two-level commitment, no carrier ceiling, and no node /
 //! attribute / initializer / IO count cap. Variable-length leaves (tensor
 //! data bytes, strings, opaque sub-message payloads) are still replaced by
-//! their `sha256(...)` digest so the skeleton stays bounded by structure
+//! their `blake3(...)` digest so the skeleton stays bounded by structure
 //! size, not data size, while still binding every weight byte into the
 //! κ-label.
 //!
@@ -98,7 +98,7 @@ pub use alloc_impl::{canonicalize, OnnxValue};
 mod alloc_impl {
     use alloc::vec::Vec;
 
-    use prism::crypto::Sha256Hasher;
+    use prism::crypto::Blake3Hasher;
     use prism::pipeline::{ShapeViolation, ViolationKind};
     use prism::vocabulary::Hasher;
 
@@ -149,8 +149,8 @@ mod alloc_impl {
     }
 
     #[inline]
-    fn sha256(bytes: &[u8]) -> [u8; 32] {
-        Sha256Hasher::initial().fold_bytes(bytes).finalize()
+    fn blake3(bytes: &[u8]) -> [u8; 32] {
+        Blake3Hasher::initial().fold_bytes(bytes).finalize()
     }
 
     /// Recursion ceiling for the opaque-message field-order canonicalizer.
@@ -217,7 +217,7 @@ mod alloc_impl {
         // Stable sort by field number (preserves repeated-field order).
         fs.sort_by_key(|f| f.number);
 
-        let mut h = Sha256Hasher::initial();
+        let mut h = Blake3Hasher::initial();
         for f in fs.iter() {
             fold(&mut h, &f.number.to_le_bytes());
             fold(&mut h, &[f.wt]);
@@ -228,9 +228,9 @@ mod alloc_impl {
                     let payload = &body[f.off..f.off + f.len];
                     let sub = if depth < CANON_PROTO_DEPTH_MAX && !payload.is_empty() {
                         canonical_proto_digest(payload, depth + 1)
-                            .unwrap_or_else(|_| sha256(payload))
+                            .unwrap_or_else(|_| blake3(payload))
                     } else {
-                        sha256(payload)
+                        blake3(payload)
                     };
                     fold(&mut h, &sub);
                 }
@@ -243,8 +243,8 @@ mod alloc_impl {
     /// `Hasher::fold_bytes` consume-and-return API is awkward inside
     /// `FnMut` closures; this wraps the take-replace dance once).
     #[inline]
-    fn fold(h: &mut Sha256Hasher, bytes: &[u8]) {
-        let cur = core::mem::replace(h, Sha256Hasher::initial());
+    fn fold(h: &mut Blake3Hasher, bytes: &[u8]) {
+        let cur = core::mem::replace(h, Blake3Hasher::initial());
         *h = cur.fold_bytes(bytes);
     }
 
@@ -427,7 +427,7 @@ mod alloc_impl {
             let body = &model[entries[idx].off..entries[idx].off + entries[idx].len];
             let domain = first_bytes(body, 1)?;
             let version = first_varint(body, 2)?.unwrap_or(0) as i64;
-            out.extend_from_slice(&sha256(domain));
+            out.extend_from_slice(&blake3(domain));
             out.extend_from_slice(&version.to_le_bytes());
         }
         Ok(())
@@ -435,15 +435,15 @@ mod alloc_impl {
 
     /// Emit producer / domain / model_version + sorted `metadata_props`.
     fn emit_model_meta(out: &mut Vec<u8>, model: &[u8]) -> Result<(), ShapeViolation> {
-        out.extend_from_slice(&sha256(first_bytes(model, 2)?)); // producer_name
-        out.extend_from_slice(&sha256(first_bytes(model, 3)?)); // producer_version
-        out.extend_from_slice(&sha256(first_bytes(model, 4)?)); // domain
+        out.extend_from_slice(&blake3(first_bytes(model, 2)?)); // producer_name
+        out.extend_from_slice(&blake3(first_bytes(model, 3)?)); // producer_version
+        out.extend_from_slice(&blake3(first_bytes(model, 4)?)); // domain
         out.extend_from_slice(&(first_varint(model, 5)?.unwrap_or(0) as i64).to_le_bytes()); // model_version
         emit_string_string(out, model, 14) // metadata_props
     }
 
     /// Emit a repeated `StringStringEntryProto` map (`field_no`), sorted by
-    /// key, inline: for each entry `sha256(key) || sha256(value)`.
+    /// key, inline: for each entry `blake3(key) || blake3(value)`.
     fn emit_string_string(
         out: &mut Vec<u8>,
         body: &[u8],
@@ -461,8 +461,8 @@ mod alloc_impl {
         out.extend_from_slice(&(order.len() as u32).to_le_bytes());
         for &idx in &order {
             let e = &body[entries[idx].off..entries[idx].off + entries[idx].len];
-            out.extend_from_slice(&sha256(first_bytes(e, 1)?));
-            out.extend_from_slice(&sha256(first_bytes(e, 2)?));
+            out.extend_from_slice(&blake3(first_bytes(e, 1)?));
+            out.extend_from_slice(&blake3(first_bytes(e, 2)?));
         }
         Ok(())
     }
@@ -478,7 +478,7 @@ mod alloc_impl {
             return Err(SUBGRAPH_DEPTH);
         }
 
-        out.extend_from_slice(&sha256(first_bytes(graph, 2)?)); // graph name
+        out.extend_from_slice(&blake3(first_bytes(graph, 2)?)); // graph name
 
         // ── Nodes in Kahn-topological order (lex tie-break) ──
         let nodes = collect_spans(graph, 1)?;
@@ -631,16 +631,16 @@ mod alloc_impl {
     /// outputs, then the name-sorted attributes (which recurse into
     /// subgraphs inline).
     fn emit_node(out: &mut Vec<u8>, node: &[u8], depth: usize) -> Result<(), ShapeViolation> {
-        out.extend_from_slice(&sha256(first_bytes(node, 3)?)); // name
-        out.extend_from_slice(&sha256(first_bytes(node, 4)?)); // op_type
-        out.extend_from_slice(&sha256(first_bytes(node, 7)?)); // domain
-        out.extend_from_slice(&sha256(first_bytes(node, 8)?)); // overload (IR v10+)
+        out.extend_from_slice(&blake3(first_bytes(node, 3)?)); // name
+        out.extend_from_slice(&blake3(first_bytes(node, 4)?)); // op_type
+        out.extend_from_slice(&blake3(first_bytes(node, 7)?)); // domain
+        out.extend_from_slice(&blake3(first_bytes(node, 8)?)); // overload (IR v10+)
 
         let n_in = count_field(node, 1)?;
         out.extend_from_slice(&(n_in as u32).to_le_bytes());
         for_each_field(node, 1, |v| {
             if let FieldValue::Bytes(name) = v {
-                out.extend_from_slice(&sha256(name));
+                out.extend_from_slice(&blake3(name));
             }
             Ok(())
         })?;
@@ -649,7 +649,7 @@ mod alloc_impl {
         out.extend_from_slice(&(n_out as u32).to_le_bytes());
         for_each_field(node, 2, |v| {
             if let FieldValue::Bytes(name) = v {
-                out.extend_from_slice(&sha256(name));
+                out.extend_from_slice(&blake3(name));
             }
             Ok(())
         })?;
@@ -671,7 +671,7 @@ mod alloc_impl {
         out.extend_from_slice(&(order.len() as u32).to_le_bytes());
         for &idx in &order {
             let a = &node[attrs[idx].off..attrs[idx].off + attrs[idx].len];
-            out.extend_from_slice(&sha256(first_bytes(a, 1)?)); // name
+            out.extend_from_slice(&blake3(first_bytes(a, 1)?)); // name
             let atype = first_varint(a, 20)?.unwrap_or(0) as i32;
             out.extend_from_slice(&atype.to_le_bytes());
             emit_attribute_value(out, a, atype, depth)?;
@@ -699,7 +699,7 @@ mod alloc_impl {
             }
             3 => {
                 // STRING (#4, bytes)
-                out.extend_from_slice(&sha256(first_bytes(a, 4)?));
+                out.extend_from_slice(&blake3(first_bytes(a, 4)?));
             }
             4 => {
                 // TENSOR (#5)
@@ -713,7 +713,7 @@ mod alloc_impl {
                 // FLOATS (#7, packed fixed32)
                 for_each_field(a, 7, |v| {
                     if let FieldValue::Bytes(p) = v {
-                        out.extend_from_slice(&sha256(p));
+                        out.extend_from_slice(&blake3(p));
                     } else if let FieldValue::Fixed32(b) = v {
                         out.extend_from_slice(&b.to_le_bytes());
                     }
@@ -728,7 +728,7 @@ mod alloc_impl {
                 // STRINGS (#9, repeated bytes)
                 for_each_field(a, 9, |v| {
                     if let FieldValue::Bytes(s) = v {
-                        out.extend_from_slice(&sha256(s));
+                        out.extend_from_slice(&blake3(s));
                     }
                     Ok(())
                 })?;
@@ -817,7 +817,7 @@ mod alloc_impl {
         Ok(())
     }
 
-    /// Emit a canonical `TensorProto` record inline: `sha256(name) ||
+    /// Emit a canonical `TensorProto` record inline: `blake3(name) ||
     /// LE_i32(dtype) || LE_u32(rank) || (LE_i64 dim …) || tensor_data_digest`,
     /// where `tensor_data_digest` is a 32-byte leaf digest streaming
     /// `raw_data` if present, else the typed-data field re-encoded to the
@@ -827,7 +827,7 @@ mod alloc_impl {
         let dtype_id = first_varint(t, 2)?.unwrap_or(0) as i32;
         let dtype = OnnxDataType::from_i32(dtype_id).ok_or(UNKNOWN_DTYPE)?;
 
-        out.extend_from_slice(&sha256(first_bytes(t, 8)?)); // name
+        out.extend_from_slice(&blake3(first_bytes(t, 8)?)); // name
         out.extend_from_slice(&dtype_id.to_le_bytes());
 
         // dims (#1, repeated int64; packed or unpacked).
@@ -860,7 +860,7 @@ mod alloc_impl {
         Ok(n)
     }
 
-    /// Stream the tensor's data through SHA-256 in canonical `raw_data`
+    /// Stream the tensor's data through BLAKE3 in canonical `raw_data`
     /// layout, returning the 32-byte leaf digest.
     fn tensor_data_digest(t: &[u8], dtype: OnnxDataType) -> Result<[u8; 32], ShapeViolation> {
         // External data (`data_location` #14 == EXTERNAL = 1): the core
@@ -871,7 +871,7 @@ mod alloc_impl {
         // ones. Hosts requiring inline≡external equivalence dereference
         // before calling.
         if first_varint(t, 14)?.unwrap_or(0) == 1 {
-            let mut h = Sha256Hasher::initial();
+            let mut h = Blake3Hasher::initial();
             fold(&mut h, b"onnx:external-data:v1");
             // metadata-style sorted digest of external_data (#13).
             let mut sub: Vec<u8> = Vec::new();
@@ -882,10 +882,10 @@ mod alloc_impl {
         // raw_data (#9) takes precedence and is already canonical.
         if let Some(FieldValue::Bytes(raw)) = first_field(t, 9)? {
             if !raw.is_empty() {
-                return Ok(sha256(raw));
+                return Ok(blake3(raw));
             }
         }
-        let mut h = Sha256Hasher::initial();
+        let mut h = Blake3Hasher::initial();
         match dtype {
             // float_data (#4) / double_data (#10): packed fixed-width — the
             // packed payload IS the canonical raw layout.
@@ -918,7 +918,7 @@ mod alloc_impl {
             OnnxDataType::String => {
                 for_each_field(t, 6, |v| {
                     if let FieldValue::Bytes(s) = v {
-                        fold(&mut h, &sha256(s));
+                        fold(&mut h, &blake3(s));
                     }
                     Ok(())
                 })?;
@@ -932,7 +932,7 @@ mod alloc_impl {
     fn fold_fixed_payload(
         body: &[u8],
         field_no: u64,
-        h: &mut Sha256Hasher,
+        h: &mut Blake3Hasher,
     ) -> Result<(), ShapeViolation> {
         for_each_field(body, field_no, |v| {
             match v {
@@ -951,7 +951,7 @@ mod alloc_impl {
         body: &[u8],
         field_no: u64,
         width: usize,
-        h: &mut Sha256Hasher,
+        h: &mut Blake3Hasher,
     ) -> Result<(), ShapeViolation> {
         for_each_field(body, field_no, |v| {
             match v {
@@ -990,7 +990,7 @@ mod alloc_impl {
         out.extend_from_slice(&(order.len() as u32).to_le_bytes());
         for &idx in &order {
             let body = &graph[spans[idx].off..spans[idx].off + spans[idx].len];
-            out.extend_from_slice(&sha256(first_bytes(body, 1)?)); // name
+            out.extend_from_slice(&blake3(first_bytes(body, 1)?)); // name
             out.extend_from_slice(&canonical_proto_digest(first_bytes(body, 2)?, 0)?);
             // type (TypeProto)
         }

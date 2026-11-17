@@ -9,6 +9,7 @@ pub mod value;
 pub mod verbs;
 
 pub use pipeline::{
-    compose_e8_embedding, compose_e8_embedding_blake3, compose_e8_embedding_keccak256,
-    compose_e8_embedding_sha3_256, compose_e8_embedding_sha512,
+    compose_e8_embedding_blake3 as compose_e8_embedding, compose_e8_embedding_blake3,
+    compose_e8_embedding_keccak256, compose_e8_embedding_sha256, compose_e8_embedding_sha3_256,
+    compose_e8_embedding_sha512,
 };

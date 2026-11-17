@@ -98,8 +98,8 @@
 //!   through the model's `forward()` method.
 //! - [`sexp::address`] — the S-expression entry point.
 //! - [`AddressInput`] — the common trait every realization implements.
-//! - [`AddressLabel`] — the default (sha256) ψ-pipeline output shape (71
-//!   sites — the wire-format `sha256:<64hex>` width); the other axes bind
+//! - [`AddressLabel`] — the default (blake3) ψ-pipeline output shape (71
+//!   sites — the wire-format `blake3:<64hex>` width); the other axes bind
 //!   `AddressLabel{Blake3,Sha3_256,Keccak256}`.
 
 #![cfg_attr(not(feature = "std"), no_std)]
@@ -166,7 +166,7 @@ pub use prism::pipeline::EmptyCommitment;
 pub use resolvers::AddressResolverTuple;
 
 /// The admissible σ-axes (re-exports of prism's hashers). Every realization
-/// binds [`Sha256Hasher`] by default and admits the others via its
+/// binds [`Blake3Hasher`] by default and admits the others via its
 /// `address_<algorithm>` entry points. `Sha512Hasher` is a `Hasher<64>`
 /// (bound with [`AddrBounds64`]); the rest are `Hasher<32>`.
 pub use prism::crypto::{

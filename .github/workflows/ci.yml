@@ -152,6 +152,10 @@ jobs:
         with:
           python-version: "3.12"
       - uses: Swatinem/rust-cache@v2
+      # The Python specs hash every tensor with BLAKE3. Python has none built
+      # in; without the official package they fall back to a pure-Python port
+      # that would take hours on a 531 MB model. Pinned like every other input.
+      - run: python -m pip install blake3==1.0.9
       - name: Cache downloaded models
         uses: actions/cache@v4
         with:

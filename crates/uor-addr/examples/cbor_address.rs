@@ -42,7 +42,7 @@ fn main() {
                     "  canonical:        {}",
                     canon.iter().map(|b| format!("{b:02x}")).collect::<String>()
                 );
-                println!("  sha256:           {}", outcome.address);
+                println!("  blake3:           {}", outcome.address);
                 println!(
                     "  blake3:           {}",
                     address_blake3(&raw).unwrap().address

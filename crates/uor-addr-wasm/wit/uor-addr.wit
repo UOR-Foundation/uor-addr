@@ -10,7 +10,7 @@ package uor:addr@0.1.0;
 
 /// Each realization name is the WIT-snake-case form of the canonical
 /// `uor_addr::<realization>` Rust module path. The κ-label width is
-/// fixed at 71 ASCII bytes (`sha256:` + 64 lowercase-hex).
+/// fixed at 71 ASCII bytes (`blake3:` + 64 lowercase-hex) on the default axis.
 interface kappa {
     /// Failure modes from any `*-address` function.
     ///
@@ -65,7 +65,7 @@ interface kappa {
 
     /// The 71-byte ASCII κ-label.
     ///
-    /// Layout: `sha256:` (7 bytes) ‖ 64 lowercase-hex digits.
+    /// Layout: `blake3:` (7 bytes) ‖ 64 lowercase-hex digits on the default axis.
     /// Encoded as a UTF-8 string for ergonomic host consumption.
     type kappa-label = string;
 

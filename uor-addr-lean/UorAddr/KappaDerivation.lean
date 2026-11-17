@@ -5,7 +5,7 @@ import UorAddr.AddressShape
 /-!
 # κ-Derivation — The Address-from-Digest Identity
 
-ψ_9 emits the 71-byte κ-label as `"sha256:" ‖ hex_lower(digest)`. This
+ψ_9 emits the 71-byte κ-label as `"blake3:" ‖ hex_lower(digest)`. This
 file pins the universal statement: **the κ-label is a function of the
 digest, and the function is injective.**
 
@@ -17,7 +17,7 @@ Together with `CL-A01` (algebraic-closure) and `CD-D02` (byte-identity
 against the 12 reference fixtures), this gives the full
 content-addressing soundness statement: every well-formed JSON input
 maps to **one** κ-label, and the map is injective on canonical-form
-byte sequences (modulo SHA-256 collision resistance).
+byte sequences (modulo BLAKE3 collision resistance).
 -/
 
 namespace UorAddr.KappaDerivation

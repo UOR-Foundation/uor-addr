@@ -3,7 +3,7 @@ import UOR.Enforcement
 /-!
 # Hex Encoding — `[0, 16) → ASCII '0'..'9' | 'a'..'f'`
 
-The κ-derivation maps a 32-byte SHA-256 digest to the 64-hex suffix of
+The κ-derivation maps a 32-byte BLAKE3 digest to the 64-hex suffix of
 the κ-label by lower-nibble + upper-nibble extraction followed by
 `hexLower : UInt8 → UInt8` lookup. This file establishes that
 `hexLower` is **injective on `[0, 16)`**: distinct nibbles map to

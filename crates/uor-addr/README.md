@@ -9,17 +9,17 @@
 A single Rust crate shipping UOR-ADDR's **common architectural surface**
 plus **multiple concrete realizations** of that surface, each a
 `PrismModel<HostTypes, HostBounds, Hasher, ResolverTuple,
-TypedCommitment>` that derives a 71-byte `sha256:<64hex>` content
+TypedCommitment>` that derives a 71-byte `blake3:<64hex>` content
 address from a typed format-specific value.
 
 ```rust
 use uor_addr::json::address as json_address;
 let outcome = json_address(br#"{"foo": "bar"}"#).unwrap();
-// outcome.address == "sha256:7a38bf81…ee24b"
+// outcome.address == "blake3:16b6abe0…ea71"
 
 use uor_addr::sexp::address as sexp_address;
 let outcome = sexp_address(b"(a b c)").unwrap();
-// outcome.address == "sha256:cdd489dd…f50e"
+// outcome.address == "blake3:…"
 ```
 
 ## Realizations
@@ -65,7 +65,8 @@ Key commitments every realization upholds:
   `as_binding_value` (which yields the ADR-060 `TermValue` carrier), so
   the shared ψ-tower is format-independent and ψ_9 only folds the carrier.
 - **ADR-047 σ-projection Hardening Principle** — every realization
-  binds `prism::crypto::Sha256Hasher` as the canonical hash axis.
+  binds `prism::crypto::Blake3Hasher` as the canonical hash axis
+  (`Sha256Hasher` through the `*_sha256` entry points).
 - **ADR-048 typed-commitment surface** — default `C = EmptyCommitment`;
   cost-model variants bind non-default `C` selections.
 - **ADR-057 bounded recursive structural typing** — enforced by the

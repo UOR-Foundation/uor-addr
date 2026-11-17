@@ -5,7 +5,7 @@
 //!    (no width / count caps).
 //! 2. `AddressModel::forward` runs the shared ψ-tower: the canonical
 //!    bytes flow in as an ADR-060 `Borrowed` carrier and ψ₉ folds them
-//!    through `H = Sha256Hasher` to mint the κ-label.
+//!    through `H = Blake3Hasher` to mint the κ-label.
 //! 3. [`AddressOutcome::from_grounded`] extracts the owned κ-label +
 //!    replayable TC-05 witness.
 //!
@@ -27,7 +27,7 @@ pub enum AddressFailure {
 
 #[cfg(feature = "alloc")]
 use crate::xml::model::{
-    AddressModel, AddressModelBlake3, AddressModelKeccak256, AddressModelSha3_256,
+    AddressModel, AddressModelKeccak256, AddressModelSha256, AddressModelSha3_256,
     AddressModelSha512,
 };
 #[cfg(feature = "alloc")]
@@ -35,8 +35,8 @@ use crate::xml::value::{canonicalize, XmlValue};
 #[cfg(feature = "alloc")]
 use prism::pipeline::PrismModel;
 
-/// **uor-addr's xml entry point** (σ-axis `Sha256Hasher`) — one
-/// ψ-pipeline content-address inference, yielding a `sha256:<64hex>`
+/// **uor-addr's xml entry point** (σ-axis `Blake3Hasher`) — one
+/// ψ-pipeline content-address inference, yielding a `blake3:<64hex>`
 /// κ-label.
 ///
 /// # Errors
@@ -51,16 +51,16 @@ pub fn address(input_bytes: &[u8]) -> Result<AddressOutcome<71>, AddressFailure>
     AddressOutcome::<71>::from_grounded(&grounded).map_err(|_| AddressFailure::PipelineFailure)
 }
 
-/// The xml entry point under σ-axis `Blake3Hasher` — yields a
-/// `blake3:<64hex>` κ-label. See [`address`] for the error contract.
+/// The xml entry point under σ-axis `Sha256Hasher` — yields a
+/// `sha256:<64hex>` κ-label. See [`address`] for the error contract.
 ///
 /// # Errors
 ///
 /// As [`address`].
 #[cfg(feature = "alloc")]
-pub fn address_blake3(input_bytes: &[u8]) -> Result<AddressOutcome<71>, AddressFailure> {
+pub fn address_sha256(input_bytes: &[u8]) -> Result<AddressOutcome<71>, AddressFailure> {
     let canonical = canonicalize(input_bytes).map_err(|_| AddressFailure::InvalidXml)?;
-    let grounded = AddressModelBlake3::forward(XmlValue::new(&canonical))
+    let grounded = AddressModelSha256::forward(XmlValue::new(&canonical))
         .map_err(|_| AddressFailure::PipelineFailure)?;
     AddressOutcome::<71>::from_grounded(&grounded).map_err(|_| AddressFailure::PipelineFailure)
 }

@@ -2,13 +2,13 @@
 //!
 //! Typed content-addressing for ONNX `ModelProto` files under a
 //! protobuf-canonical structural form. The default σ-projection is
-//! [`prism::crypto::Sha256Hasher`]; [`address_blake3`], [`address_sha3_256`],
+//! [`prism::crypto::Blake3Hasher`]; [`address_sha256`], [`address_sha3_256`],
 //! [`address_keccak256`], and [`address_sha512`] select the other axes
 //! ([`crate::hash`]).
-//! As with GGUF, the skeleton's leaf commitments are SHA-256 by
-//! canonical-form definition and the selected κ-axis `H` is applied on top
-//! (κ = `H(skeleton)`); the sha256 κ-labels are byte-identical to prior
-//! releases. Admits any known IR revision
+//! As with GGUF, the skeleton's leaf commitments are BLAKE3 by
+//! canonical-form definition (form 4) and the selected κ-axis `H` is applied
+//! on top (κ = `H(skeleton)`). Form 3 (SHA-256 leaves) is uor-addr 0.3.0's.
+//! Admits any known IR revision
 //! (`ir_version` in `1..=`[`ONNX_IR_VERSION_MAX`]`
 //! = 13`, the latest in `onnx.proto`); the `ir_version` is bound into the
 //! canonical form, so distinct revisions of the same logical model
@@ -20,13 +20,13 @@
 //! - ONNX IR specification — <https://github.com/onnx/onnx/blob/main/docs/IR.md>
 //! - ONNX versioning — <https://github.com/onnx/onnx/blob/main/docs/Versioning.md>
 //! - Protobuf v3 wire format — <https://protobuf.dev/programming-guides/encoding/>
-//! - SHA-256 σ-projection — NIST FIPS 180-4.
+//! - BLAKE3 leaves and default σ-projection — <https://github.com/BLAKE3-team/BLAKE3-specs>.
 //!
 //! ## Canonical form
 //!
 //! The ONNX spec defines no canonical form (protobuf v3 admits many
 //! byte-encodings of the same logical message); this realization defines
-//! one (canonical form v3 — [`CANONICAL_FORM_VERSION`]). It is a **flat
+//! one (canonical form v4 — [`CANONICAL_FORM_VERSION`]). It is a **flat
 //! skeleton**: the `ModelProto` structure emitted inline (opset imports
 //! sorted by `(domain, version)`, nodes in Kahn-topological order with
 //! lexicographic `(name, op_type, domain, outputs..., canonical_node_digest)`
@@ -34,13 +34,13 @@
 //! initializers / IO, typed-data-to-`raw_data` reduction, depth-bounded
 //! subgraph recursion emitted inline), in which every variable-length
 //! leaf — tensor data, strings, opaque sub-message payloads — is
-//! represented by its 32-byte SHA-256 digest, so the skeleton's size
+//! represented by its 32-byte BLAKE3 digest, so the skeleton's size
 //! grows with structure, not model size, while still binding every weight
 //! byte into the κ-label. See [`value`] for the full byte layout.
 //!
 //! Under ADR-060 the **full skeleton** flows through the pipeline as a
 //! [`TermValue::Borrowed`](prism::operation::TermValue) carrier and ψ₉
-//! folds it through `H = Sha256Hasher` — there is no two-level commitment
+//! folds it through `H = Blake3Hasher` — there is no two-level commitment
 //! and no count / width cap. Two ONNX models that decode to the same
 //! logical content canonicalize to byte-identical skeletons and therefore
 //! to the same κ-label.
@@ -59,15 +59,18 @@ pub mod verbs;
 /// digest fallback. This is a compatibility break: models with previously
 /// ambiguous `(name, op_type, domain)` ties can now receive different
 /// κ-labels than canonical-form v2.
-pub const CANONICAL_FORM_VERSION: u32 = 3;
+pub const CANONICAL_FORM_VERSION: u32 = 4;
 
 pub use dtype::OnnxDataType;
 pub use model::{
-    AddressModel, AddressModelBlake3, AddressModelKeccak256, AddressModelSha3_256,
+    AddressModel, AddressModelKeccak256, AddressModelSha256, AddressModelSha3_256,
     AddressModelSha512, AddressRoute,
 };
 #[cfg(feature = "alloc")]
-pub use pipeline::{address, address_blake3, address_keccak256, address_sha3_256, address_sha512};
+pub use pipeline::{
+    address, address as address_blake3, address_keccak256, address_sha256, address_sha3_256,
+    address_sha512,
+};
 pub use pipeline::{AddressFailure, AddressOutcome, AddressWitness, VerifyError};
 pub use shapes::bounds::{ONNX_IR_VERSION_MAX, ONNX_OPSET_VERSION_MIN, ONNX_SUBGRAPH_DEPTH_MAX};
 pub use value::OnnxCarrier;

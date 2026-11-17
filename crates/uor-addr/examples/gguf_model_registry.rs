@@ -11,7 +11,7 @@
 //! - **integrity-bearing** — flipping a single weight changes the key,
 //!   so a tampered or truncated download is detected on lookup;
 //! - **σ-axis-selectable** — the same model can be keyed under
-//!   `keccak256` for an on-chain registry while staying `sha256` for the
+//!   `keccak256` for an on-chain registry while staying `blake3` for the
 //!   local cache;
 //! - **offline-verifiable** — the witness replays (TC-05) to the same
 //!   key without re-reading the (large) tensor data.

@@ -17,8 +17,8 @@ use crate::label::{
 
 addr_verbs! {
     input: Asn1Carrier<'_>,
-    { shape: AddressLabelSha256, verb: address_inference },
-    { shape: AddressLabelBlake3, verb: address_inference_blake3 },
+    { shape: AddressLabelBlake3, verb: address_inference },
+    { shape: AddressLabelSha256, verb: address_inference_sha256 },
     { shape: AddressLabelSha3_256, verb: address_inference_sha3_256 },
     { shape: AddressLabelKeccak256, verb: address_inference_keccak256 },
     { shape: AddressLabelSha512, verb: address_inference_sha512 },

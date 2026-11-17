@@ -39,7 +39,7 @@ verification.
 ```rust
 let outcome = uor_addr::json::address(br#"{"foo": "bar"}"#).unwrap();
 println!("{}", outcome.address);
-// sha256:7a38bf81f383f69433ad6e900d35b3e2385593f76a7b7ab5d4355b8ba41ee24b
+// blake3:16b6abe0a77021b88cc14863d696df0c34f82556faadb318f46c384184f8ea71
 ```
 
 The κ-label is **deterministic** — feed the same bytes twice, get the
@@ -68,7 +68,7 @@ Every `address()` call also emits an **owned** `AddressWitness` holding
 the replayable trace plus the σ-projection fingerprint. Downstream
 consumers call `witness.verify()`, which re-certifies through
 `prism::replay::certify_from_trace` — the verifier sees the trace, not
-the original input, and does not invoke SHA-256 again.
+the original input, and does not invoke the hash again.
 
 ```rust
 let outcome = uor_addr::json::address(br#"{"foo": "bar"}"#).unwrap();

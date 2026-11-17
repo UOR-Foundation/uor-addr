@@ -29,11 +29,11 @@
 use prism::pipeline::{output_shape, ConstraintRef};
 
 use crate::hash::{label_bytes, AddrHash};
-use prism::crypto::Sha256Hasher;
+use prism::crypto::Blake3Hasher;
 
 /// **The wire-format address byte width** under the default σ-axis
-/// `H = Sha256Hasher`: `len("sha256") + 1 + 2 × 32 = 71`.
-pub const ADDRESS_LABEL_BYTES: usize = label_bytes(Sha256Hasher::LABEL_PREFIX, 32);
+/// `H = Blake3Hasher`: `len("blake3") + 1 + 2 × 32 = 71`.
+pub const ADDRESS_LABEL_BYTES: usize = label_bytes(Blake3Hasher::LABEL_PREFIX, 32);
 
 /// Build the `[Site{0}, Site{1}, …, Site{N-1}]` constraint array — one
 /// disjoint `ConstraintRef::Site` per wire-format κ-label byte position.
@@ -102,10 +102,11 @@ output_shape! {
     }
 }
 
-/// The default-axis output shape (`H = Sha256Hasher`). Realizations'
-/// `address()` entry point binds this; `address_blake3` / `address_sha3_256`
+/// The default-axis output shape (`H = Blake3Hasher`, the primary
+/// `u:digestAlgorithm` of the UOR foundation ontology). Realizations'
+/// `address()` entry point binds this; `address_sha256` / `address_sha3_256`
 /// / `address_keccak256` bind the corresponding per-axis shape.
-pub type AddressLabel = AddressLabelSha256;
+pub type AddressLabel = AddressLabelBlake3;
 
 // ── Composition output shapes (ADR-061 §(2)): one per categorical
 //    operation × σ-axis. The composed κ-label is a standard axis-width
@@ -484,7 +485,7 @@ pub enum LabelDecodeError {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use prism::crypto::{Blake3Hasher, Keccak256Hasher, Sha3_256Hasher};
+    use prism::crypto::{Keccak256Hasher, Sha256Hasher, Sha3_256Hasher};
     use prism::pipeline::ConstrainedTypeShape;
 
     #[test]

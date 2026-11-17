@@ -202,7 +202,7 @@ jobs:
             - `uor_addr.h` — auto-generated C header.
             - `libuor_addr_c-*.{so,dylib,dll}` — per-platform native libraries.
 
-            All distribution targets produce the same 71-byte ASCII `sha256:<64hex>` κ-label byte-for-byte. Architecture documented in [ARCHITECTURE.md](https://github.com/UOR-Foundation/uor-addr/blob/main/ARCHITECTURE.md); conformance contract in [CONFORMANCE.md](https://github.com/UOR-Foundation/uor-addr/blob/main/CONFORMANCE.md); V&V gate at [VERIFICATION.md](https://github.com/UOR-Foundation/uor-addr/blob/main/VERIFICATION.md).
+            All distribution targets produce the same 71-byte ASCII `blake3:<64hex>` κ-label (the default axis) byte-for-byte. Architecture documented in [ARCHITECTURE.md](https://github.com/UOR-Foundation/uor-addr/blob/main/ARCHITECTURE.md); conformance contract in [CONFORMANCE.md](https://github.com/UOR-Foundation/uor-addr/blob/main/CONFORMANCE.md); V&V gate at [VERIFICATION.md](https://github.com/UOR-Foundation/uor-addr/blob/main/VERIFICATION.md).
 
       - name: Publish uor-addr to crates.io
         run: |
@@ -622,7 +622,7 @@ jobs:
           "$VENV_PY" - <<'PY'
           from uor_addr import kappa
           label = kappa.json_address(b'{"foo":"bar"}')
-          assert label == 'sha256:7a38bf81f383f69433ad6e900d35b3e2385593f76a7b7ab5d4355b8ba41ee24b', f'unexpected: {label}'
+          assert label == 'blake3:16b6abe0a77021b88cc14863d696df0c34f82556faadb318f46c384184f8ea71', f'unexpected: {label}'
           print(f'wheel smoke ok: {label}')
           # Also exercise the TC-05 witness surface.
           with kappa.json_address_with_witness(b'{"foo":"bar"}') as g:

@@ -2,14 +2,14 @@
 //! one per admissible σ-axis ([`crate::hash`]). Each binds the shared
 //! [`AddressResolverTuple`](crate::resolvers) ψ-tower and the axis's
 //! capacity profile (`AddrBounds` for the 32-byte axes, `AddrBounds64` for
-//! sha512). `AddressModel` (sha256) is the default.
+//! sha512). `AddressModel` (blake3) is the default.
 
 use crate::gguf::value::GgufCarrier;
 #[allow(unused_imports)]
 use crate::gguf::verbs::{
-    address_inference, address_inference_blake3, address_inference_keccak256,
+    address_inference, address_inference_keccak256, address_inference_sha256,
     address_inference_sha3_256, address_inference_sha512, VERB_TERMS_ADDRESS_INFERENCE,
-    VERB_TERMS_ADDRESS_INFERENCE_BLAKE3, VERB_TERMS_ADDRESS_INFERENCE_KECCAK256,
+    VERB_TERMS_ADDRESS_INFERENCE_KECCAK256, VERB_TERMS_ADDRESS_INFERENCE_SHA256,
     VERB_TERMS_ADDRESS_INFERENCE_SHA3_256, VERB_TERMS_ADDRESS_INFERENCE_SHA512,
 };
 use crate::label::{
@@ -20,20 +20,20 @@ use crate::label::{
 addr_models! {
     input: GgufCarrier<'a>,
     {
-        hasher: prism::crypto::Sha256Hasher,
+        hasher: prism::crypto::Blake3Hasher,
         bounds: crate::bounds::AddrBounds,
-        shape: AddressLabelSha256,
+        shape: AddressLabelBlake3,
         model: AddressModel,
         route: AddressRoute,
         verb: address_inference
     },
     {
-        hasher: prism::crypto::Blake3Hasher,
+        hasher: prism::crypto::Sha256Hasher,
         bounds: crate::bounds::AddrBounds,
-        shape: AddressLabelBlake3,
-        model: AddressModelBlake3,
-        route: AddressRouteBlake3,
-        verb: address_inference_blake3
+        shape: AddressLabelSha256,
+        model: AddressModelSha256,
+        route: AddressRouteSha256,
+        verb: address_inference_sha256
     },
     {
         hasher: prism::crypto::Sha3_256Hasher,

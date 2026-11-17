@@ -3,7 +3,7 @@
 canonical-form specification.
 
 Reads a GGUF v3 file, applies the canonicalization rules implemented by
-`crates/uor-addr/src/gguf/value.rs`, and emits the κ-label (SHA-256 of
+`crates/uor-addr/src/gguf/value.rs`, and emits the κ-label (BLAKE3 of
 the canonical flat Merkle skeleton). The κ-label is byte-identical to
 the Rust crate's `uor_addr::gguf::address` output — this script is the
 spec attestation the CL-GGUF / CN-GGUF conformance vectors check against.
@@ -11,18 +11,27 @@ spec attestation the CL-GGUF / CN-GGUF conformance vectors check against.
 ADR-060: the canonical form is the full flat skeleton (header, then
 metadata KVs sorted by key, then tensor info sorted by name with
 recomputed offsets), with every variable-length leaf — strings, array
-payloads, tensor data — replaced by its streamed SHA-256 digest. There
+payloads, tensor data — replaced by its streamed BLAKE3 digest. There
 is no two-level commitment and no count / width ceiling.
 
-Stdlib-only (hashlib, struct) so it runs without `gguf-py`.
+Stdlib-only (struct, and tools/blake3_ref.py) so it runs without `gguf-py`.
 
 Usage:
     python3 canonical-gguf.py MODEL.gguf            # prints the κ-label
     python3 canonical-gguf.py --commitment MODEL.gguf   # hex of the skeleton
 """
-import hashlib
 import struct
 import sys
+import importlib.util as _ilu
+import os as _os
+
+# BLAKE3: the official package when installed, else the pure-Python reference
+# port beside this file (tools/blake3_ref.py), loaded by path so the spec runs
+# under `python -I` too.
+_b3_spec = _ilu.spec_from_file_location(
+    "blake3_ref", _os.path.join(_os.path.dirname(_os.path.abspath(__file__)), "blake3_ref.py"))
+_b3 = _ilu.module_from_spec(_b3_spec)
+_b3_spec.loader.exec_module(_b3)
 
 GGUF_MAGIC = 0x46554747
 GGUF_VERSION = 3
@@ -51,8 +60,8 @@ GGML = {
 }
 
 
-def sha256(b):
-    return hashlib.sha256(b).digest()
+def blake3(b):
+    return _b3.digest(b)
 
 
 def align_up(o, a):
@@ -101,11 +110,11 @@ def canonical_value(raw, off, span, type_tag):
         return payload
     if type_tag == T_STRING:
         ln = struct.unpack_from("<Q", payload, 0)[0]
-        return struct.pack("<Q", ln) + sha256(payload[8:])
+        return struct.pack("<Q", ln) + blake3(payload[8:])
     if type_tag == T_ARRAY:
         elem = struct.unpack_from("<I", payload, 0)[0]
         ln = struct.unpack_from("<Q", payload, 4)[0]
-        return struct.pack("<I", elem) + struct.pack("<Q", ln) + sha256(payload[12:])
+        return struct.pack("<I", elem) + struct.pack("<Q", ln) + blake3(payload[12:])
     raise ValueError("unknown type tag")
 
 
@@ -151,34 +160,34 @@ def commitment(raw):
 
     # ADR-060: emit the full flat Merkle skeleton inline (no intermediate
     # two-level commitment). Variable-length leaves (strings, array
-    # payloads, tensor data) are replaced by their streamed SHA-256 digest.
+    # payloads, tensor data) are replaced by their streamed BLAKE3 digest.
     out = bytearray()
     out += struct.pack("<IIQQQ", GGUF_MAGIC, GGUF_VERSION, tensor_count, kv_count, alignment)
 
     # metadata KVs, sorted by key bytes.
     for key, type_tag, val_off, span in sorted(kvs, key=lambda e: e[0]):
-        out += sha256(key)
+        out += blake3(key)
         out += struct.pack("<I", type_tag)
         out += canonical_value(raw, val_off, span, type_tag)
 
     # tensor info, sorted by name bytes, with recomputed canonical offsets.
     canonical_offset = 0
     for name, dims, type_id, offset, data_bytes in sorted(tensors, key=lambda t: t[0]):
-        out += sha256(name)
+        out += blake3(name)
         out += struct.pack("<I", len(dims))
         for d in dims:
             out += struct.pack("<Q", d)
         out += struct.pack("<I", type_id)
         out += struct.pack("<Q", canonical_offset)
         start = data_start + offset
-        out += sha256(raw[start:start + data_bytes])
+        out += blake3(raw[start:start + data_bytes])
         canonical_offset = align_up(canonical_offset + data_bytes, alignment)
 
     return bytes(out)
 
 
 def kappa_label(raw):
-    return "sha256:" + sha256(commitment(raw)).hex()
+    return "blake3:" + blake3(commitment(raw)).hex()
 
 
 def main(argv):

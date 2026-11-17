@@ -134,7 +134,7 @@ fn label(bytes: &[u8]) -> String {
 }
 fn is_kappa(s: &str) -> bool {
     s.len() == 71
-        && s.starts_with("sha256:")
+        && s.starts_with("blake3:")
         && s[7..]
             .bytes()
             .all(|b| b.is_ascii_hexdigit() && !b.is_ascii_uppercase())

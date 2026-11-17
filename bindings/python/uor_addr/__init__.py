@@ -9,7 +9,7 @@ included in the wheel for each supported platform. The produced
 
 >>> from uor_addr import kappa
 >>> kappa.json_address(b'{"foo":"bar"}')
-'sha256:7a38bf81f383f69433ad6e900d35b3e2385593f76a7b7ab5d4355b8ba41ee24b'
+'blake3:16b6abe0a77021b88cc14863d696df0c34f82556faadb318f46c384184f8ea71'
 
 Why C ABI rather than wasm? wasmtime-py's Component Model API is not
 yet stable as of wasmtime 24.x; once it lands, a follow-on release
@@ -45,7 +45,7 @@ class AddressError(Exception):
         super().__init__(message or f"uor-addr address failed: {kind}")
 
 
-# Wire-format width under the default σ-axis: len("sha256:") + 64-byte
+# Wire-format width under the default σ-axis: len("blake3:") + 64-byte
 # lowercase-hex digest.
 ADDRESS_LABEL_BYTES: Final[int] = 71
 
@@ -598,31 +598,31 @@ class _Kappa:
 
     # ─── σ-axis-selecting entry points (label only) ────────────────
 
-    def json_address_with_hash(self, data: bytes, algo: int = HASH_SHA256) -> str:
+    def json_address_with_hash(self, data: bytes, algo: int = HASH_BLAKE3) -> str:
         """JSON realization under a caller-selected σ-axis (`HASH_*`)."""
         return _call_with_hash("json", algo, data)
 
-    def sexp_address_with_hash(self, data: bytes, algo: int = HASH_SHA256) -> str:
+    def sexp_address_with_hash(self, data: bytes, algo: int = HASH_BLAKE3) -> str:
         """S-expression realization under a caller-selected σ-axis."""
         return _call_with_hash("sexp", algo, data)
 
-    def xml_address_with_hash(self, data: bytes, algo: int = HASH_SHA256) -> str:
+    def xml_address_with_hash(self, data: bytes, algo: int = HASH_BLAKE3) -> str:
         """XML realization under a caller-selected σ-axis."""
         return _call_with_hash("xml", algo, data)
 
-    def asn1_address_with_hash(self, data: bytes, algo: int = HASH_SHA256) -> str:
+    def asn1_address_with_hash(self, data: bytes, algo: int = HASH_BLAKE3) -> str:
         """ASN.1 realization under a caller-selected σ-axis."""
         return _call_with_hash("asn1", algo, data)
 
-    def ring_address_with_hash(self, data: bytes, algo: int = HASH_SHA256) -> str:
+    def ring_address_with_hash(self, data: bytes, algo: int = HASH_BLAKE3) -> str:
         """Ring realization under a caller-selected σ-axis."""
         return _call_with_hash("ring", algo, data)
 
-    def codemodule_address_with_hash(self, data: bytes, algo: int = HASH_SHA256) -> str:
+    def codemodule_address_with_hash(self, data: bytes, algo: int = HASH_BLAKE3) -> str:
         """Code-module realization under a caller-selected σ-axis."""
         return _call_with_hash("codemodule", algo, data)
 
-    def cbor_address_with_hash(self, data: bytes, algo: int = HASH_SHA256) -> str:
+    def cbor_address_with_hash(self, data: bytes, algo: int = HASH_BLAKE3) -> str:
         """CBOR realization under a caller-selected σ-axis."""
         return _call_with_hash("cbor", algo, data)
 
@@ -687,53 +687,53 @@ class _Kappa:
     # are unary endomorphisms on the Atlas image inside E₈.
 
     def compose_g2(
-        self, left: str | bytes, right: str | bytes, algo: int = HASH_SHA256
+        self, left: str | bytes, right: str | bytes, algo: int = HASH_BLAKE3
     ) -> str:
         """CS-G2 commutative binary product of two κ-labels."""
         return _compose_binary("g2", algo, left, right)
 
-    def compose_f4(self, operand: str | bytes, algo: int = HASH_SHA256) -> str:
+    def compose_f4(self, operand: str | bytes, algo: int = HASH_BLAKE3) -> str:
         """CS-F4 ± involution quotient of a κ-label."""
         return _compose_unary("f4", algo, operand)
 
-    def compose_e6(self, operand: str | bytes, algo: int = HASH_SHA256) -> str:
+    def compose_e6(self, operand: str | bytes, algo: int = HASH_BLAKE3) -> str:
         """CS-E6 degree-partition filtration of a κ-label."""
         return _compose_unary("e6", algo, operand)
 
-    def compose_e7(self, operand: str | bytes, algo: int = HASH_SHA256) -> str:
+    def compose_e7(self, operand: str | bytes, algo: int = HASH_BLAKE3) -> str:
         """CS-E7 S₄-orbit augmentation of a κ-label."""
         return _compose_unary("e7", algo, operand)
 
-    def compose_e8(self, operand: str | bytes, algo: int = HASH_SHA256) -> str:
+    def compose_e8(self, operand: str | bytes, algo: int = HASH_BLAKE3) -> str:
         """CS-E8 direct embedding of a κ-label."""
         return _compose_unary("e8", algo, operand)
 
     def compose_g2_with_witness(
-        self, left: str | bytes, right: str | bytes, algo: int = HASH_SHA256
+        self, left: str | bytes, right: str | bytes, algo: int = HASH_BLAKE3
     ) -> Grounded:
         """CS-G2 product; returns a verifiable [`Grounded`] witness."""
         return _compose_binary_witness("g2", algo, left, right)
 
     def compose_f4_with_witness(
-        self, operand: str | bytes, algo: int = HASH_SHA256
+        self, operand: str | bytes, algo: int = HASH_BLAKE3
     ) -> Grounded:
         """CS-F4 quotient; returns a verifiable [`Grounded`] witness."""
         return _compose_unary_witness("f4", algo, operand)
 
     def compose_e6_with_witness(
-        self, operand: str | bytes, algo: int = HASH_SHA256
+        self, operand: str | bytes, algo: int = HASH_BLAKE3
     ) -> Grounded:
         """CS-E6 filtration; returns a verifiable [`Grounded`] witness."""
         return _compose_unary_witness("e6", algo, operand)
 
     def compose_e7_with_witness(
-        self, operand: str | bytes, algo: int = HASH_SHA256
+        self, operand: str | bytes, algo: int = HASH_BLAKE3
     ) -> Grounded:
         """CS-E7 augmentation; returns a verifiable [`Grounded`] witness."""
         return _compose_unary_witness("e7", algo, operand)
 
     def compose_e8_with_witness(
-        self, operand: str | bytes, algo: int = HASH_SHA256
+        self, operand: str | bytes, algo: int = HASH_BLAKE3
     ) -> Grounded:
         """CS-E8 embedding; returns a verifiable [`Grounded`] witness."""
         return _compose_unary_witness("e8", algo, operand)
@@ -751,7 +751,7 @@ def _install_methods() -> None:
         return m
 
     def with_hash(r):
-        def m(self, data: bytes, algo: int = HASH_SHA256) -> str:
+        def m(self, data: bytes, algo: int = HASH_BLAKE3) -> str:
             return _call_with_hash(r, algo, data)
         return m
 
@@ -761,7 +761,7 @@ def _install_methods() -> None:
         return m
 
     def witness_hash(r):
-        def m(self, data: bytes, algo: int = HASH_SHA256) -> "Grounded":
+        def m(self, data: bytes, algo: int = HASH_BLAKE3) -> "Grounded":
             return _mint_with_witness_hash(r, algo, data)
         return m
 

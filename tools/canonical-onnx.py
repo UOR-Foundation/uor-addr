@@ -4,7 +4,7 @@ canonical-form specification.
 
 Reads an ONNX `ModelProto`, applies the canonicalization rules
 implemented by `crates/uor-addr/src/onnx/value.rs`, and emits the
-κ-label (SHA-256 of the canonical flat skeleton). Byte-identical to
+κ-label (BLAKE3 of the canonical flat skeleton). Byte-identical to
 `uor_addr::onnx::address`. Stdlib-only (a minimal protobuf reader is
 inlined) so it runs without the `onnx` Python package.
 
@@ -12,23 +12,32 @@ ADR-060: the canonical form is the full flat skeleton emitted inline
 (ir_version, opset imports, the graph laid out node-by-node in
 Kahn-topological order with subgraphs recursed inline, then model
 metadata), with variable-length leaves replaced by their streamed
-SHA-256 digest. There is no two-level commitment and no count / width
+BLAKE3 digest. There is no two-level commitment and no count / width
 ceiling — only a subgraph-nesting stack-safety bound.
 
 Usage:
     python3 canonical-onnx.py MODEL.onnx
 """
-import hashlib
 import struct
 import sys
+import importlib.util as _ilu
+import os as _os
+
+# BLAKE3: the official package when installed, else the pure-Python reference
+# port beside this file (tools/blake3_ref.py), loaded by path so the spec runs
+# under `python -I` too.
+_b3_spec = _ilu.spec_from_file_location(
+    "blake3_ref", _os.path.join(_os.path.dirname(_os.path.abspath(__file__)), "blake3_ref.py"))
+_b3 = _ilu.module_from_spec(_b3_spec)
+_b3_spec.loader.exec_module(_b3)
 
 IR_VERSION_MAX = 13  # onnx.proto Version::IR_VERSION (latest); accept 1..=MAX
 OPSET_VERSION_MIN = 1
 SUBGRAPH_DEPTH_MAX = 64
 
 
-def sha256(b):
-    return hashlib.sha256(b).digest()
+def blake3(b):
+    return _b3.digest(b)
 
 
 class WireError(ValueError):
@@ -96,7 +105,7 @@ def canonical_proto_digest(body, depth=0):
     failure."""
     fs = list(fields(body))            # raises on malformed (caller may fall back)
     fs.sort(key=lambda f: f[0])        # Python sort is stable
-    h = hashlib.sha256()
+    h = _b3.new()
     for num, wt, val in fs:
         h.update(struct.pack("<Q", num))
         h.update(bytes([wt]))
@@ -109,9 +118,9 @@ def canonical_proto_digest(body, depth=0):
                 try:
                     sub = canonical_proto_digest(val, depth + 1)
                 except WireError:
-                    sub = sha256(val)
+                    sub = blake3(val)
             else:
-                sub = sha256(val)
+                sub = blake3(val)
             h.update(sub)
     return h.digest()
 
@@ -179,7 +188,7 @@ def tensor_data_digest(t, dtype):
     # reference (#13, sorted by key) under a domain tag — mirrors the Rust
     # no_std core, which cannot dereference sibling files.
     if first_varint(t, 14) == 1:
-        h = hashlib.sha256()
+        h = _b3.new()
         h.update(b"onnx:external-data:v1")
         sub = bytearray()
         emit_string_string(sub, t, 13)   # u32(count) || sorted key/value digests
@@ -187,8 +196,8 @@ def tensor_data_digest(t, dtype):
         return h.digest()
     raw = first(t, 9)
     if isinstance(raw, (bytes, bytearray)) and len(raw) > 0:
-        return sha256(raw)
-    h = hashlib.sha256()
+        return blake3(raw)
+    h = _b3.new()
     if dtype == 1:           # FLOAT
         fold_fixed_payload(h, t, 4)
     elif dtype in (11, 15):  # DOUBLE, COMPLEX128
@@ -203,7 +212,7 @@ def tensor_data_digest(t, dtype):
         fold_typed_varints(h, t, 11, 4)
     elif dtype == 8:         # STRING
         for s in each(t, 6):
-            h.update(sha256(s))
+            h.update(blake3(s))
     else:                    # int32_data-backed
         fold_typed_varints(h, t, 5, INT32_WIDTH.get(dtype, 4))
     return h.digest()
@@ -239,7 +248,7 @@ def emit_tensor(out, t):
     dtype = first_varint(t, 2)
     if not (1 <= dtype <= 23):
         raise ValueError(f"unknown dtype {dtype}")
-    out += sha256(first_bytes(t, 8))         # name
+    out += blake3(first_bytes(t, 8))         # name
     out += struct.pack("<i", dtype)
     out += struct.pack("<I", count_dims(t))  # rank
     emit_packed_varints_i64(out, t, 1)       # dims
@@ -254,19 +263,19 @@ def emit_attribute_value(out, a, atype, depth):
     elif atype == 2:         # INT
         out += struct.pack("<q", first_varint(a, 3))
     elif atype == 3:         # STRING
-        out += sha256(first_bytes(a, 4))
+        out += blake3(first_bytes(a, 4))
     elif atype == 4:         # TENSOR (inline)
         emit_tensor(out, first_bytes(a, 5))
     elif atype == 5:         # GRAPH (recurse inline)
         emit_canonical_graph(out, first_bytes(a, 6), depth + 1)
     elif atype == 6:         # FLOATS
         for v in each(a, 7):
-            out += sha256(v) if isinstance(v, (bytes, bytearray)) else v
+            out += blake3(v) if isinstance(v, (bytes, bytearray)) else v
     elif atype == 7:         # INTS
         emit_packed_varints_i64(out, a, 8)
     elif atype == 8:         # STRINGS
         for s in each(a, 9):
-            out += sha256(s)
+            out += blake3(s)
     elif atype == 9:         # TENSORS (inline)
         for tb in each(a, 10):
             emit_tensor(out, tb)
@@ -290,25 +299,25 @@ def emit_attributes(out, node, depth):
     attrs.sort(key=lambda a: first_bytes(a, 1))
     out += struct.pack("<I", len(attrs))
     for a in attrs:
-        out += sha256(first_bytes(a, 1))
+        out += blake3(first_bytes(a, 1))
         atype = first_varint(a, 20)
         out += struct.pack("<i", atype)
         emit_attribute_value(out, a, atype, depth)
 
 
 def emit_node(out, node, depth):
-    out += sha256(first_bytes(node, 3))   # name
-    out += sha256(first_bytes(node, 4))   # op_type
-    out += sha256(first_bytes(node, 7))   # domain
-    out += sha256(first_bytes(node, 8))   # overload
+    out += blake3(first_bytes(node, 3))   # name
+    out += blake3(first_bytes(node, 4))   # op_type
+    out += blake3(first_bytes(node, 7))   # domain
+    out += blake3(first_bytes(node, 8))   # overload
     ins = list(each(node, 1))
     out += struct.pack("<I", len(ins))
     for i in ins:
-        out += sha256(i)
+        out += blake3(i)
     outs = list(each(node, 2))
     out += struct.pack("<I", len(outs))
     for o in outs:
-        out += sha256(o)
+        out += blake3(o)
     emit_attributes(out, node, depth)
 
 
@@ -377,29 +386,29 @@ def topo_order(nodes):
 
 
 def emit_string_string(out, body, n):
-    # u32(count) || for each (sorted by key): sha256(key) || sha256(value)
+    # u32(count) || for each (sorted by key): blake3(key) || blake3(value)
     entries = list(each(body, n))
     entries.sort(key=lambda e: first_bytes(e, 1))
     out += struct.pack("<I", len(entries))
     for e in entries:
-        out += sha256(first_bytes(e, 1))
-        out += sha256(first_bytes(e, 2))
+        out += blake3(first_bytes(e, 1))
+        out += blake3(first_bytes(e, 2))
 
 
 def emit_value_info(out, graph, n):
-    # u32(count) || for each (sorted by name): sha256(name) || proto-digest(TypeProto)
+    # u32(count) || for each (sorted by name): blake3(name) || proto-digest(TypeProto)
     vis = list(each(graph, n))
     vis.sort(key=lambda v: first_bytes(v, 1))
     out += struct.pack("<I", len(vis))
     for v in vis:
-        out += sha256(first_bytes(v, 1))
+        out += blake3(first_bytes(v, 1))
         out += canonical_proto_digest(first_bytes(v, 2))
 
 
 def emit_canonical_graph(out, graph, depth):
     if depth > SUBGRAPH_DEPTH_MAX:
         raise ValueError("subgraph nesting too deep")
-    out += sha256(first_bytes(graph, 2))              # name
+    out += blake3(first_bytes(graph, 2))              # name
     nodes = list(each(graph, 1))
     out += struct.pack("<I", len(nodes))              # node count
     for n in topo_order(nodes):                       # nodes (topo)
@@ -425,14 +434,14 @@ def emit_opsets(out, model):
         raise ValueError("opset below minimum version")
     entries.sort(key=lambda e: (first_bytes(e, 1), first_varint(e, 2)))
     for e in entries:
-        out += sha256(first_bytes(e, 1))
+        out += blake3(first_bytes(e, 1))
         out += struct.pack("<q", first_varint(e, 2))
 
 
 def emit_model_meta(out, model):
-    out += sha256(first_bytes(model, 2))              # producer_name
-    out += sha256(first_bytes(model, 3))              # producer_version
-    out += sha256(first_bytes(model, 4))              # domain
+    out += blake3(first_bytes(model, 2))              # producer_name
+    out += blake3(first_bytes(model, 3))              # producer_version
+    out += blake3(first_bytes(model, 4))              # domain
     out += struct.pack("<q", first_varint(model, 5))  # model_version
     emit_string_string(out, model, 14)                # metadata_props
 
@@ -454,7 +463,7 @@ def commitment(model):
 
 
 def kappa_label(model):
-    return "sha256:" + sha256(commitment(model)).hex()
+    return "blake3:" + blake3(commitment(model)).hex()
 
 
 def main(argv):

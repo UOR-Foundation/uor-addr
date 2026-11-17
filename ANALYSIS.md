@@ -12,13 +12,13 @@ This document asks one operational question:
 
 > Does any structural choice in `uor-addr`'s κ-derivation — the JCS
 > canonicalisation, the NFC normalisation, the algebraic-closure
-> encoding, or the choice of `Sha256Hasher` as the substitution-axis
+> encoding, or the choice of `Blake3Hasher` as the substitution-axis
 > hash — leak non-uniform-random structure into the κ-label?
 
 **Short answer**: No, at the precision the CP test class establishes
 (α = 0.001 across N up to 1 000 000 samples). The κ-label is
 indistinguishable from a uniform-random 64-hex sample drawn under a
-fixed `"sha256:"` prefix, conditional on SHA-256 satisfying its
+fixed `"blake3:"` prefix, conditional on BLAKE3 satisfying its
 standard pseudorandom-oracle assumption.
 
 The substantive arguments below justify each CP test's choice of
@@ -27,7 +27,7 @@ sample size, distribution under H₀, and significance level.
 ## 1. Digest-byte uniformity — CP-U01
 
 **Claim.** Under uniform random JSON-leaf inputs, each of the 32 bytes
-of the SHA-256 digest is distributed uniformly over `[0, 256)`.
+of the BLAKE3 digest is distributed uniformly over `[0, 256)`.
 
 **H₀**: Each byte position is multinomial-uniform over 256 cells.
 **H₁**: Any byte position deviates from uniform.
@@ -82,7 +82,7 @@ probability of any collision in 10⁶ samples is
               ≈ 2^{40-1} · 2^{-256}
               = 2^{-217}.
 
-Observing one collision at this scale would falsify SHA-256's standard
+Observing one collision at this scale would falsify BLAKE3's standard
 assumption. The test accepts if no collisions are observed.
 
 **Why not run N = 10⁷.** The CP-C01 budget is bounded by the analysis
@@ -158,7 +158,7 @@ Failure is exact.
 
 **Claim.** The κ-derivation distinguishes the six JSON cases
 structurally: `42` (a number) and `"42"` (a string of the same
-digits) produce distinct κ-labels with the SHA-256 sensitivity
+digits) produce distinct κ-labels with the BLAKE3 sensitivity
 bound; `null`, `false`, and `true` are pairwise distinct under the
 same bound; arrays and objects with same-shape payloads but
 different container types are distinguished by their structural tag
@@ -170,13 +170,13 @@ byte.
 but whose typed cases differ end up with distinct tagged bytes (the
 tag byte differs by construction); their canonical-form bytes also
 differ (RFC 8259 distinguishes the cases at the syntactic level —
-`42` vs `"42"` differ in canonical form); SHA-256's sensitivity drives
+`42` vs `"42"` differ in canonical form); BLAKE3's sensitivity drives
 them to distinct κ-labels. CT-T01..CT-T05 pin five concrete sample
 pairs; the universal claim that any two semantically-distinct typed
 inputs yield distinct κ-labels follows from canonical-form
 distinctness (CT-E01..CT-E04 prove the converse:
 canonical-form-equivalent inputs yield identical κ-labels) plus the
-SHA-256 sensitivity bound from §4. The Lean theorem
+BLAKE3 sensitivity bound from §4. The Lean theorem
 `UorAddr.TypedInput.case_tags_are_pairwise_distinct` mechanises the
 tag-byte half.
 
@@ -218,7 +218,7 @@ precision is the implementation correct?* This crate's answer:
   checked.
 - **Cryptographic precision** for sensitivity / collision absence:
   ≤ `2^{-128}` collision probability across any feasible input set,
-  conditional on SHA-256.
+  conditional on BLAKE3.
 - **Statistical precision** for distributional uniformity:
   α = 0.001 over N = 10⁶ samples; raising N moves α toward `2^{-128}`
   asymptotically. The CP test consts in `tests/analysis.rs` are the
@@ -239,7 +239,7 @@ by re-running the same `cargo test` command in the same environment.
 
 ## 10. What this analysis does *not* establish
 
-- It does **not** establish SHA-256's pseudorandom-oracle assumption.
+- It does **not** establish BLAKE3's pseudorandom-oracle assumption.
   That is taken as given; CP tests would falsify the assumption if
   the algorithm broke, but their passing does not "prove" it true.
 - It does **not** establish the absence of side-channel structure
@@ -254,7 +254,7 @@ by re-running the same `cargo test` command in the same environment.
 **Flat Merkle skeleton (ADR-060).** Both container realizations
 canonicalize to a full flat skeleton in which every variable-length leaf
 (tensor weights, token-vocabulary arrays, strings) is replaced by its
-streamed SHA-256 digest. The skeleton's size grows only with the
+streamed BLAKE3 digest. The skeleton's size grows only with the
 KV / tensor / node counts, never with model size; the full skeleton
 flows through the ψ-pipeline as a `Borrowed` carrier that ψ₉ folds —
 there is no two-level section commitment and no size cap. This is the

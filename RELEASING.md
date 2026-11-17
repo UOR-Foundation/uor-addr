@@ -11,7 +11,7 @@
 Each release publishes to **three crate registries** + **two language
 registries** + attaches **N prebuilt artifacts** to the GitHub Release.
 Every distribution target produces the same 71-byte ASCII
-`sha256:<64hex>` κ-label byte-for-byte (pinned by CF-C\* / CF-W\* in
+`blake3:<64hex>` default κ-label byte-for-byte (pinned by CF-C\* / CF-W\* in
 [CONFORMANCE.md](CONFORMANCE.md)).
 
 | Distribution channel | Artifact | Source crate / package |
@@ -131,7 +131,7 @@ Within ~10 minutes of the workflow completing all jobs:
 - `npm view @uor-foundation/uor-addr version` returns `X.Y.Z`.
 - `pip install uor-addr==X.Y.Z` succeeds and the bundled .so/.dylib/.dll round-trips:
   ```bash
-  python -c 'from uor_addr import kappa; assert kappa.json_address(b"{}") == "sha256:44136fa355b3678a1146ad16f7e8649e94fb4fc21fe77e8310c060f61caaff8a"'
+  python -c 'from uor_addr import kappa; assert kappa.json_address(b"{}") == "blake3:6e46dd10defc9b56c29a6ec56b508c21f54c08192194e4df25bf36f0c9c3c279"'
   ```
 - The GitHub Release page shows: `uor_addr_wasm.wasm`, `uor_addr.h`, five `libuor_addr_c-*-vX.Y.Z.*` files, five `uor_addr-X.Y.Z-py3-none-*.whl` files.
 

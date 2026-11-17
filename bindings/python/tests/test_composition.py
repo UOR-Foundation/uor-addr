@@ -7,7 +7,7 @@ Pinned invariants (mirror CL-C-FFI-* on the C side):
 - **PY-COMP-03**: a witness round-trips (TC-05) to the label its
   flat entry point yields.
 - **PY-COMP-04**: a malformed operand raises `AddressError`.
-- **PY-COMP-05**: composition works on a non-default σ-axis (blake3).
+- **PY-COMP-05**: composition works on a non-default σ-axis (sha256).
 
 Run with `python -m pytest bindings/python/tests/` (the bundled
 `libuor_addr_c.so` must be current — see the release workflow / the
@@ -21,7 +21,7 @@ import pytest
 
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), ".."))
 
-from uor_addr import AddressError, HASH_BLAKE3, kappa  # noqa: E402
+from uor_addr import AddressError, HASH_SHA256, kappa  # noqa: E402
 
 
 def _operands():
@@ -40,7 +40,7 @@ def test_py_comp_01_every_op_composes_well_formed_label():
         kappa.compose_e8(a),
     ]
     for label in labels:
-        assert label.startswith("sha256:")
+        assert label.startswith("blake3:")
         assert len(label) == 71
 
 
@@ -75,9 +75,9 @@ def test_py_comp_04_malformed_operand_raises():
         kappa.compose_e8(b"not-a-kappa-label")
 
 
-def test_py_comp_05_blake3_axis():
-    a = kappa.json_address_with_hash(b'{"role":"left"}', HASH_BLAKE3)
-    b = kappa.json_address_with_hash(b'{"role":"right"}', HASH_BLAKE3)
-    ab = kappa.compose_g2(a, b, HASH_BLAKE3)
-    assert ab.startswith("blake3:")
-    assert kappa.compose_g2(b, a, HASH_BLAKE3) == ab
+def test_py_comp_05_sha256_axis():
+    a = kappa.json_address_with_hash(b'{"role":"left"}', HASH_SHA256)
+    b = kappa.json_address_with_hash(b'{"role":"right"}', HASH_SHA256)
+    ab = kappa.compose_g2(a, b, HASH_SHA256)
+    assert ab.startswith("sha256:")
+    assert kappa.compose_g2(b, a, HASH_SHA256) == ab

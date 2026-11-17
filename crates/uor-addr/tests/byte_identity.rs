@@ -122,7 +122,7 @@ fn fixtures() -> Vec<Fixture> {
 fn shim_layer_reproduces_harvested_fixtures() {
     let mut failures = Vec::new();
     for fixture in fixtures() {
-        match address(fixture.raw_json) {
+        match uor_addr::json::address_sha256(fixture.raw_json) {
             Ok(outcome) => {
                 if outcome.address != fixture.expected_address {
                     failures.push(format!(
@@ -181,11 +181,18 @@ fn pipeline_address_is_seventy_one_ascii_bytes() {
     let outcome = address(br#"{"foo":"bar"}"#).expect("valid JSON");
     assert_eq!(outcome.address.len(), 71);
     assert!(outcome.address.is_ascii());
-    assert!(outcome.address.starts_with("sha256:"));
+    assert!(outcome.address.starts_with("blake3:"));
     // The 64 hex digits must all be lowercase.
     assert!(outcome.address[7..]
         .chars()
         .all(|c| c.is_ascii_hexdigit() && !c.is_ascii_uppercase()));
+    // The label the READMEs and the release smoke test print: BLAKE3 of the
+    // JCS-canonical bytes, computed independently with the reference `blake3`
+    // package.
+    assert_eq!(
+        outcome.address.as_str(),
+        "blake3:16b6abe0a77021b88cc14863d696df0c34f82556faadb318f46c384184f8ea71"
+    );
 }
 
 #[test]

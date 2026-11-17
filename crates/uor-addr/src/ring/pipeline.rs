@@ -4,7 +4,7 @@
 //!    bytes at the host boundary.
 //! 2. [`AddressModel::forward`] runs the shared ψ-tower: the handle's
 //!    canonical bytes flow in as an ADR-060 carrier and ψ₉ folds them
-//!    through `H = Sha256Hasher` to mint the κ-label.
+//!    through `H = Blake3Hasher` to mint the κ-label.
 //! 3. [`AddressOutcome::from_grounded`] extracts the owned κ-label +
 //!    replayable TC-05 witness.
 
@@ -23,14 +23,14 @@ pub enum AddressFailure {
 }
 
 use crate::ring::model::{
-    AddressModel, AddressModelBlake3, AddressModelKeccak256, AddressModelSha3_256,
+    AddressModel, AddressModelKeccak256, AddressModelSha256, AddressModelSha3_256,
     AddressModelSha512,
 };
 use crate::ring::value::RingElement;
 use prism::pipeline::PrismModel;
 
-/// **uor-addr's ring entry point** (σ-axis `Sha256Hasher`) — one
-/// ψ-pipeline content-address inference, yielding a `sha256:<64hex>`
+/// **uor-addr's ring entry point** (σ-axis `Blake3Hasher`) — one
+/// ψ-pipeline content-address inference, yielding a `blake3:<64hex>`
 /// κ-label.
 ///
 /// # Errors
@@ -44,17 +44,17 @@ pub fn address(input_bytes: &[u8]) -> Result<AddressOutcome<71>, AddressFailure>
     AddressOutcome::<71>::from_grounded(&grounded).map_err(|_| AddressFailure::PipelineFailure)
 }
 
-/// The ring entry point under σ-axis `Blake3Hasher` — yields a
-/// `blake3:<64hex>` κ-label. See [`address`] for the error contract.
+/// The ring entry point under σ-axis `Sha256Hasher` — yields a
+/// `sha256:<64hex>` κ-label. See [`address`] for the error contract.
 ///
 /// # Errors
 ///
 /// As [`address`].
-pub fn address_blake3(input_bytes: &[u8]) -> Result<AddressOutcome<71>, AddressFailure> {
+pub fn address_sha256(input_bytes: &[u8]) -> Result<AddressOutcome<71>, AddressFailure> {
     let element =
         RingElement::parse(input_bytes).map_err(|_| AddressFailure::InvalidRingElement)?;
     let grounded =
-        AddressModelBlake3::forward(element).map_err(|_| AddressFailure::PipelineFailure)?;
+        AddressModelSha256::forward(element).map_err(|_| AddressFailure::PipelineFailure)?;
     AddressOutcome::<71>::from_grounded(&grounded).map_err(|_| AddressFailure::PipelineFailure)
 }
 

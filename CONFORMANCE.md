@@ -44,7 +44,7 @@ removed the input-size ceiling) whose nesting depth is `≤ MAX_JSON_DEPTH`:
    ASCII byte sequence — the κ-label — and the same `b` always produces
    the same κ-label.
 2. **κ-derivation identity (CL-K01).** The κ-label is byte-equal to
-   `b"sha256:" ‖ hex_lower(SHA-256(jcs_nfc_canonicalise(b)))`, computed by exactly
+   `b"blake3:" ‖ hex_lower(BLAKE3(jcs_nfc_canonicalise(b)))`, computed by exactly
    **one** σ-projection of the canonical hash axis inside the ψ_9
    resolver — never inside the verb body.
 3. **Algebraic-closure shape (CL-A01).** The output shape
@@ -58,10 +58,10 @@ removed the input-size ceiling) whose nesting depth is `≤ MAX_JSON_DEPTH`:
    yield the same κ-label.
 5. **Sensitivity (CD-S01).** Distinct canonical-form byte sequences
    yield distinct κ-labels with probability ≥ `1 − 2^{-128}` over any
-   fixed N ≤ `2^64` collision-resistance window (the SHA-256 security
+   fixed N ≤ `2^64` collision-resistance window (the BLAKE3 security
    assumption).
 6. **Wire-format width (CL-W01).** The κ-label is exactly 71 bytes,
-   begins with the 7-byte ASCII prefix `"sha256:"`, and continues with
+   begins with the 7-byte ASCII prefix `"blake3:"`, and continues with
    64 ASCII bytes drawn from `{'0'..'9', 'a'..'f'}`.
 7. **TC-05 replay round-trip (CL-R01).** Every `Grounded<AddressLabel>`
    the pipeline emits is replayable through `prism_verify::certify_from_trace`
@@ -106,7 +106,7 @@ two-letter class prefix.
 ### CH — Hash σ-axis class — authoritative known-answer tests
 
 The κ-label `<algorithm>:<lowercase-hex>` is produced through a selectable
-σ-axis (`uor_addr::hash::AddrHash`): sha256 (default), blake3, sha3-256,
+σ-axis (`uor_addr::hash::AddrHash`): blake3 (default), sha256, sha3-256,
 keccak256. Each axis is validated against vectors imported from its
 authoritative source, and the pipeline is shown to mint
 `<prefix>:<hex(H(canonical_form))>` for the same `H`. Verified by
@@ -118,6 +118,7 @@ authoritative source, and the pipeline is shown to mint
 | CH-K02  | `Sha3_256Hasher` reproduces the FIPS 202 `""` / `"abc"` digests               | FIPS 202 — `hash_kat::sha3_256_matches_fips_202`    |
 | CH-K03  | `Keccak256Hasher` reproduces the Keccak `""` / `"abc"` digests                | Keccak submission — `hash_kat::keccak256_matches_keccak_submission` |
 | CH-K04  | `Blake3Hasher` reproduces the BLAKE3 reference `""` / `"abc"` digests          | BLAKE3 spec — `hash_kat::blake3_matches_reference_vectors` |
+| CH-K06  | `Blake3Hasher` matches the reference across chunk boundaries (14 lengths, 1023..1 048 577 bytes) | BLAKE3 reference — `hash_kat::blake3_matches_reference_vectors_across_chunk_boundaries` |
 | CH-K05  | `Sha512Hasher` reproduces the FIPS 180-4 `""` / `"abc"` digests (64-byte)      | FIPS 180-4 §6.4 — `hash_kat::sha512_matches_fips_180_4` |
 | CH-P01  | Each realization's `address_<algorithm>` emits `<prefix>:<hex(H(canonical))>` | `hash_kat::json_pipeline_mints_each_axis_over_canonical_form`, `cbor_rfc8949::pipeline_mints_each_axis_over_canonical_form` |
 
@@ -188,7 +189,9 @@ Verified by **runtime tests over a fixed fixture set** under
 `crates/uor-addr/tests/byte_identity.rs` and
 `crates/uor-addr/tests/conformance.rs`. The fixture baseline is the
 12 cases harvested from `mcp.uor.foundation/tools/encode_address`
-(mcp-uor-server v0.2.1, algorithm `uor-sha256-v1`).
+(mcp-uor-server v0.2.1, algorithm `uor-sha256-v1`); those fixtures are
+held to the sha256 axis (`json::address_sha256`), since JSON's canonical
+form is unchanged and only the default axis moved.
 
 | ID       | Invariant                                                                                 | Pinned by                                                                  |
 |----------|-------------------------------------------------------------------------------------------|----------------------------------------------------------------------------|
@@ -201,7 +204,7 @@ Verified by **runtime tests over a fixed fixture set** under
 | CD-I01d  | NFKC equivalence: full-width digits ≡ ASCII digits under `address` (NFKC compatibility)   | `tests::conformance::nfkc_compatibility_class_holds` (informational)       |
 | CD-S01a  | Single-byte mutation changes the κ-label                                                  | `tests::byte_identity::pipeline_distinct_inputs_yield_distinct_addresses`  |
 | CD-S01b  | Avalanche: mutating one byte of the canonical form changes ≥ 100 of the 256 digest bits   | `tests::conformance::single_byte_avalanche_balanced`                       |
-| CD-W01   | Every emitted κ-label is 71 ASCII bytes, begins `"sha256:"`, hex is lowercase             | `tests::byte_identity::pipeline_address_is_seventy_one_ascii_bytes`        |
+| CD-W01   | Every emitted κ-label is 71 ASCII bytes, begins `"blake3:"`, hex is lowercase             | `tests::byte_identity::pipeline_address_is_seventy_one_ascii_bytes`        |
 | CD-G01   | The owned `AddressOutcome::witness` recovers the κ-label: `witness.kappa_label()` equals `outcome.address`, and `witness.verify()` re-certifies to the same label | `tests::byte_identity::pipeline_witness_recovers_kappa_label`              |
 
 ### CP — Probabilistic class — empirical scaling
@@ -267,12 +270,14 @@ Verified by **`lake build`** under `uor-addr-lean/`. Theorems pin
 universally quantified claims that no finite sample suite can establish
 on its own. The Lean library depends only on the
 [UOR-Framework Lean library](https://github.com/UOR-Foundation/UOR-Framework)
-(no Mathlib).
+(no Mathlib). The Lean package has no default target, so a bare
+`lake build` builds nothing, and `lake build UorAddr` currently fails in
+`HexEncoding.lean` and `NfcIdempotence.lean`; CI does not yet check these theorems.
 
 | ID       | Theorem name                                                                       | File                                          | Statement                                                       |
 |----------|------------------------------------------------------------------------------------|-----------------------------------------------|-----------------------------------------------------------------|
 | CL-W01   | `UorAddr.AddressShape.address_label_width_is_seventy_one`                         | `UorAddr/AddressShape.lean`                  | `kappaLabel.size = 71` for every digest input                   |
-| CL-W02   | `UorAddr.AddressShape.address_prefix_is_sha256_colon`                             | `UorAddr/AddressShape.lean`                  | `kappaLabel[0..7] = "sha256:".toUInt8Array`                     |
+| CL-W02   | `UorAddr.AddressShape.address_prefix_is_blake3_colon`                             | `UorAddr/AddressShape.lean`                  | `kappaLabel[0..7] = "blake3:".toUInt8Array`                     |
 | CL-W03   | `UorAddr.AddressShape.address_hex_digits_are_lowercase`                           | `UorAddr/AddressShape.lean`                  | `∀ i ∈ [7, 71), kappaLabel[i] ∈ {'0'..'9', 'a'..'f'}`           |
 | CL-H01   | `UorAddr.HexEncoding.hex_lower_injective`                                         | `UorAddr/HexEncoding.lean`                   | `hexLower` is injective on `[0, 16)`                            |
 | CL-H02   | `UorAddr.HexEncoding.hex_byte_pair_roundtrip`                                     | `UorAddr/HexEncoding.lean`                   | `decodeNibble (hexLower n) = n` for `n < 16`                    |
@@ -319,6 +324,7 @@ variants additionally support TC-05 replay across the FFI boundary.
 | CF-C03   | `uor-addr-c` builds cleanly on hosted x86_64 (`libuor_addr_c.a` + `libuor_addr_c.so`)          | `just build-release`                                                   |
 | CF-C04   | A C header is auto-generated at `crates/uor-addr-c/include/uor_addr.h` via `cbindgen`           | `build.rs` regenerates on `src/lib.rs` change                          |
 | CF-C05   | `uor-addr-c` exposes a `UorAddrGrounded` opaque handle + `*_with_witness` constructors (9), `_kappa_label`, `_content_fingerprint`, `_verify`, `_free` | `crates/uor-addr-c/tests/grounded_round_trip.rs` |
+| CL-C-FFI-05 | The C default (`uor_addr_<realization>`) mints `blake3:`; an explicit `UOR_ADDR_HASH_SHA256` request mints `sha256:` | `uor_addr_c::tests::axis_selection::cl_c_ffi_05__default_is_blake3_and_sha256_is_honoured` |
 | CF-W01   | `uor-addr-wasm` exposes one `*-address` function per realization via WIT (9 functions total)   | `crates/uor-addr-wasm/wit/uor-addr.wit`                                |
 | CF-W02   | `uor-addr-wasm` builds cleanly on `wasm32-wasip2` (WASI Preview 2 + Component Model)            | `just wasm`                                                            |
 | CF-W03   | The generated `.wasm` artifact is consumable from JS / Python / Go / .NET / Ruby via wasmtime  | `cargo build --target wasm32-wasip2 --release` emits `uor_addr_wasm.wasm` |
@@ -343,7 +349,7 @@ SD3 — Verification" section for the architectural framing.
 | CL-R01   | Single-input round-trip: replayed `ContentFingerprint` equals source                       | `tests::replay::cl_r01__grounded_address_label_round_trips_through_verifier` |
 | CL-R02   | All 12 reference fixtures round-trip: replayed `ContentFingerprint` equals source per input | `tests::replay::cl_r02__every_reference_fixture_round_trips`    |
 | CL-R-FFI-01 | Every `uor_addr_<realization>_with_witness` C ABI call returns a `UorAddrGrounded` whose `_kappa_label` matches the parallel flat-call κ-label byte-for-byte | `uor_addr_c::tests::grounded_round_trip::cl_r_ffi_01__json_witness_label_matches_flat_call` |
-| CL-R-FFI-02 | `uor_addr_grounded_verify` returns the same κ-label byte-for-byte (QS-05 replay equivalence; SHA-256 not re-invoked) | `uor_addr_c::tests::grounded_round_trip::cl_r_ffi_02__verify_returns_same_label_as_mint` |
+| CL-R-FFI-02 | `uor_addr_grounded_verify` returns the same κ-label byte-for-byte (QS-05 replay equivalence; the hash axis is not re-invoked) | `uor_addr_c::tests::grounded_round_trip::cl_r_ffi_02__verify_returns_same_label_as_mint` |
 | CL-R-FFI-03 | `uor_addr_grounded_content_fingerprint` returns a 32-byte digest deterministically across calls | `uor_addr_c::tests::grounded_round_trip::cl_r_ffi_03__fingerprint_is_deterministic` |
 | CL-R-FFI-04 | `uor_addr_grounded_free(NULL)` is a no-op; cross-realization witness round-trip holds for every shipped realization | `uor_addr_c::tests::grounded_round_trip::cl_r_ffi_04__free_on_null_is_noop` + `cross_realization__*` |
 | CL-R-W01 | `bindings/npm` smoke test: every `kappa.*AddressWithWitness(...)` returns a `Grounded` whose `verify()` equals `kappaLabel()` byte-for-byte | `bindings/npm/scripts/test.mjs` |
@@ -390,7 +396,7 @@ the Rust reader. `tests/safetensors_byte_identity.rs` asserts byte-identity;
 buffer relayout, `__metadata__` position and key order, header padding, and
 JSON whitespace / escape spelling; sensitivity to every tensor byte,
 metadata value, name, dtype and shape; that each tensor's leaf is the
-SHA-256 of its own bytes; domain separation from the GGUF skeleton;
+BLAKE3 of its own bytes (`tensor_leaf_is_blake3_of_its_own_bytes`); domain separation from the GGUF skeleton;
 admission of zero-sized and sub-byte (`F4`, `F6`) tensors; and rejection of
 duplicate keys, unknown fields, non-integer sizes, lone surrogates, and any
 buffer gap, overlap or unclaimed trailing byte. Runs every CI build.

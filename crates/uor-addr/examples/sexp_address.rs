@@ -38,5 +38,5 @@ fn main() {
         }
     }
 
-    println!("OK — every S-expression value produced its 71-byte sha256:<64hex> κ-label.");
+    println!("OK — every S-expression value produced its 71-byte blake3:<64hex> κ-label.");
 }

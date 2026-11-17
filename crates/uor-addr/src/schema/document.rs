@@ -150,6 +150,20 @@ pub fn address_blake3(raw: &[u8]) -> Result<crate::AddressOutcome<71>, AddressFa
     })
 }
 
+/// As [`address`], but binds the `sha256` σ-axis ([`crate::hash`]). Schema
+/// admission is identical; only the κ-derivation hash differs.
+///
+/// # Errors
+///
+/// As [`address`].
+pub fn address_sha256(raw: &[u8]) -> Result<crate::AddressOutcome<71>, AddressFailure> {
+    DocumentValue::parse(raw).map_err(|_| AddressFailure::SchemaViolation)?;
+    crate::json::address_sha256(raw).map_err(|e| match e {
+        crate::json::AddressFailure::InvalidJson => AddressFailure::SchemaViolation,
+        crate::json::AddressFailure::PipelineFailure => AddressFailure::PipelineFailure,
+    })
+}
+
 /// As [`address`], but binds the `sha3_256` σ-axis ([`crate::hash`]). Schema
 /// admission is identical; only the κ-derivation hash differs.
 ///

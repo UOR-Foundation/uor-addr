@@ -30,13 +30,15 @@ their docstrings.
 | ADR-061 (categorical composition on the E₈ Atlas image) | <https://github.com/UOR-Foundation/UOR-Framework/wiki/ADR-061> |
 | Amendment 43 (ring element canonical bytes) | <https://github.com/UOR-Foundation/UOR-Framework/wiki/Amendment-43> |
 | TC-05 (replay round-trip) | <https://github.com/UOR-Foundation/UOR-Framework/wiki/TC-05> |
+| BLAKE3 specification (default axis) | <https://github.com/BLAKE3-team/BLAKE3-specs> (`blake3.pdf`) |
 | FIPS 180-4 (SHA-256) | <https://nvlpubs.nist.gov/nistpubs/FIPS/NIST.FIPS.180-4.pdf> |
 
 ## Hash σ-axes (`uor_addr::hash`)
 
 Every realization derives its κ-label `<algorithm>:<lowercase-hex>` through
-a selectable σ-axis. `address()` binds SHA-256 (the default);
-`address_blake3` / `address_sha3_256` / `address_keccak256` bind the other
+a selectable σ-axis. `address()` binds BLAKE3 (the default, matching the UOR ontology's
+`u:digestAlgorithm`; `address_blake3` is an alias);
+`address_sha256` / `address_sha3_256` / `address_keccak256` bind the other
 admissible 32-byte axes. Each is validated against vectors imported from its
 authoritative source (`tests/hash_kat.rs`).
 
@@ -45,7 +47,7 @@ authoritative source (`tests/hash_kat.rs`).
 | `Sha256Hasher` | `sha256` | NIST FIPS 180-4 — <https://nvlpubs.nist.gov/nistpubs/FIPS/NIST.FIPS.180-4.pdf> |
 | `Sha3_256Hasher` | `sha3-256` | NIST FIPS 202 — <https://nvlpubs.nist.gov/nistpubs/FIPS/NIST.FIPS.202.pdf> |
 | `Keccak256Hasher` | `keccak256` | Keccak SHA-3 submission (pre-FIPS padding) — <https://keccak.team/files/Keccak-submission-3.pdf> |
-| `Blake3Hasher` | `blake3` | BLAKE3 specification + reference vectors — <https://github.com/BLAKE3-team/BLAKE3-specs> |
+| `Blake3Hasher` (default) | `blake3` | BLAKE3 specification + reference vectors — <https://github.com/BLAKE3-team/BLAKE3-specs> |
 | `Sha512Hasher` | `sha512` | NIST FIPS 180-4 §6.4 — <https://nvlpubs.nist.gov/nistpubs/FIPS/NIST.FIPS.180-4.pdf> |
 
 The 64-byte `Sha512Hasher` (a `Hasher<64>`) is bound with the
@@ -311,14 +313,14 @@ Exposed across every binding: C
 | GGML type enum (per-dtype IDs) | https://github.com/ggml-org/ggml/blob/master/include/ggml.h |
 | Tensor element-type alphabet | `prism::tensor::dtype` (uor-prism-tensor 0.2.0) |
 | Canonical form encoder (executable spec) | `tools/canonical-gguf.py` |
-| SHA-256 σ-projection | FIPS 180-4 |
+| BLAKE3 leaves and default σ-projection | BLAKE3 specification (<https://github.com/BLAKE3-team/BLAKE3-specs>) |
 
-The κ-label is SHA-256 over the **full flat Merkle skeleton**
-(`CANONICAL_FORM_VERSION = 2`): the header (`magic ‖ version ‖
+The default κ-label is BLAKE3 over the **full flat Merkle skeleton**
+(`CANONICAL_FORM_VERSION = 3`): the header (`magic ‖ version ‖
 tensor_count ‖ kv_count ‖ alignment`), then the metadata KVs sorted by
 key bytes, then the tensor-info records sorted by name bytes. Each
 variable-length leaf — a string, an array payload, a tensor's data
-region — is replaced by its streamed SHA-256 digest, so the skeleton's
+region — is replaced by its streamed BLAKE3 digest, so the skeleton's
 size grows only with the KV / tensor counts (never with model size)
 while binding every weight byte. Under ADR-060 the full skeleton flows
 through the pipeline as a `Borrowed` carrier and ψ₉ folds it; there is
@@ -337,7 +339,7 @@ canonicalization; CL-GGUF asserts byte-identity against it.
 | Protobuf v3 wire format | https://protobuf.dev/programming-guides/encoding/ |
 | Tensor element-type alphabet | `prism::tensor::dtype` (uor-prism-tensor 0.2.0) |
 | Canonical form encoder (executable spec) | `tools/canonical-onnx.py` |
-| SHA-256 σ-projection | FIPS 180-4 |
+| BLAKE3 leaves and default σ-projection | BLAKE3 specification (<https://github.com/BLAKE3-team/BLAKE3-specs>) |
 
 Any known IR revision is admitted — `ir_version` in
 `1..=ONNX_IR_VERSION_MAX` (= 13, the latest in `onnx.proto`; real-world
@@ -345,7 +347,8 @@ exports are predominantly IR 6–10). The skeleton is IR-version-agnostic
 and binds the `ir_version` value, so distinct revisions of the same
 logical model address distinctly.
 
-The κ-label is SHA-256 over the **full flat skeleton**:
+The default κ-label is BLAKE3 over the **full flat skeleton**
+(`CANONICAL_FORM_VERSION = 4`):
 `LE_i64(ir_version)`, then the opset imports sorted by `(domain,
 version)`, then the graph emitted recursively, then the model metadata.
 The graph orders nodes by Kahn topological sort with lexicographic
@@ -354,7 +357,7 @@ reduces typed-data fields to the canonical `raw_data` layout, and
 recurses into `GRAPH` / `GRAPHS` subgraphs inline (depth-bounded by a
 stack-safety guard, `ONNX_SUBGRAPH_DEPTH_MAX = 64`). Variable-length
 leaves (tensor data, strings, opaque sub-message payloads) are replaced
-by their `sha256(...)` digest. Under ADR-060 the full skeleton flows
+by their `blake3(...)` digest. Under ADR-060 the full skeleton flows
 through the pipeline as a `Borrowed` carrier and ψ₉ folds it; there is
 no two-level commitment and no count cap. The exact layout is in the
 [`onnx::value`](crates/uor-addr/src/onnx/value.rs) module header.
@@ -370,14 +373,15 @@ byte-identity against it.
 | JSON | RFC 8259 |
 | Tensor element-type alphabet | the reference implementation's `Dtype` (all 22 variants, bit widths only) |
 | Canonical form encoder (executable spec) | `tools/canonical-safetensors.py` |
-| SHA-256 σ-projection | FIPS 180-4 |
+| BLAKE3 leaves and default σ-projection | BLAKE3 specification (<https://github.com/BLAKE3-team/BLAKE3-specs>) |
 
-The κ-label is SHA-256 over a **flat Merkle skeleton** of the same shape
-as GGUF's (`CANONICAL_FORM_VERSION = 1`): the tag `SAFE`, the version and
+The default κ-label is BLAKE3 over a **flat Merkle skeleton** of the same shape
+as GGUF's (`CANONICAL_FORM_VERSION = 2`): the tag `SAFE`, the version and
 the tensor / metadata counts, then the `__metadata__` entries sorted by key
 bytes, then the tensor records sorted by name bytes. Each tensor record
 carries its name digest, dtype, shape, its offset in sorted-name order, and
-the SHA-256 of that tensor's own bytes, so one tensor can be checked from a
+the BLAKE3 of that tensor's own bytes (its `blake3:` address, and the root a
+Bao outboard proves byte ranges against), so one tensor can be checked from a
 ranged read and stored offsets do not move the label. The `SAFE` tag keeps
 the skeleton disjoint from GGUF's. Admission follows the reference
 implementation and is stricter where it leaves a choice open (duplicate

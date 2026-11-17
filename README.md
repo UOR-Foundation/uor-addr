@@ -1,7 +1,7 @@
 # uor-addr
 
 > Typed content-addressing for data passing across system boundaries —
-> deterministic, verifiable `sha256:<64hex>` labels with structural
+> deterministic, verifiable `blake3:<64hex>` labels with structural
 > equivalence at the level of *what the data means*, not what its bytes
 > happen to look like.
 
@@ -11,7 +11,7 @@
 the same thing (whitespace differences, key reordering, Unicode
 normalization, equivalent representations of the same number) get the
 **same** identifier; two values that mean different things get
-**different** identifiers, with the SHA-256 sensitivity bound.
+**different** identifiers, with the BLAKE3 sensitivity bound.
 
 It does this by routing each format through a published canonical form
 — JCS for JSON, Rivest's canonical S-expressions, XML-C14N 1.1, DER for
@@ -36,7 +36,7 @@ use uor_addr::json::address;
 
 let outcome = address(br#"{"foo": "bar"}"#).unwrap();
 println!("{}", outcome.address);
-// sha256:7a38bf81f383f69433ad6e900d35b3e2385593f76a7b7ab5d4355b8ba41ee24b
+// blake3:16b6abe0a77021b88cc14863d696df0c34f82556faadb318f46c384184f8ea71
 ```
 
 ```bash
@@ -55,7 +55,7 @@ just examples       # 20 runnable demos covering every realization
 | **C / embedded** | link `uor-addr-c` (`extern "C"` + `uor_addr.h`) | [crates.io/crates/uor-addr-c](https://crates.io/crates/uor-addr-c) |
 | **Other (Go / .NET / Ruby / Java / Deno)** | consume the WASM Component Model via wasmtime | [crates.io/crates/uor-addr-wasm](https://crates.io/crates/uor-addr-wasm) |
 
-Every binding produces the same 71-byte ASCII `sha256:<64hex>` κ-label byte-for-byte. See [RELEASING.md](RELEASING.md) for the polyglot release surface.
+Every binding produces the same 71-byte ASCII `blake3:<64hex>` κ-label byte-for-byte by default; `sha256:<64hex>` is one explicit axis selection away. See [RELEASING.md](RELEASING.md) for the polyglot release surface.
 
 ## Which realization fits my data?
 

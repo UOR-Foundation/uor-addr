@@ -19,8 +19,9 @@
 #![cfg(feature = "alloc")]
 
 use uor_addr::composition::{
-    compose_e6_filtration, compose_e7_augmentation, compose_e8_embedding, compose_f4_quotient,
-    compose_g2_product, compose_g2_product_blake3, compose_g2_product_sha512, CompositionFailure,
+    compose_e6_filtration_sha256, compose_e7_augmentation_sha256, compose_e8_embedding_sha256,
+    compose_f4_quotient_sha256, compose_g2_product, compose_g2_product_blake3,
+    compose_g2_product_sha256, compose_g2_product_sha512, CompositionFailure,
 };
 use uor_addr::KappaLabel;
 
@@ -51,8 +52,8 @@ fn well_formed(label: &str, prefix: &str, len: usize) {
 fn g2_product_is_commutative_through_the_pipeline() {
     let a = lab::<71>(A256);
     let b = lab::<71>(B256);
-    let ab = compose_g2_product(&a, &b).expect("g2(a,b)").address;
-    let ba = compose_g2_product(&b, &a).expect("g2(b,a)").address;
+    let ab = compose_g2_product_sha256(&a, &b).expect("g2(a,b)").address;
+    let ba = compose_g2_product_sha256(&b, &a).expect("g2(b,a)").address;
     assert_eq!(
         ab, ba,
         "CS-G2 commutativity must hold for the composed κ-label"
@@ -64,26 +65,26 @@ fn g2_product_is_commutative_through_the_pipeline() {
 fn f4_quotient_collapses_the_mirror_pair() {
     let z = lab::<71>(ZEROS256);
     let f = lab::<71>(FFS256); // bitwise mirror of all-zeros
-    let cz = compose_f4_quotient(&z).expect("f4(zeros)").address;
-    let cf = compose_f4_quotient(&f).expect("f4(ffs)").address;
+    let cz = compose_f4_quotient_sha256(&z).expect("f4(zeros)").address;
+    let cf = compose_f4_quotient_sha256(&f).expect("f4(ffs)").address;
     assert_eq!(cz, cf, "CS-F4: a ± mirror pair collapses to one κ-label");
 }
 
 #[test]
 fn e6_e7_are_well_formed_and_deterministic() {
     let a = lab::<71>(A256);
-    let e6 = compose_e6_filtration(&a).expect("e6").address;
-    let e7 = compose_e7_augmentation(&a).expect("e7").address;
+    let e6 = compose_e6_filtration_sha256(&a).expect("e6").address;
+    let e7 = compose_e7_augmentation_sha256(&a).expect("e7").address;
     well_formed(e6.as_str(), "sha256", 71);
     well_formed(e7.as_str(), "sha256", 71);
     assert_eq!(
         e6,
-        compose_e6_filtration(&a).unwrap().address,
+        compose_e6_filtration_sha256(&a).unwrap().address,
         "deterministic"
     );
     assert_eq!(
         e7,
-        compose_e7_augmentation(&a).unwrap().address,
+        compose_e7_augmentation_sha256(&a).unwrap().address,
         "deterministic"
     );
 }
@@ -94,7 +95,7 @@ fn e8_embedding_is_distinguished_from_its_operand() {
     // is H(operand-label-bytes) under the E8 realization IRI — distinct
     // from the operand κ-label itself.
     let a = lab::<71>(A256);
-    let e8 = compose_e8_embedding(&a).expect("e8").address;
+    let e8 = compose_e8_embedding_sha256(&a).expect("e8").address;
     well_formed(e8.as_str(), "sha256", 71);
     assert_ne!(e8.as_str(), A256, "CS-E8 composed label ≠ operand label");
 }
@@ -109,9 +110,9 @@ fn operations_with_distinct_canonical_forms_yield_distinct_labels() {
     // itself; they are distinguished from E8 by realization IRI, not by
     // digest bytes, per ADR-061 §(3).)
     let a = lab::<71>(A256);
-    let g2 = compose_g2_product(&a, &a).unwrap().address; // 2N = 142 bytes
-    let e6 = compose_e6_filtration(&a).unwrap().address; // N+1 = 72 bytes
-    let e8 = compose_e8_embedding(&a).unwrap().address; //   N = 71 bytes
+    let g2 = compose_g2_product_sha256(&a, &a).unwrap().address; // 2N = 142 bytes
+    let e6 = compose_e6_filtration_sha256(&a).unwrap().address; // N+1 = 72 bytes
+    let e8 = compose_e8_embedding_sha256(&a).unwrap().address; //   N = 71 bytes
     assert_ne!(g2, e6);
     assert_ne!(g2, e8);
     assert_ne!(e6, e8);
@@ -124,7 +125,7 @@ fn sigma_axis_homogeneity_is_enforced() {
     let blake =
         lab::<71>("blake3:0102030405060708090a0b0c0d0e0f101112131415161718191a1b1c1d1e1f20");
     let sha = lab::<71>(A256);
-    match compose_g2_product(&blake, &sha) {
+    match compose_g2_product_sha256(&blake, &sha) {
         Err(CompositionFailure::OperandSigmaAxisMismatch {
             expected_axis,
             operand_axis,
@@ -158,4 +159,19 @@ fn composition_axes_blake3_and_sha512() {
         out512.witness.verify().is_ok(),
         "sha512 composed witness verifies"
     );
+}
+
+#[test]
+fn default_composition_is_the_blake3_axis() {
+    // The unsuffixed entry points are the default axis, BLAKE3: they take
+    // blake3 operands, mint a blake3 label, and refuse a sha256 operand.
+    let a = lab::<71>("blake3:0102030405060708090a0b0c0d0e0f101112131415161718191a1b1c1d1e1f20");
+    let b = lab::<71>("blake3:ff00ff00ff00ff00ff00ff00ff00ff00ff00ff00ff00ff00ff00ff00ff00ff00");
+    let ab = compose_g2_product(&a, &b).expect("g2(a,b)").address;
+    assert_eq!(ab, compose_g2_product_blake3(&a, &b).unwrap().address);
+    well_formed(ab.as_str(), "blake3", 71);
+    assert!(matches!(
+        compose_g2_product(&lab::<71>(A256), &a),
+        Err(CompositionFailure::OperandSigmaAxisMismatch { .. })
+    ));
 }

@@ -3,7 +3,7 @@
 realization's canonical-form specification.
 
 Reads a safetensors file, applies the canonicalization rules implemented by
-`crates/uor-addr/src/safetensors/value.rs`, and emits the κ-label (SHA-256
+`crates/uor-addr/src/safetensors/value.rs`, and emits the κ-label (BLAKE3
 of the canonical flat Merkle skeleton). The κ-label is byte-identical to the
 Rust crate's `uor_addr::safetensors::address` output; this script is the
 spec attestation the CL-SAFETENSORS conformance vectors check against.
@@ -12,37 +12,46 @@ It is written independently of the Rust parser: the header is decoded with
 the standard library's `json` module, not a hand-written reader, so the two
 agree only if both read the format the same way.
 
-Canonical form v1 (flat Merkle skeleton, every variable-length leaf replaced
-by its SHA-256 digest):
+Canonical form v2 (flat Merkle skeleton, every variable-length leaf replaced
+by its BLAKE3 digest):
 
-    b"SAFE" || LE_u32(1)
+    b"SAFE" || LE_u32(2)
     LE_u64(tensor_count) || LE_u64(metadata_count)
     -- __metadata__ entries, sorted by key bytes --
-      sha256(key) || LE_u64(len(value)) || sha256(value)
+      blake3(key) || LE_u64(len(value)) || blake3(value)
     -- tensors, sorted by name bytes --
-      sha256(name) || LE_u32(dtype_id) || LE_u32(rank) || LE_u64(dim) x rank
-      || LE_u64(canonical_offset) || sha256(tensor data bytes)
+      blake3(name) || LE_u32(dtype_id) || LE_u32(rank) || LE_u64(dim) x rank
+      || LE_u64(canonical_offset) || blake3(tensor data bytes)
 
 Strings are compared and hashed as the UTF-8 bytes of the decoded JSON
 string (escapes resolved, no Unicode normalization). `canonical_offset` is
 the cumulative byte position in sorted-name order, so stored offsets and
 data-section order do not affect the label.
 
-Stdlib-only (hashlib, json, struct).
+Stdlib-only (json, struct, and tools/blake3_ref.py).
 
 Usage:
     python3 canonical-safetensors.py MODEL.safetensors             # κ-label
     python3 canonical-safetensors.py --commitment MODEL.safetensors  # skeleton hex
-    python3 canonical-safetensors.py --leaves MODEL.safetensors      # name, sha256 leaf
+    python3 canonical-safetensors.py --leaves MODEL.safetensors      # name, blake3 leaf
 """
-import hashlib
 import json
 import math
 import struct
 import sys
+import importlib.util as _ilu
+import os as _os
+
+# BLAKE3: the official package when installed, else the pure-Python reference
+# port beside this file (tools/blake3_ref.py), loaded by path so the spec runs
+# under `python -I` too.
+_b3_spec = _ilu.spec_from_file_location(
+    "blake3_ref", _os.path.join(_os.path.dirname(_os.path.abspath(__file__)), "blake3_ref.py"))
+_b3 = _ilu.module_from_spec(_b3_spec)
+_b3_spec.loader.exec_module(_b3)
 
 TAG = b"SAFE"
-VERSION = 1
+VERSION = 2
 MAX_HEADER = 100_000_000
 
 # Fixed IDs assigned by this canonical form; never reused or renumbered.
@@ -57,8 +66,8 @@ DTYPES = {
 }
 
 
-def sha256(b):
-    return hashlib.sha256(b).digest()
+def blake3(b):
+    return _b3.digest(b)
 
 
 def no_duplicates(pairs):
@@ -128,12 +137,12 @@ def commitment(raw):
     out += struct.pack("<QQ", len(tensors), len(meta))
     for key in sorted(meta, key=lambda k: k.encode("utf-8")):
         value = meta[key].encode("utf-8")
-        out += sha256(key.encode("utf-8")) + struct.pack("<Q", len(value)) + sha256(value)
+        out += blake3(key.encode("utf-8")) + struct.pack("<Q", len(value)) + blake3(value)
     offset = 0
     leaves = []
     for name, dtype_id, shape, s, e in sorted(tensors, key=lambda t: t[0]):
-        leaf = sha256(data[s:e])
-        out += sha256(name) + struct.pack("<II", dtype_id, len(shape))
+        leaf = blake3(data[s:e])
+        out += blake3(name) + struct.pack("<II", dtype_id, len(shape))
         out += b"".join(struct.pack("<Q", d) for d in shape)
         out += struct.pack("<Q", offset) + leaf
         offset += e - s
@@ -142,7 +151,7 @@ def commitment(raw):
 
 
 def kappa_label(raw):
-    return "sha256:" + hashlib.sha256(commitment(raw)[0]).hexdigest()
+    return "blake3:" + _b3.new(commitment(raw)[0]).hexdigest()
 
 
 def main(argv):
@@ -154,9 +163,9 @@ def main(argv):
         print(skeleton.hex())
     elif mode == "--leaves":
         for name, leaf in leaves:
-            print(f"{name}\tsha256:{leaf}")
+            print(f"{name}\tblake3:{leaf}")
     else:
-        print("sha256:" + hashlib.sha256(skeleton).hexdigest())
+        print("blake3:" + _b3.new(skeleton).hexdigest())
 
 
 if __name__ == "__main__":

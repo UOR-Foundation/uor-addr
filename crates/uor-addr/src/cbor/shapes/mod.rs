@@ -1,7 +1,7 @@
 //! Substitution-axis selections for the CBOR realization.
 //!
 //! - [`crate::bounds::AddrBounds`] — the `HostBounds` profile.
-//! - [`Sha256Hasher`] — the default `Hasher<32>` σ-axis, re-exported from
+//! - [`Blake3Hasher`] — the default `Hasher<32>` σ-axis, and [`Sha256Hasher`], re-exported from
 //!   `prism::crypto`. The other admissible axes ([`crate::hash`]) are
 //!   selected via the `address_<algorithm>` entry points.
 //!
@@ -12,5 +12,5 @@
 pub mod bounds;
 
 pub use bounds::MAX_CBOR_DEPTH;
-/// Default `Hasher<32>` selection for the CBOR address-derivation pipeline.
-pub use prism::crypto::Sha256Hasher;
+/// `Hasher<32>` selections for the CBOR address-derivation pipeline; BLAKE3 is the default.
+pub use prism::crypto::{Blake3Hasher, Sha256Hasher};

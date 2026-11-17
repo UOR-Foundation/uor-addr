@@ -39,4 +39,4 @@ def test_py_json_01_duplicate_member_names_rejected(raw):
 
 def test_py_json_02_sibling_objects_may_share_names():
     label = kappa.json_address(b'{"x":{"a":1},"y":{"a":2}}')
-    assert label.startswith("sha256:")
+    assert label.startswith("blake3:")
