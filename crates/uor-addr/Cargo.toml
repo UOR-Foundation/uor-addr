@@ -36,7 +36,7 @@ ryu = { version = "1", default-features = false }
 # (`canonicalize() -> Vec<u8>`, alloc-backed conveniences) on top of
 # `std`. The crate's source-of-truth no_alloc surface is reachable
 # under `--no-default-features`.
-default = ["std", "gguf", "onnx"]
+default = ["std", "gguf", "onnx", "safetensors"]
 std     = ["alloc", "uor-prism/std"]
 # Enable alloc-bearing convenience wrappers on top of the
 # no_alloc core. The κ-derivation pipeline is allocator-free
@@ -52,6 +52,10 @@ alloc   = []
 gguf  = ["alloc", "dep:uor-prism-tensor"]
 # ONNX realization. Same alloc + dtype-registry discipline.
 onnx  = ["alloc", "dep:uor-prism-tensor"]
+# safetensors realization. The skeleton is built in an `alloc` buffer. Its
+# dtype alphabet is the safetensors reference implementation's own (bit
+# widths only), so no tensor dtype registry is pulled in.
+safetensors = ["alloc"]
 
 [dev-dependencies]
 # Live HTTP cross-validation against `mcp.uor.foundation/tools/encode_address`

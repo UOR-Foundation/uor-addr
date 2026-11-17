@@ -74,6 +74,8 @@ conformance:
 	cargo test -p uor-addr --release --test gguf_conformance --test gguf_byte_identity
 	# ONNX — flat skeleton (canonical-onnx.py byte-identity + invariants)
 	cargo test -p uor-addr --release --test onnx_conformance --test onnx_byte_identity
+	# safetensors — flat skeleton (canonical-safetensors.py byte-identity + invariants)
+	cargo test -p uor-addr --release --test safetensors_conformance --test safetensors_byte_identity
 	# ADR-060 streaming / bounded-carrier proof (64 MiB synthetic tensors)
 	cargo test -p uor-addr --release --test streaming
 	# Arbitrary-hash σ-axes (authoritative FIPS/Keccak/BLAKE3 KATs) + CBOR
