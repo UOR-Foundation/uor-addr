@@ -176,10 +176,35 @@ for (const [name, json] of duplicateCases) {
   failed += 1;
 }
 
+// CT-E05: members sort by UTF-16 code units, so both input orders mint
+// the RFC 8785 label, the same as in the Rust core and the C and Python
+// bindings.
+const utf16OrderLabel = "sha256:05c7d52a4d1707689b620f9672547238ad89696481cd125cf838266fb86a6c69";
+const utf16OrderCases = [
+  ["code-point order", '{"\uFF11":1,"\u{1D400}":2}'],
+  ["UTF-16 order",     '{"\u{1D400}":2,"\uFF11":1}'],
+];
+for (const [name, json] of utf16OrderCases) {
+  let label;
+  try {
+    label = kappa.jsonAddress(new TextEncoder().encode(json));
+  } catch (e) {
+    console.error(`fail: jsonAddress threw on ${name} input: ${e?.payload?.tag ?? e?.message}`);
+    failed += 1;
+    continue;
+  }
+  if (label === utf16OrderLabel) {
+    console.log(`ok:   jsonAddress sorts members by UTF-16 code units (${name} input, CT-E05)`);
+  } else {
+    console.error(`fail: jsonAddress ${name} input → ${label}, expected ${utf16OrderLabel}`);
+    failed += 1;
+  }
+}
+
 if (failed > 0) {
   console.error(`\n${failed} failure(s)`);
   process.exit(1);
 }
 
-const total = cases.length + witnessCases.length + composeChecks + duplicateCases.length;
+const total = cases.length + witnessCases.length + composeChecks + duplicateCases.length + utf16OrderCases.length;
 console.log(`\nall ${total} smoke tests passed`);

@@ -234,6 +234,23 @@ fn rejects_duplicate_member_names() {
     }
 }
 
+/// CT-E05 across the C ABI: members sort by UTF-16 code units, so both
+/// input orders mint the RFC 8785 κ-label for every binding built on it.
+#[test]
+fn json_members_sort_by_utf16_code_units() {
+    let expected = b"sha256:05c7d52a4d1707689b620f9672547238ad89696481cd125cf838266fb86a6c69";
+    for input in [
+        "{\"\u{FF11}\":1,\"\u{1D400}\":2}",
+        "{\"\u{1D400}\":2,\"\u{FF11}\":1}",
+    ] {
+        let label = call_ffi(input.as_bytes(), |i, il, o, ol, w| unsafe {
+            uor_addr_json(i, il, o, ol, w)
+        })
+        .expect("valid input");
+        assert_eq!(&label[..], &expected[..], "{input}");
+    }
+}
+
 #[test]
 fn allows_null_out_written() {
     let input = br#"{"a":1}"#;

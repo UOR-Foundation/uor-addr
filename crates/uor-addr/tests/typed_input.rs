@@ -8,7 +8,7 @@
 
 #![allow(non_snake_case)]
 
-use uor_addr::json::{address, AddressFailure, JsonValue, MAX_JSON_DEPTH};
+use uor_addr::json::{address, canonicalize, AddressFailure, JsonValue, MAX_JSON_DEPTH};
 
 // ───────────────────────────────────────────────────────────────────────────
 // CT-T — Type distinction. Different scalar types must produce distinct
@@ -108,6 +108,60 @@ fn ct_e04__nested_key_ordering_invariance() {
     let addr_a = address(a).expect("valid").address;
     let addr_b = address(b).expect("valid").address;
     assert_eq!(addr_a, addr_b);
+}
+
+/// CT-E05 — object members sort by the UTF-16 code units of their keys
+/// (RFC 8785 §3.2.3), at any depth. Code-point order and UTF-16 order
+/// differ only when the first differing characters of two sibling keys
+/// are a U+E000..U+FFFF one and an astral-plane one; the astral key comes
+/// first. Both input orders must canonicalize to the pinned bytes and
+/// mint the pinned κ-label.
+#[test]
+fn ct_e05__members_sort_by_utf16_code_units() {
+    let cases: &[(&str, &str, &str, &str)] = &[
+        (
+            // U+FF11 (full-width one) vs U+1D400 (mathematical bold A).
+            "{\"\u{FF11}\":1,\"\u{1D400}\":2}",
+            "{\"\u{1D400}\":2,\"\u{FF11}\":1}",
+            "{\"\u{1D400}\":2,\"\u{FF11}\":1}",
+            "sha256:05c7d52a4d1707689b620f9672547238ad89696481cd125cf838266fb86a6c69",
+        ),
+        (
+            // The same pair one level down.
+            "{\"outer\":{\"\u{FF11}\":1,\"\u{1D400}\":2}}",
+            "{\"outer\":{\"\u{1D400}\":2,\"\u{FF11}\":1}}",
+            "{\"outer\":{\"\u{1D400}\":2,\"\u{FF11}\":1}}",
+            "sha256:8c5a8c983233c60a5d2f078ecd92c1671b90b2f812285eb3e3b995a6b550b261",
+        ),
+        (
+            // Keys that share a prefix and differ at the second character.
+            "{\"k\u{FF11}\":1,\"k\u{1D400}\":2}",
+            "{\"k\u{1D400}\":2,\"k\u{FF11}\":1}",
+            "{\"k\u{1D400}\":2,\"k\u{FF11}\":1}",
+            "sha256:4f7ab3d9f48fd71756926fbc88b18cf1bf38f9b1e9ab11c6abdb546ea0bac553",
+        ),
+        (
+            // Below U+E000 both orders agree: "z" stays ahead of the astral key.
+            "{\"\u{1D400}\":2,\"z\":1}",
+            "{\"z\":1,\"\u{1D400}\":2}",
+            "{\"z\":1,\"\u{1D400}\":2}",
+            "sha256:3780b53953e06d45a69f63edb33fbdaea641f688fa31693107be5eeeda211d3e",
+        ),
+    ];
+    for (one_order, other_order, canonical, label) in cases {
+        for raw in [one_order, other_order] {
+            assert_eq!(
+                canonicalize(raw.as_bytes()).expect("valid"),
+                canonical.as_bytes(),
+                "canonical bytes for {raw}"
+            );
+            assert_eq!(
+                &address(raw.as_bytes()).expect("valid").address[..],
+                *label,
+                "κ-label for {raw}"
+            );
+        }
+    }
 }
 
 // ───────────────────────────────────────────────────────────────────────────

@@ -46,6 +46,17 @@ const JCS_FIXTURES: &[(&[u8], &[u8])] = &[
         br#"{"z":{"b":1,"a":2},"a":{"d":1,"c":2}}"#,
         br#"{"a":{"c":2,"d":1},"z":{"a":2,"b":1}}"#,
     ),
+    // A key starting in U+E000..U+FFFF sorts after an astral-plane key:
+    // UTF-16 writes U+1D400 as the surrogate pair D835 DC00, and
+    // 0xD835 < 0xFF11, even though U+FF11 < U+1D400 as code points.
+    (
+        "{\"\u{FF11}\":1,\"\u{1D400}\":2}".as_bytes(),
+        "{\"\u{1D400}\":2,\"\u{FF11}\":1}".as_bytes(),
+    ),
+    (
+        "{\"o\":{\"\u{FF11}\":1,\"\u{1D400}\":2}}".as_bytes(),
+        "{\"o\":{\"\u{1D400}\":2,\"\u{FF11}\":1}}".as_bytes(),
+    ),
     // ── §3.2.4 — arrays preserve declaration order ───────────────────
     (b"[]", b"[]"),
     (b"[1,2,3]", b"[1,2,3]"),
@@ -90,6 +101,52 @@ fn jcs_rfc8785_section_3_2_canonicalization_rules() {
             core::str::from_utf8(&canonical).unwrap_or("<binary>"),
         );
     }
+}
+
+/// Object members come out in the order of a reference sort over the
+/// keys' UTF-16 encodings, across ASCII, Latin-1, the top of the BMP
+/// below the surrogates, private use, full-width forms, the replacement
+/// character, astral keys, shared prefixes and the empty key.
+#[test]
+fn object_members_follow_reference_utf16_sort() {
+    let keys = [
+        "\u{1F600}",
+        "\u{FFFD}",
+        "a\u{1D400}",
+        "z",
+        "",
+        "\u{E000}",
+        "\u{D7FF}",
+        "a\u{FF11}",
+        "\u{1D400}",
+        "a",
+        "\u{FF11}",
+        "\u{E9}",
+    ];
+    let mut raw = String::from("{");
+    for (i, k) in keys.iter().enumerate() {
+        if i > 0 {
+            raw.push(',');
+        }
+        raw.push_str(&format!("\"{k}\":{i}"));
+    }
+    raw.push('}');
+
+    let mut sorted: Vec<(usize, &str)> = keys.iter().copied().enumerate().collect();
+    sorted.sort_by(|a, b| a.1.encode_utf16().cmp(b.1.encode_utf16()));
+    let mut expected = String::from("{");
+    for (n, (i, k)) in sorted.iter().enumerate() {
+        if n > 0 {
+            expected.push(',');
+        }
+        expected.push_str(&format!("\"{k}\":{i}"));
+    }
+    expected.push('}');
+
+    assert_eq!(
+        String::from_utf8(canonicalize(raw.as_bytes()).expect("valid")).expect("utf-8"),
+        expected
+    );
 }
 
 #[test]
