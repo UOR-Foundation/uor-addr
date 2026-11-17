@@ -295,7 +295,7 @@ fn sha256_one_shot_matches_pipeline() {
     let raw = br#"{"foo":"bar"}"#;
     let canonical = canonicalize(raw).expect("valid");
     let one_shot: [u8; 32] = Sha256Hasher::initial().fold_bytes(&canonical).finalize();
-    let outcome = address(raw).expect("valid");
+    let outcome = uor_addr::json::address_sha256(raw).expect("valid");
     let from_label = hex_decode(&outcome.address[7..]);
     assert_eq!(one_shot.as_slice(), from_label.as_slice());
 }

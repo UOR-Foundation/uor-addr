@@ -518,7 +518,7 @@ mod component {
         ) -> Result<KappaLabel, AddressError> {
             match algo {
                 HashAlgorithm::Sha256 => map_addr!(
-                    uor_addr::json::address(&input),
+                    uor_addr::json::address_sha256(&input),
                     uor_addr::json::AddressFailure,
                     uor_addr::json::AddressFailure::InvalidJson
                 ),
@@ -551,7 +551,7 @@ mod component {
         ) -> Result<Grounded, AddressError> {
             match algo {
                 HashAlgorithm::Sha256 => map_witness!(
-                    uor_addr::json::address(&input),
+                    uor_addr::json::address_sha256(&input),
                     uor_addr::json::AddressFailure,
                     uor_addr::json::AddressFailure::InvalidJson
                 ),
@@ -584,7 +584,7 @@ mod component {
         ) -> Result<KappaLabel, AddressError> {
             match algo {
                 HashAlgorithm::Sha256 => map_addr!(
-                    uor_addr::sexp::address(&input),
+                    uor_addr::sexp::address_sha256(&input),
                     uor_addr::sexp::AddressFailure,
                     uor_addr::sexp::AddressFailure::InvalidSExpr
                 ),
@@ -617,7 +617,7 @@ mod component {
         ) -> Result<Grounded, AddressError> {
             match algo {
                 HashAlgorithm::Sha256 => map_witness!(
-                    uor_addr::sexp::address(&input),
+                    uor_addr::sexp::address_sha256(&input),
                     uor_addr::sexp::AddressFailure,
                     uor_addr::sexp::AddressFailure::InvalidSExpr
                 ),
@@ -650,7 +650,7 @@ mod component {
         ) -> Result<KappaLabel, AddressError> {
             match algo {
                 HashAlgorithm::Sha256 => map_addr!(
-                    uor_addr::xml::address(&input),
+                    uor_addr::xml::address_sha256(&input),
                     uor_addr::xml::AddressFailure,
                     uor_addr::xml::AddressFailure::InvalidXml
                 ),
@@ -683,7 +683,7 @@ mod component {
         ) -> Result<Grounded, AddressError> {
             match algo {
                 HashAlgorithm::Sha256 => map_witness!(
-                    uor_addr::xml::address(&input),
+                    uor_addr::xml::address_sha256(&input),
                     uor_addr::xml::AddressFailure,
                     uor_addr::xml::AddressFailure::InvalidXml
                 ),
@@ -716,7 +716,7 @@ mod component {
         ) -> Result<KappaLabel, AddressError> {
             match algo {
                 HashAlgorithm::Sha256 => map_addr!(
-                    uor_addr::asn1::address(&input),
+                    uor_addr::asn1::address_sha256(&input),
                     uor_addr::asn1::AddressFailure,
                     uor_addr::asn1::AddressFailure::InvalidDer
                 ),
@@ -749,7 +749,7 @@ mod component {
         ) -> Result<Grounded, AddressError> {
             match algo {
                 HashAlgorithm::Sha256 => map_witness!(
-                    uor_addr::asn1::address(&input),
+                    uor_addr::asn1::address_sha256(&input),
                     uor_addr::asn1::AddressFailure,
                     uor_addr::asn1::AddressFailure::InvalidDer
                 ),
@@ -782,7 +782,7 @@ mod component {
         ) -> Result<KappaLabel, AddressError> {
             match algo {
                 HashAlgorithm::Sha256 => map_addr!(
-                    uor_addr::ring::address(&input),
+                    uor_addr::ring::address_sha256(&input),
                     uor_addr::ring::AddressFailure,
                     uor_addr::ring::AddressFailure::InvalidRingElement
                 ),
@@ -815,7 +815,7 @@ mod component {
         ) -> Result<Grounded, AddressError> {
             match algo {
                 HashAlgorithm::Sha256 => map_witness!(
-                    uor_addr::ring::address(&input),
+                    uor_addr::ring::address_sha256(&input),
                     uor_addr::ring::AddressFailure,
                     uor_addr::ring::AddressFailure::InvalidRingElement
                 ),
@@ -848,7 +848,7 @@ mod component {
         ) -> Result<KappaLabel, AddressError> {
             match algo {
                 HashAlgorithm::Sha256 => map_addr!(
-                    uor_addr::codemodule::address(&input),
+                    uor_addr::codemodule::address_sha256(&input),
                     uor_addr::codemodule::AddressFailure,
                     uor_addr::codemodule::AddressFailure::InvalidAst
                 ),
@@ -881,7 +881,7 @@ mod component {
         ) -> Result<Grounded, AddressError> {
             match algo {
                 HashAlgorithm::Sha256 => map_witness!(
-                    uor_addr::codemodule::address(&input),
+                    uor_addr::codemodule::address_sha256(&input),
                     uor_addr::codemodule::AddressFailure,
                     uor_addr::codemodule::AddressFailure::InvalidAst
                 ),
@@ -914,7 +914,7 @@ mod component {
         ) -> Result<KappaLabel, AddressError> {
             match algo {
                 HashAlgorithm::Sha256 => map_addr!(
-                    uor_addr::cbor::address(&input),
+                    uor_addr::cbor::address_sha256(&input),
                     uor_addr::cbor::AddressFailure,
                     uor_addr::cbor::AddressFailure::InvalidCbor
                 ),
@@ -947,7 +947,7 @@ mod component {
         ) -> Result<Grounded, AddressError> {
             match algo {
                 HashAlgorithm::Sha256 => map_witness!(
-                    uor_addr::cbor::address(&input),
+                    uor_addr::cbor::address_sha256(&input),
                     uor_addr::cbor::AddressFailure,
                     uor_addr::cbor::AddressFailure::InvalidCbor
                 ),
@@ -980,7 +980,7 @@ mod component {
         ) -> Result<KappaLabel, AddressError> {
             match algo {
                 HashAlgorithm::Sha256 => map_addr!(
-                    uor_addr::schema::photo::address(&input),
+                    uor_addr::schema::photo::address_sha256(&input),
                     uor_addr::schema::photo::AddressFailure,
                     uor_addr::schema::photo::AddressFailure::SchemaViolation
                 ),
@@ -1013,7 +1013,7 @@ mod component {
         ) -> Result<Grounded, AddressError> {
             match algo {
                 HashAlgorithm::Sha256 => map_witness!(
-                    uor_addr::schema::photo::address(&input),
+                    uor_addr::schema::photo::address_sha256(&input),
                     uor_addr::schema::photo::AddressFailure,
                     uor_addr::schema::photo::AddressFailure::SchemaViolation
                 ),
@@ -1046,7 +1046,7 @@ mod component {
         ) -> Result<KappaLabel, AddressError> {
             match algo {
                 HashAlgorithm::Sha256 => map_addr!(
-                    uor_addr::schema::document::address(&input),
+                    uor_addr::schema::document::address_sha256(&input),
                     uor_addr::schema::document::AddressFailure,
                     uor_addr::schema::document::AddressFailure::SchemaViolation
                 ),
@@ -1079,7 +1079,7 @@ mod component {
         ) -> Result<Grounded, AddressError> {
             match algo {
                 HashAlgorithm::Sha256 => map_witness!(
-                    uor_addr::schema::document::address(&input),
+                    uor_addr::schema::document::address_sha256(&input),
                     uor_addr::schema::document::AddressFailure,
                     uor_addr::schema::document::AddressFailure::SchemaViolation
                 ),
@@ -1112,7 +1112,7 @@ mod component {
         ) -> Result<KappaLabel, AddressError> {
             match algo {
                 HashAlgorithm::Sha256 => map_addr!(
-                    uor_addr::schema::codemodule_signed::address(&input),
+                    uor_addr::schema::codemodule_signed::address_sha256(&input),
                     uor_addr::schema::codemodule_signed::AddressFailure,
                     uor_addr::schema::codemodule_signed::AddressFailure::SchemaViolation
                 ),
@@ -1145,7 +1145,7 @@ mod component {
         ) -> Result<Grounded, AddressError> {
             match algo {
                 HashAlgorithm::Sha256 => map_witness!(
-                    uor_addr::schema::codemodule_signed::address(&input),
+                    uor_addr::schema::codemodule_signed::address_sha256(&input),
                     uor_addr::schema::codemodule_signed::AddressFailure,
                     uor_addr::schema::codemodule_signed::AddressFailure::SchemaViolation
                 ),
@@ -1178,7 +1178,7 @@ mod component {
         ) -> Result<KappaLabel, AddressError> {
             match algo {
                 HashAlgorithm::Sha256 => map_addr!(
-                    uor_addr::gguf::address(&input),
+                    uor_addr::gguf::address_sha256(&input),
                     uor_addr::gguf::AddressFailure,
                     uor_addr::gguf::AddressFailure::InvalidGguf
                 ),
@@ -1211,7 +1211,7 @@ mod component {
         ) -> Result<Grounded, AddressError> {
             match algo {
                 HashAlgorithm::Sha256 => map_witness!(
-                    uor_addr::gguf::address(&input),
+                    uor_addr::gguf::address_sha256(&input),
                     uor_addr::gguf::AddressFailure,
                     uor_addr::gguf::AddressFailure::InvalidGguf
                 ),
@@ -1244,7 +1244,7 @@ mod component {
         ) -> Result<KappaLabel, AddressError> {
             match algo {
                 HashAlgorithm::Sha256 => map_addr!(
-                    uor_addr::onnx::address(&input),
+                    uor_addr::onnx::address_sha256(&input),
                     uor_addr::onnx::AddressFailure,
                     uor_addr::onnx::AddressFailure::InvalidOnnx
                 ),
@@ -1277,7 +1277,7 @@ mod component {
         ) -> Result<Grounded, AddressError> {
             match algo {
                 HashAlgorithm::Sha256 => map_witness!(
-                    uor_addr::onnx::address(&input),
+                    uor_addr::onnx::address_sha256(&input),
                     uor_addr::onnx::AddressFailure,
                     uor_addr::onnx::AddressFailure::InvalidOnnx
                 ),
@@ -1314,7 +1314,9 @@ mod component {
         ) -> Result<KappaLabel, AddressError> {
             use uor_addr::composition as c;
             match algo {
-                HashAlgorithm::Sha256 => compose2_label(&left, &right, c::compose_g2_product),
+                HashAlgorithm::Sha256 => {
+                    compose2_label(&left, &right, c::compose_g2_product_sha256)
+                }
                 HashAlgorithm::Blake3 => {
                     compose2_label(&left, &right, c::compose_g2_product_blake3)
                 }
@@ -1337,7 +1339,9 @@ mod component {
         ) -> Result<Grounded, AddressError> {
             use uor_addr::composition as c;
             match algo {
-                HashAlgorithm::Sha256 => compose2_witness(&left, &right, c::compose_g2_product),
+                HashAlgorithm::Sha256 => {
+                    compose2_witness(&left, &right, c::compose_g2_product_sha256)
+                }
                 HashAlgorithm::Blake3 => {
                     compose2_witness(&left, &right, c::compose_g2_product_blake3)
                 }
@@ -1359,7 +1363,7 @@ mod component {
         ) -> Result<KappaLabel, AddressError> {
             use uor_addr::composition as c;
             match algo {
-                HashAlgorithm::Sha256 => compose1_label(&operand, c::compose_f4_quotient),
+                HashAlgorithm::Sha256 => compose1_label(&operand, c::compose_f4_quotient_sha256),
                 HashAlgorithm::Blake3 => compose1_label(&operand, c::compose_f4_quotient_blake3),
                 HashAlgorithm::Sha3256 => compose1_label(&operand, c::compose_f4_quotient_sha3_256),
                 HashAlgorithm::Keccak256 => {
@@ -1375,7 +1379,7 @@ mod component {
         ) -> Result<Grounded, AddressError> {
             use uor_addr::composition as c;
             match algo {
-                HashAlgorithm::Sha256 => compose1_witness(&operand, c::compose_f4_quotient),
+                HashAlgorithm::Sha256 => compose1_witness(&operand, c::compose_f4_quotient_sha256),
                 HashAlgorithm::Blake3 => compose1_witness(&operand, c::compose_f4_quotient_blake3),
                 HashAlgorithm::Sha3256 => {
                     compose1_witness(&operand, c::compose_f4_quotient_sha3_256)
@@ -1393,7 +1397,7 @@ mod component {
         ) -> Result<KappaLabel, AddressError> {
             use uor_addr::composition as c;
             match algo {
-                HashAlgorithm::Sha256 => compose1_label(&operand, c::compose_e6_filtration),
+                HashAlgorithm::Sha256 => compose1_label(&operand, c::compose_e6_filtration_sha256),
                 HashAlgorithm::Blake3 => compose1_label(&operand, c::compose_e6_filtration_blake3),
                 HashAlgorithm::Sha3256 => {
                     compose1_label(&operand, c::compose_e6_filtration_sha3_256)
@@ -1411,7 +1415,9 @@ mod component {
         ) -> Result<Grounded, AddressError> {
             use uor_addr::composition as c;
             match algo {
-                HashAlgorithm::Sha256 => compose1_witness(&operand, c::compose_e6_filtration),
+                HashAlgorithm::Sha256 => {
+                    compose1_witness(&operand, c::compose_e6_filtration_sha256)
+                }
                 HashAlgorithm::Blake3 => {
                     compose1_witness(&operand, c::compose_e6_filtration_blake3)
                 }
@@ -1433,7 +1439,9 @@ mod component {
         ) -> Result<KappaLabel, AddressError> {
             use uor_addr::composition as c;
             match algo {
-                HashAlgorithm::Sha256 => compose1_label(&operand, c::compose_e7_augmentation),
+                HashAlgorithm::Sha256 => {
+                    compose1_label(&operand, c::compose_e7_augmentation_sha256)
+                }
                 HashAlgorithm::Blake3 => {
                     compose1_label(&operand, c::compose_e7_augmentation_blake3)
                 }
@@ -1455,7 +1463,9 @@ mod component {
         ) -> Result<Grounded, AddressError> {
             use uor_addr::composition as c;
             match algo {
-                HashAlgorithm::Sha256 => compose1_witness(&operand, c::compose_e7_augmentation),
+                HashAlgorithm::Sha256 => {
+                    compose1_witness(&operand, c::compose_e7_augmentation_sha256)
+                }
                 HashAlgorithm::Blake3 => {
                     compose1_witness(&operand, c::compose_e7_augmentation_blake3)
                 }
@@ -1477,7 +1487,7 @@ mod component {
         ) -> Result<KappaLabel, AddressError> {
             use uor_addr::composition as c;
             match algo {
-                HashAlgorithm::Sha256 => compose1_label(&operand, c::compose_e8_embedding),
+                HashAlgorithm::Sha256 => compose1_label(&operand, c::compose_e8_embedding_sha256),
                 HashAlgorithm::Blake3 => compose1_label(&operand, c::compose_e8_embedding_blake3),
                 HashAlgorithm::Sha3256 => {
                     compose1_label(&operand, c::compose_e8_embedding_sha3_256)
@@ -1495,7 +1505,7 @@ mod component {
         ) -> Result<Grounded, AddressError> {
             use uor_addr::composition as c;
             match algo {
-                HashAlgorithm::Sha256 => compose1_witness(&operand, c::compose_e8_embedding),
+                HashAlgorithm::Sha256 => compose1_witness(&operand, c::compose_e8_embedding_sha256),
                 HashAlgorithm::Blake3 => compose1_witness(&operand, c::compose_e8_embedding_blake3),
                 HashAlgorithm::Sha3256 => {
                     compose1_witness(&operand, c::compose_e8_embedding_sha3_256)

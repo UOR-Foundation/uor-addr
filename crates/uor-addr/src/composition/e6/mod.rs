@@ -9,6 +9,7 @@ pub mod value;
 pub mod verbs;
 
 pub use pipeline::{
-    compose_e6_filtration, compose_e6_filtration_blake3, compose_e6_filtration_keccak256,
-    compose_e6_filtration_sha3_256, compose_e6_filtration_sha512,
+    compose_e6_filtration_blake3 as compose_e6_filtration, compose_e6_filtration_blake3,
+    compose_e6_filtration_keccak256, compose_e6_filtration_sha256, compose_e6_filtration_sha3_256,
+    compose_e6_filtration_sha512,
 };

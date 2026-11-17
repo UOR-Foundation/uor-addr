@@ -165,7 +165,7 @@ fn pipeline_mints_each_axis_over_canonical_form() {
     assert_eq!(canonical, unhex("a26161016162820203")); // {"a":1,"b":[2,3]}
 
     assert_eq!(
-        cbor::address(&raw).unwrap().address.as_str(),
+        cbor::address_sha256(&raw).unwrap().address.as_str(),
         expect_label::<32, Sha256Hasher>(&canonical)
     );
     assert_eq!(
@@ -189,7 +189,7 @@ fn pipeline_mints_each_axis_over_canonical_form() {
 #[test]
 fn pipeline_axes_distinct_and_witness_verifies() {
     let raw = unhex("83010203"); // [1, 2, 3]
-    let s = cbor::address(&raw).unwrap();
+    let s = cbor::address_sha256(&raw).unwrap();
     let b = cbor::address_blake3(&raw).unwrap();
     assert_ne!(s.address.as_str(), b.address.as_str());
     assert!(s.address.starts_with("sha256:") && s.address.len() == 71);

@@ -57,12 +57,12 @@ pub mod value;
 pub mod verbs;
 
 pub use model::{
-    AddressModel, AddressModelBlake3, AddressModelKeccak256, AddressModelSha3_256,
+    AddressModel, AddressModelKeccak256, AddressModelSha256, AddressModelSha3_256,
     AddressModelSha512, AddressRoute,
 };
 pub use pipeline::{
-    address, address_blake3, address_keccak256, address_sha3_256, address_sha512, AddressFailure,
-    AddressOutcome, AddressWitness, VerifyError,
+    address, address as address_blake3, address_keccak256, address_sha256, address_sha3_256,
+    address_sha512, AddressFailure, AddressOutcome, AddressWitness, VerifyError,
 };
 pub use value::CodeModuleCarrier;
 #[cfg(feature = "alloc")]

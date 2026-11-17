@@ -9,6 +9,7 @@ pub mod value;
 pub mod verbs;
 
 pub use pipeline::{
-    compose_f4_quotient, compose_f4_quotient_blake3, compose_f4_quotient_keccak256,
-    compose_f4_quotient_sha3_256, compose_f4_quotient_sha512,
+    compose_f4_quotient_blake3 as compose_f4_quotient, compose_f4_quotient_blake3,
+    compose_f4_quotient_keccak256, compose_f4_quotient_sha256, compose_f4_quotient_sha3_256,
+    compose_f4_quotient_sha512,
 };

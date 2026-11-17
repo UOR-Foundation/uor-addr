@@ -27,7 +27,7 @@ const KAPPA_LABEL_BYTES: usize = 71;
 
 fn assert_well_formed_kappa(label: &str) {
     assert_eq!(label.len(), KAPPA_LABEL_BYTES);
-    assert!(label.starts_with("sha256:"));
+    assert!(label.starts_with("blake3:"));
     for &b in &label.as_bytes()[7..] {
         assert!(b.is_ascii_digit() || (b'a'..=b'f').contains(&b));
     }
@@ -322,7 +322,7 @@ fn every_realization_exposes_all_five_axes() {
 
     let j = br#"{"x":1}"#;
     by_axis(
-        &uor_addr::json::address(j).unwrap().address,
+        &uor_addr::json::address_sha256(j).unwrap().address,
         &uor_addr::json::address_blake3(j).unwrap().address,
         &uor_addr::json::address_sha3_256(j).unwrap().address,
         &uor_addr::json::address_keccak256(j).unwrap().address,
@@ -330,7 +330,7 @@ fn every_realization_exposes_all_five_axes() {
     );
     let c: &[u8] = &[0x83, 0x01, 0x02, 0x03];
     by_axis(
-        &uor_addr::cbor::address(c).unwrap().address,
+        &uor_addr::cbor::address_sha256(c).unwrap().address,
         &uor_addr::cbor::address_blake3(c).unwrap().address,
         &uor_addr::cbor::address_sha3_256(c).unwrap().address,
         &uor_addr::cbor::address_keccak256(c).unwrap().address,
@@ -338,7 +338,7 @@ fn every_realization_exposes_all_five_axes() {
     );
     let s = b"(a b c)";
     by_axis(
-        &uor_addr::sexp::address(s).unwrap().address,
+        &uor_addr::sexp::address_sha256(s).unwrap().address,
         &uor_addr::sexp::address_blake3(s).unwrap().address,
         &uor_addr::sexp::address_sha3_256(s).unwrap().address,
         &uor_addr::sexp::address_keccak256(s).unwrap().address,

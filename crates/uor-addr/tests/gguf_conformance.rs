@@ -129,7 +129,7 @@ fn label(bytes: &[u8]) -> String {
 
 fn is_kappa(s: &str) -> bool {
     s.len() == 71
-        && s.starts_with("sha256:")
+        && s.starts_with("blake3:")
         && s[7..]
             .bytes()
             .all(|b| b.is_ascii_hexdigit() && !b.is_ascii_uppercase())
@@ -166,7 +166,7 @@ fn sample_tensors() -> Vec<Tensor> {
 fn well_formed_yields_kappa_label() {
     let bytes = build(&sample_kvs(), &sample_tensors());
     let l = label(&bytes);
-    assert!(is_kappa(&l), "not a 71-byte sha256:<64hex>: {l}");
+    assert!(is_kappa(&l), "not a 71-byte blake3:<64hex>: {l}");
 }
 
 #[test]

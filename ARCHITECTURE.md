@@ -87,7 +87,7 @@ else imports.
 | Module | Layer |
 |---|---|
 | [`uor_addr::common`](crates/uor-addr/src/common.rs) | Common architectural surface — `AddressInput` trait |
-| [`uor_addr::label`](crates/uor-addr/src/label.rs) | Common output shape — `AddressLabel` (71-Site SHA-256 specialization, IRI `…/sha256`) + `KappaLabel` byte carrier |
+| [`uor_addr::label`](crates/uor-addr/src/label.rs) | Common output shape — `AddressLabel` (71-Site BLAKE3 specialization, IRI `…/blake3`) + `KappaLabel` byte carrier |
 | [`uor_addr::outcome`](crates/uor-addr/src/outcome.rs) | Shared `AddressOutcome` / `AddressWitness` carriers — one architectural-surface output type re-exported by every realization |
 | [`uor_addr::canonical`](crates/uor-addr/src/canonical/) | Prism-native canonical primitives — `nfc` (UAX #15 streaming normalizer, full UCD 15.1.0) + `hex` (lowercase-hex emit). `no_std` + `no_alloc`. |
 | [`uor_addr::json`](crates/uor-addr/src/json/) | Format: JSON under JCS-RFC8785 + Unicode NFC |
@@ -181,8 +181,8 @@ SD2's cost-model commitments C1–C4 hold for every UOR-ADDR prism_model:
   host-side retry loop, no search over the typed-iso surface, no
   iterative refinement.
 - **C4 (σ-projection axis qualification)** — every UOR-ADDR
-  prism_model's `A` slot binds `prism::crypto::Sha256Hasher`
-  (`H::IDENTIFIER = "sha256"`, `H::DIGEST_BYTES = 32`), an
+  prism_model's `A` slot binds `prism::crypto::Blake3Hasher`
+  (`H::IDENTIFIER = "blake3"`, `H::DIGEST_BYTES = 32`), an
   ADR-047-conforming axis.
 
 ### Position at SD3 — Verification
@@ -220,18 +220,19 @@ the workspace home moves from the standalone repo to
 
 `AddressLabel` — a `ConstrainedTypeShape` parameterized at the
 architectural level on the realization's selected hash axis `H: Hasher`,
-realized concretely for `H = Sha256Hasher` (the first-published axis
-selection across UOR-ADDR's realizations). The shape's `SITE_COUNT` is
+realized concretely for `H = Blake3Hasher` (the default axis selection
+across UOR-ADDR's realizations since 0.4.0; `Sha256Hasher` remains
+selectable through the `*_sha256` entry points). The shape's `SITE_COUNT` is
 structurally derived:
 
 ```text
 SITE_COUNT = H::IDENTIFIER.len() + 1 + 2 × H::DIGEST_BYTES
 ```
 
-For `H = Sha256Hasher` (`IDENTIFIER = "sha256"`, `DIGEST_BYTES = 32`),
-the specialization is the **71-Site shape** emitting `sha256:<64hex>`
+For `H = Blake3Hasher` (`IDENTIFIER = "blake3"`, `DIGEST_BYTES = 32`),
+the specialization is the **71-Site shape** emitting `blake3:<64hex>`
 ASCII bytes. The content-addressed IRI is
-`https://uor.foundation/addr/AddressLabel/sha256` — the IRI specializes
+`https://uor.foundation/addr/AddressLabel/blake3` — the IRI specializes
 per axis (the framework's typed-iso commitment per ADR-001 + ADR-017).
 
 The output space is **π_0-only** by structural property of the
@@ -415,7 +416,7 @@ realizations, validating tensor element types against the
 
 | Module | Format |
 |---|---|
-| `uor_addr::gguf` | GGUF v3 under a flat Merkle-skeleton canonical form (header, key-sorted metadata KVs, name-sorted tensor info; variable-length leaves replaced by their streamed SHA-256 digest) |
+| `uor_addr::gguf` | GGUF v3 under a flat Merkle-skeleton canonical form (header, key-sorted metadata KVs, name-sorted tensor info; variable-length leaves replaced by their streamed BLAKE3 digest) |
 | `uor_addr::onnx` | ONNX IR v13 under a flat Merkle-skeleton canonical form (Kahn-topological node ordering, name-sorted initializers / IO, typed-data→raw_data reduction, inline-recursed subgraphs; variable-length leaves digested) |
 
 ### Flat-skeleton design (ADR-060)
@@ -426,13 +427,13 @@ a two-level section commitment. The skeleton is emitted in a fixed total
 order — header, then sorted KVs/metadata, then sorted tensors/nodes with
 subgraphs recursed inline — and every variable-length leaf (a string, an
 array payload, a tensor's data region) is replaced by its streamed
-SHA-256 digest (`prism::crypto::Sha256Hasher`'s incremental
+BLAKE3 digest (`prism::crypto::Blake3Hasher`'s incremental
 `fold_bytes`). The skeleton's size therefore grows only with the KV /
 tensor / node **counts**, never with model size, while still binding
 every weight byte into the κ-label. The full skeleton flows through the
 pipeline as a `TermValue::Borrowed` carrier that ψ₉ folds — there is no
 two-level commitment and no count / width cap. GGUF's
-`CANONICAL_FORM_VERSION` is **2**. The exact byte layouts are documented
+`CANONICAL_FORM_VERSION` is **3** (ONNX's is **4**). The exact byte layouts are documented
 in the [`gguf::value`](crates/uor-addr/src/gguf/value.rs) and
 [`onnx::value`](crates/uor-addr/src/onnx/value.rs) module headers.
 

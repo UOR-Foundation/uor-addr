@@ -14,7 +14,7 @@ import UorAddr.Gguf.Recursion
 - `kappa_label_admits_through_psi` — the κ-label is exactly the ψ_9
   projection `kappaLabel ∘ sha` of the commitment.
 - `distinct_commitments_yield_distinct_labels` — injectivity, modulo
-  SHA-256 collision resistance.
+  BLAKE3 collision resistance.
 - `wire_format_round_trip` — re-committing the canonical commitment is
   the identity (idempotence).
 -/

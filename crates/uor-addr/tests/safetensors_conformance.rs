@@ -125,7 +125,7 @@ fn refused(bytes: &[u8]) -> bool {
 fn well_formed_yields_kappa_label() {
     let l = label(&build(&sample()));
     assert_eq!(l.len(), 71);
-    assert!(l.starts_with("sha256:"));
+    assert!(l.starts_with("blake3:"));
     assert!(l[7..]
         .bytes()
         .all(|b| b.is_ascii_hexdigit() && !b.is_ascii_uppercase()));
@@ -209,14 +209,14 @@ fn binds_name_dtype_and_shape() {
 }
 
 #[test]
-fn tensor_leaf_is_sha256_of_its_own_bytes() {
+fn tensor_leaf_is_blake3_of_its_own_bytes() {
     let tensors = sample();
     let skeleton = safetensors::canonicalize(&build(&tensors)).expect("valid");
     for t in &tensors {
-        let leaf = sha256(&t.data);
+        let leaf = blake3(&t.data);
         assert!(
             skeleton.windows(32).any(|w| w == leaf),
-            "leaf of {} is not sha256 of its bytes",
+            "leaf of {} is not the BLAKE3 of its bytes",
             t.name
         );
     }
@@ -287,9 +287,9 @@ fn refuses_malformed_inputs() {
     }
 }
 
-fn sha256(bytes: &[u8]) -> [u8; 32] {
+fn blake3(bytes: &[u8]) -> [u8; 32] {
     use prism::vocabulary::Hasher;
-    uor_addr::Sha256Hasher::initial()
+    uor_addr::Blake3Hasher::initial()
         .fold_bytes(bytes)
         .finalize()
 }

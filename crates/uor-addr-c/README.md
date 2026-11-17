@@ -2,7 +2,7 @@
 
 C ABI bindings for [`uor-addr`](../uor-addr) — typed content-addressing
 exposed over `extern "C"` so embedded toolchains and any language with
-a C FFI can mint the same 71-byte `sha256:<64hex>` κ-label that the
+a C FFI can mint the same 71-byte `blake3:<64hex>` κ-label that the
 Rust crate produces, byte-for-byte.
 
 ## What this crate is
@@ -36,7 +36,7 @@ Return value is one of:
 
 | Constant | Meaning |
 |---|---|
-| `UOR_ADDR_OK` (`0`) | Success; `out_label[..71]` holds the ASCII `sha256:<64hex>` κ-label. |
+| `UOR_ADDR_OK` (`0`) | Success; `out_label[..71]` holds the ASCII `blake3:<64hex>` κ-label (`sha256:<64hex>` when `UOR_ADDR_HASH_SHA256` is requested). |
 | `UOR_ADDR_ERR_NULL_POINTER` (`-1`) | `input == NULL && input_len > 0`, or `out_label == NULL`. |
 | `UOR_ADDR_ERR_BUFFER_TOO_SMALL` (`-2`) | `out_label_len < 71`. |
 | `UOR_ADDR_ERR_INVALID_INPUT` (`-3`) | Input failed the realization's host-boundary parser. |

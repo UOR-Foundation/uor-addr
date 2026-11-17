@@ -237,13 +237,13 @@ fn cl_w01__every_kappa_label_is_seventy_one_bytes() {
     }
 }
 
-/// CL-W02 — every κ-label begins with the ASCII literal `"sha256:"`.
+/// CL-W02 — every default-axis κ-label begins with the ASCII literal `"blake3:"`.
 #[test]
-fn cl_w02__every_kappa_label_starts_with_sha256_colon() {
+fn cl_w02__every_kappa_label_starts_with_blake3_colon() {
     for raw in [b"{}".as_slice(), b"[]", br#"{"foo":"bar"}"#] {
         let outcome = address(raw).expect("valid");
         assert!(
-            outcome.address.starts_with("sha256:"),
+            outcome.address.starts_with("blake3:"),
             "CL-W02: prefix violation for {raw:?}: {}",
             outcome.address
         );

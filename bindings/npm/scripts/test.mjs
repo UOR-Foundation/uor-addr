@@ -1,6 +1,6 @@
 // Smoke test for the transpiled npm package. Mints κ-labels for one
 // input per realization and asserts each is a well-formed 71-byte
-// ASCII sha256:<64hex>.
+// ASCII blake3:<64hex>.
 //
 // The reference byte-for-byte κ-labels are pinned by the Rust
 // cross-realization test suite (tests/all_realizations.rs); this test
@@ -36,7 +36,7 @@ const witnessCases = [
   ["ringAddressWithWitness",     new Uint8Array([0, 0x42])],
 ];
 
-const KAPPA_LABEL_RE = /^sha256:[0-9a-f]{64}$/;
+const KAPPA_LABEL_RE = /^blake3:[0-9a-f]{64}$/;
 let failed = 0;
 
 for (const [fnName, input] of cases) {
@@ -55,7 +55,7 @@ for (const [fnName, input] of cases) {
     continue;
   }
   if (typeof result !== "string" || result.length !== 71 || !KAPPA_LABEL_RE.test(result)) {
-    console.error(`fail: ${fnName} returned ${JSON.stringify(result)} (not a 71-byte sha256:<64hex>)`);
+    console.error(`fail: ${fnName} returned ${JSON.stringify(result)} (not a 71-byte blake3:<64hex>)`);
     failed += 1;
     continue;
   }
@@ -117,8 +117,8 @@ let composeChecks = 0;
 
   // CS-G2 commutativity.
   try {
-    const ab = kappa.composeG2(a, b, "sha256");
-    const ba = kappa.composeG2(b, a, "sha256");
+    const ab = kappa.composeG2(a, b, "blake3");
+    const ba = kappa.composeG2(b, a, "blake3");
     if (!KAPPA_LABEL_RE.test(ab)) throw new Error(`g2 not well-formed: ${ab}`);
     if (ab !== ba) throw new Error(`g2 not commutative: ${ab} != ${ba}`);
     console.log(`ok:   composeG2 (commutative) → ${ab}`);
@@ -137,9 +137,9 @@ let composeChecks = 0;
   ];
   for (const [labelFn, witnessFn] of unary) {
     try {
-      const label = kappa[labelFn](a, "sha256");
+      const label = kappa[labelFn](a, "blake3");
       if (!KAPPA_LABEL_RE.test(label)) throw new Error(`not well-formed: ${label}`);
-      const g = kappa[witnessFn](a, "sha256");
+      const g = kappa[witnessFn](a, "blake3");
       if (g.kappaLabel() !== label) throw new Error("witness label mismatch");
       if (g.verify() !== label) throw new Error("TC-05 round-trip mismatch");
       console.log(`ok:   ${labelFn} → mint==verify (TC-05) → ${label}`);

@@ -122,12 +122,12 @@ fn common_verb_arena_composes_only_psi_term_variants() {
 fn common_output_shape_iri_matches_architectural_commitment() {
     // ARCHITECTURE.md "Common output shape" — the content-addressed
     // IRI is `https://uor.foundation/addr/AddressLabel/<H::IDENTIFIER>`.
-    // The shipped specialization binds `H = Sha256Hasher`, so the
-    // suffix is `/sha256`. Per-axis IRI specialization is the
+    // The shipped specialization binds `H = Blake3Hasher`, so the
+    // suffix is `/blake3`. Per-axis IRI specialization is the
     // framework's typed-iso commitment per ADR-001 + ADR-017.
     assert_eq!(
         <AddressLabel as ConstrainedTypeShape>::IRI,
-        "https://uor.foundation/addr/AddressLabel/sha256"
+        "https://uor.foundation/addr/AddressLabel/blake3"
     );
 }
 
@@ -176,7 +176,7 @@ fn end_to_end_kappa_derivation_via_common_surface() {
     let raw = br#"{"hello":"world"}"#;
     let outcome = address(raw).expect("well-formed input yields κ-label");
     assert_eq!(outcome.address.len(), ADDRESS_LABEL_BYTES);
-    assert!(outcome.address.starts_with("sha256:"));
+    assert!(outcome.address.starts_with("blake3:"));
     // Lowercase hex digits only after the 7-byte prefix.
     for &b in &outcome.address.as_bytes()[7..] {
         assert!(

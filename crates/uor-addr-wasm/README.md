@@ -2,7 +2,7 @@
 
 WASM Component Model bindings for [`uor-addr`](../uor-addr) — a
 language-agnostic `.wasm` component that mints the same 71-byte
-`sha256:<64hex>` κ-label the Rust crate produces, byte-for-byte.
+`blake3:<64hex>` κ-label the Rust crate produces, byte-for-byte.
 
 ## What this crate is
 

@@ -14,10 +14,10 @@
 #include <stdint.h>
 #include <stdlib.h>
 
-// σ-axis selector for the `*_with_hash` entry points: SHA-256 (default).
+// σ-axis selector for the `*_with_hash` entry points: SHA-256.
 #define UOR_ADDR_HASH_SHA256 0
 
-// σ-axis selector: BLAKE3.
+// σ-axis selector: BLAKE3, the default axis of the selector-free entry points.
 #define UOR_ADDR_HASH_BLAKE3 1
 
 // σ-axis selector: SHA3-256 (FIPS 202).
@@ -90,8 +90,8 @@ typedef struct UorAddrGrounded {
 extern "C" {
 #endif // __cplusplus
 
-// Wire-format κ-label byte width under the default σ-axis (sha256) —
-// `len("sha256:") + 64 = 71`.
+// Wire-format κ-label byte width under the default σ-axis (blake3) —
+// `len("blake3:") + 64 = 71`.
 extern const uintptr_t UOR_ADDR_LABEL_BYTES;
 
 // Widest κ-label byte width across the admissible σ-axes (keccak256 →
@@ -99,7 +99,7 @@ extern const uintptr_t UOR_ADDR_LABEL_BYTES;
 // this fits every algorithm.
 extern const uintptr_t UOR_ADDR_MAX_LABEL_BYTES;
 
-// `json` realization — default σ-axis (SHA-256).
+// `json` realization — default σ-axis (BLAKE3).
 //
 // # Safety
 //
@@ -125,7 +125,7 @@ int32_t uor_addr_json_with_hash(uint8_t algo,
                                 uintptr_t out_label_len,
                                 uintptr_t *out_written);
 
-// `sexp` realization — default σ-axis (SHA-256).
+// `sexp` realization — default σ-axis (BLAKE3).
 //
 // # Safety
 //
@@ -151,7 +151,7 @@ int32_t uor_addr_sexp_with_hash(uint8_t algo,
                                 uintptr_t out_label_len,
                                 uintptr_t *out_written);
 
-// `xml` realization — default σ-axis (SHA-256).
+// `xml` realization — default σ-axis (BLAKE3).
 //
 // # Safety
 //
@@ -177,7 +177,7 @@ int32_t uor_addr_xml_with_hash(uint8_t algo,
                                uintptr_t out_label_len,
                                uintptr_t *out_written);
 
-// `asn1` realization — default σ-axis (SHA-256).
+// `asn1` realization — default σ-axis (BLAKE3).
 //
 // # Safety
 //
@@ -203,7 +203,7 @@ int32_t uor_addr_asn1_with_hash(uint8_t algo,
                                 uintptr_t out_label_len,
                                 uintptr_t *out_written);
 
-// `ring` realization — default σ-axis (SHA-256).
+// `ring` realization — default σ-axis (BLAKE3).
 //
 // # Safety
 //
@@ -229,7 +229,7 @@ int32_t uor_addr_ring_with_hash(uint8_t algo,
                                 uintptr_t out_label_len,
                                 uintptr_t *out_written);
 
-// `codemodule` realization — default σ-axis (SHA-256).
+// `codemodule` realization — default σ-axis (BLAKE3).
 //
 // # Safety
 //
@@ -255,7 +255,7 @@ int32_t uor_addr_codemodule_with_hash(uint8_t algo,
                                       uintptr_t out_label_len,
                                       uintptr_t *out_written);
 
-// `cbor` realization — default σ-axis (SHA-256).
+// `cbor` realization — default σ-axis (BLAKE3).
 //
 // # Safety
 //
@@ -281,7 +281,7 @@ int32_t uor_addr_cbor_with_hash(uint8_t algo,
                                 uintptr_t out_label_len,
                                 uintptr_t *out_written);
 
-// `schema_photo` realization — default σ-axis (SHA-256).
+// `schema_photo` realization — default σ-axis (BLAKE3).
 //
 // # Safety
 //
@@ -307,7 +307,7 @@ int32_t uor_addr_schema_photo_with_hash(uint8_t algo,
                                         uintptr_t out_label_len,
                                         uintptr_t *out_written);
 
-// `schema_document` realization — default σ-axis (SHA-256).
+// `schema_document` realization — default σ-axis (BLAKE3).
 //
 // # Safety
 //
@@ -333,7 +333,7 @@ int32_t uor_addr_schema_document_with_hash(uint8_t algo,
                                            uintptr_t out_label_len,
                                            uintptr_t *out_written);
 
-// `schema_codemodule_signed` realization — default σ-axis (SHA-256).
+// `schema_codemodule_signed` realization — default σ-axis (BLAKE3).
 //
 // # Safety
 //
@@ -359,7 +359,7 @@ int32_t uor_addr_schema_codemodule_signed_with_hash(uint8_t algo,
                                                     uintptr_t out_label_len,
                                                     uintptr_t *out_written);
 
-// `gguf` realization — default σ-axis (SHA-256).
+// `gguf` realization — default σ-axis (BLAKE3).
 //
 // # Safety
 //
@@ -385,7 +385,7 @@ int32_t uor_addr_gguf_with_hash(uint8_t algo,
                                 uintptr_t out_label_len,
                                 uintptr_t *out_written);
 
-// `onnx` realization — default σ-axis (SHA-256).
+// `onnx` realization — default σ-axis (BLAKE3).
 //
 // # Safety
 //

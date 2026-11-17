@@ -83,6 +83,82 @@ fn blake3_matches_reference_vectors() {
     assert_eq!(digest::<Blake3Hasher>(b"abc"), BLAKE3_ABC);
 }
 
+/// BLAKE3 over inputs that cross its 1 KiB chunk and tree boundaries, in the
+/// input pattern of the reference `test_vectors.json` (byte `i` is `i % 251`).
+/// Tensor leaves are BLAKE3 roots of whole tensors, so the multi-chunk tree is
+/// the path that matters; the empty and `abc` vectors never reach it. The
+/// expected digests are the reference implementation's (the `blake3` crate,
+/// through its Python bindings 1.0.9) and agree with `test_vectors.json`.
+#[test]
+fn blake3_matches_reference_vectors_across_chunk_boundaries() {
+    const VECTORS: [(usize, &str); 14] = [
+        (
+            1023,
+            "10108970eeda3eb932baac1428c7a2163b0e924c9a9e25b35bba72b28f70bd11",
+        ),
+        (
+            1024,
+            "42214739f095a406f3fc83deb889744ac00df831c10daa55189b5d121c855af7",
+        ),
+        (
+            1025,
+            "d00278ae47eb27b34faecf67b4fe263f82d5412916c1ffd97c8cb7fb814b8444",
+        ),
+        (
+            2048,
+            "e776b6028c7cd22a4d0ba182a8bf62205d2ef576467e838ed6f2529b85fba24a",
+        ),
+        (
+            2049,
+            "5f4d72f40d7a5f82b15ca2b2e44b1de3c2ef86c426c95c1af0b6879522563030",
+        ),
+        (
+            3072,
+            "b98cb0ff3623be03326b373de6b9095218513e64f1ee2edd2525c7ad1e5cffd2",
+        ),
+        (
+            3073,
+            "7124b49501012f81cc7f11ca069ec9226cecb8a2c850cfe644e327d22d3e1cd3",
+        ),
+        (
+            4096,
+            "015094013f57a5277b59d8475c0501042c0b642e531b0a1c8f58d2163229e969",
+        ),
+        (
+            4097,
+            "9b4052b38f1c5fc8b1f9ff7ac7b27cd242487b3d890d15c96a1c25b8aa0fb995",
+        ),
+        (
+            8192,
+            "aae792484c8efe4f19e2ca7d371d8c467ffb10748d8a5a1ae579948f718a2a63",
+        ),
+        (
+            8193,
+            "bab6c09cb8ce8cf459261398d2e7aef35700bf488116ceb94a36d0f5f1b7bc3b",
+        ),
+        (
+            31744,
+            "62b6960e1a44bcc1eb1a611a8d6235b6b4b78f32e7abc4fb4c6cdcce94895c47",
+        ),
+        (
+            102_400,
+            "bc3e3d41a1146b069abffad3c0d44860cf664390afce4d9661f7902e7943e085",
+        ),
+        (
+            1_048_577,
+            "2f053cd7472cf0cd2f9adaf45c1180255b91b9a865404a63671a0ee5f792ed33",
+        ),
+    ];
+    for (len, expected) in VECTORS {
+        let input: Vec<u8> = (0..len).map(|i| (i % 251) as u8).collect();
+        assert_eq!(
+            digest::<Blake3Hasher>(&input),
+            expected,
+            "BLAKE3 of {len} bytes"
+        );
+    }
+}
+
 #[test]
 fn sha512_matches_fips_180_4() {
     assert_eq!(digest64::<Sha512Hasher>(b""), SHA512_EMPTY);
@@ -135,7 +211,10 @@ fn json_pipeline_mints_each_axis_over_canonical_form() {
     let canonical = uor_addr::json::canonicalize(raw).expect("valid json");
 
     assert_eq!(
-        uor_addr::json::address(raw).unwrap().address.as_str(),
+        uor_addr::json::address_sha256(raw)
+            .unwrap()
+            .address
+            .as_str(),
         expect_label::<32, Sha256Hasher>(&canonical)
     );
     assert_eq!(
@@ -172,15 +251,16 @@ fn json_pipeline_mints_each_axis_over_canonical_form() {
 #[test]
 fn json_axes_are_distinct_and_deterministic() {
     let raw = br#"{"a":1}"#;
-    let s = uor_addr::json::address(raw).unwrap().address;
+    let s = uor_addr::json::address_sha256(raw).unwrap().address;
     let b = uor_addr::json::address_blake3(raw).unwrap().address;
     let k = uor_addr::json::address_keccak256(raw).unwrap().address;
     let q = uor_addr::json::address_sha3_256(raw).unwrap().address;
     // Distinct algorithms → distinct labels.
     assert_ne!(s.as_str(), b.as_str());
     assert_ne!(q.as_str(), k.as_str());
-    // Deterministic.
-    assert_eq!(s, uor_addr::json::address(raw).unwrap().address);
+    // Deterministic, and the default entry point is the blake3 axis.
+    assert_eq!(s, uor_addr::json::address_sha256(raw).unwrap().address);
+    assert_eq!(b, uor_addr::json::address(raw).unwrap().address);
     // Correct prefixes + widths.
     assert!(s.starts_with("sha256:") && s.len() == 71);
     assert!(b.starts_with("blake3:") && b.len() == 71);

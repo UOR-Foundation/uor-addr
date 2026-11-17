@@ -22,7 +22,7 @@ use prism::pipeline::PrismModel;
 /// - [`CompositionFailure::MalformedOperand`] — an operand is not a
 ///   well-formed κ-label.
 /// - [`CompositionFailure::PipelineFailure`] — defensive.
-pub fn compose_f4_quotient(
+pub fn compose_f4_quotient_sha256(
     operand: &KappaLabel<71>,
 ) -> Result<AddressOutcome<71>, CompositionFailure> {
     let (axis, _) = decode_operand(operand)?;

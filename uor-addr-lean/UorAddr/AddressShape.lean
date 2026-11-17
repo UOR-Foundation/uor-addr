@@ -6,7 +6,7 @@ import UorAddr.HexEncoding
 
 The κ-label `AddressLabel` is exactly 71 ASCII bytes:
 
-  `b"sha256:"` (7 bytes) ‖ `hex_lower(digest)` (64 bytes)
+  `b"blake3:"` (7 bytes) ‖ `hex_lower(digest)` (64 bytes)
 
 This file models the κ-label as a `Fin 71 → UInt8` function. Width is
 structural (carried by the type). Per-position claims reduce to
@@ -14,7 +14,7 @@ decidable case-splits.
 
 Pinned conformance IDs:
 - `CL-W01` — `address_label_width_is_seventy_one`
-- `CL-W02` — `address_prefix_is_sha256_colon`
+- `CL-W02` — `address_prefix_is_blake3_colon`, `addressPrefix_spells_blake3`
 - `CL-W03` — `address_hex_digits_are_lowercase`
 -/
 
@@ -25,15 +25,23 @@ open UorAddr.HexEncoding
 /-- The wire-format κ-label width (bytes). -/
 def kappaLabelWidth : Nat := 71
 
-/-- The 7-byte ASCII prefix `"sha256:"`. -/
+/-- The 7-byte ASCII prefix `"blake3:"`. -/
 def addressPrefix : Fin 7 → UInt8
-  | ⟨0, _⟩ => 0x73  -- 's'
-  | ⟨1, _⟩ => 0x68  -- 'h'
+  | ⟨0, _⟩ => 0x62  -- 'b'
+  | ⟨1, _⟩ => 0x6c  -- 'l'
   | ⟨2, _⟩ => 0x61  -- 'a'
-  | ⟨3, _⟩ => 0x32  -- '2'
-  | ⟨4, _⟩ => 0x35  -- '5'
-  | ⟨5, _⟩ => 0x36  -- '6'
+  | ⟨3, _⟩ => 0x6b  -- 'k'
+  | ⟨4, _⟩ => 0x65  -- 'e'
+  | ⟨5, _⟩ => 0x33  -- '3'
   | ⟨6, _⟩ => 0x3a  -- ':'
+
+/-- The prefix bytes are exactly the ASCII codes of `"blake3:"`, the
+default σ-axis's label prefix. Without this, CL-W02 would hold for any
+seven bytes the table happened to name. Stated over character codes
+because the kernel cannot reduce `String.toUTF8`; for ASCII the two agree. -/
+theorem addressPrefix_spells_blake3 :
+    List.ofFn (fun i => (addressPrefix i).toNat) = "blake3:".toList.map Char.toNat := by
+  decide
 
 /-- The κ-label as a fixed-width 71-byte function. Bytes 0..7 are the
 ASCII prefix; bytes 7..71 are the lowercase-hex rendering of the
@@ -59,8 +67,8 @@ theorem address_label_width_is_seventy_one :
     kappaLabelWidth = 71 := rfl
 
 /-- CL-W02 — the first 7 bytes of any κ-label are the ASCII literal
-`"sha256:"`. -/
-theorem address_prefix_is_sha256_colon
+`"blake3:"`. -/
+theorem address_prefix_is_blake3_colon
     (digest : Fin 32 → UInt8) (i : Fin 71) (hi : (i : Nat) < 7) :
     kappaLabel digest i = addressPrefix ⟨i.val, hi⟩ := by
   unfold kappaLabel

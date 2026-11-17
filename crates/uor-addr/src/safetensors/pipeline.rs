@@ -6,7 +6,7 @@
 pub use crate::outcome::{AddressOutcome, AddressWitness, VerifyError};
 
 use crate::safetensors::model::{
-    AddressModel, AddressModelBlake3, AddressModelKeccak256, AddressModelSha3_256,
+    AddressModel, AddressModelKeccak256, AddressModelSha256, AddressModelSha3_256,
     AddressModelSha512,
 };
 use crate::safetensors::value::{canonicalize, SafetensorsCarrier};
@@ -46,17 +46,17 @@ macro_rules! entry_point {
 }
 
 entry_point!(
-    /// **uor-addr's safetensors entry point** (σ-axis `Sha256Hasher`),
-    /// yielding a `sha256:<64hex>` κ-label.
+    /// **uor-addr's safetensors entry point** (σ-axis `Blake3Hasher`),
+    /// yielding a `blake3:<64hex>` κ-label.
     address,
     AddressModel,
     71
 );
 entry_point!(
-    /// The safetensors entry point under σ-axis `Blake3Hasher`, yielding a
-    /// `blake3:<64hex>` κ-label.
-    address_blake3,
-    AddressModelBlake3,
+    /// The safetensors entry point under σ-axis `Sha256Hasher`, yielding a
+    /// `sha256:<64hex>` κ-label.
+    address_sha256,
+    AddressModelSha256,
     71
 );
 entry_point!(

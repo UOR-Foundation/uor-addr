@@ -1,6 +1,6 @@
 # @uor-foundation/uor-addr
 
-JavaScript / TypeScript bindings for [`uor-addr`](https://github.com/UOR-Foundation/uor-addr) — typed content-addressing producing deterministic `sha256:<64hex>` κ-labels from JSON, S-expressions, XML, ASN.1 DER, schema.org, in-toto, and more.
+JavaScript / TypeScript bindings for [`uor-addr`](https://github.com/UOR-Foundation/uor-addr) — typed content-addressing producing deterministic `blake3:<64hex>` κ-labels from JSON, S-expressions, XML, ASN.1 DER, schema.org, in-toto, and more.
 
 Wraps the [`uor-addr-wasm`](https://github.com/UOR-Foundation/uor-addr/tree/main/crates/uor-addr-wasm) WASM Component Model artifact via [`jco`](https://github.com/bytecodealliance/jco). The produced κ-label is **byte-for-byte identical** to the Rust crate's output.
 
@@ -19,12 +19,12 @@ import { kappa } from "@uor-foundation/uor-addr";
 
 const label = kappa.jsonAddress(new TextEncoder().encode('{"foo":"bar"}'));
 console.log(label);
-// sha256:7a38bf81f383f69433ad6e900d35b3e2385593f76a7b7ab5d4355b8ba41ee24b
+// blake3:16b6abe0a77021b88cc14863d696df0c34f82556faadb318f46c384184f8ea71
 ```
 
 ## API
 
-Eleven `*-address` functions, one per realization (json, sexp, xml, asn1, ring, codemodule, the three `schema-*` descendants, gguf, onnx). Each takes a `Uint8Array` and returns a 71-byte ASCII string of the form `sha256:<64-lowercase-hex>`. Failures throw with a wasm-runtime error carrying the realization's `address-error` variant — `invalid-input` or `pipeline-failure` (`too-large` is reserved and never thrown under ADR-060: inputs are unbounded).
+Eleven `*-address` functions, one per realization (json, sexp, xml, asn1, ring, codemodule, the three `schema-*` descendants, gguf, onnx). Each takes a `Uint8Array` and returns a 71-byte ASCII string of the form `blake3:<64-lowercase-hex>`. Failures throw with a wasm-runtime error carrying the realization's `address-error` variant — `invalid-input` or `pipeline-failure` (`too-large` is reserved and never thrown under ADR-060: inputs are unbounded).
 
 | Function | Realization | Imported spec |
 |---|---|---|
@@ -68,7 +68,7 @@ const grounded = kappa.jsonAddressWithWitness(
 );
 
 console.log(grounded.kappaLabel());
-// sha256:7a38bf81f383f69433ad6e900d35b3e2385593f76a7b7ab5d4355b8ba41ee24b
+// blake3:16b6abe0a77021b88cc14863d696df0c34f82556faadb318f46c384184f8ea71
 
 console.log(grounded.verify() === grounded.kappaLabel());
 // true — TC-05 round-trip; SHA-256 was not re-invoked.

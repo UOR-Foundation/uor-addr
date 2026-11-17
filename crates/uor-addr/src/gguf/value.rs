@@ -4,7 +4,7 @@
 //! — a **flat Merkle skeleton**. Two GGUF files that decode to the same
 //! logical content canonicalize to byte-identical skeletons. Every
 //! variable-length leaf (a string, an array payload, a tensor's data
-//! region) is replaced by its streamed SHA-256 digest, so the skeleton's
+//! region) is replaced by its streamed BLAKE3 digest, so the skeleton's
 //! size grows only with the KV / tensor **counts** (never with model
 //! size), while still binding every weight byte into the κ-label.
 //!
@@ -15,14 +15,14 @@
 //! LE_u64(kv_count)
 //! LE_u64(canonical_alignment)
 //! ── metadata KVs, sorted by key bytes ──
-//!   for kv: sha256(key) || LE_u32(type_tag) || canonical_value(kv)
+//!   for kv: blake3(key) || LE_u32(type_tag) || canonical_value(kv)
 //!     scalar  → the value's natural little-endian bytes
-//!     string  → LE_u64(len) || sha256(utf8 bytes)
-//!     array   → LE_u32(elem_type) || LE_u64(len) || sha256(wire payload)
+//!     string  → LE_u64(len) || blake3(utf8 bytes)
+//!     array   → LE_u32(elem_type) || LE_u64(len) || blake3(wire payload)
 //! ── tensor info, sorted by name bytes ──
-//!   for t: sha256(name) || LE_u32(n_dims) || (LE_u64(dim) × n_dims)
+//!   for t: blake3(name) || LE_u32(n_dims) || (LE_u64(dim) × n_dims)
 //!       || LE_u32(ggml_type_id) || LE_u64(recomputed_offset)
-//!       || sha256(tensor data bytes)        ← streamed; binds the weights
+//!       || blake3(tensor data bytes)        ← streamed; binds the weights
 //! ```
 //!
 //! `recomputed_offset` is the cumulative aligned byte position in
@@ -34,14 +34,14 @@
 //! [`TermValue::Borrowed`] carrier and ψ₉ folds it through the σ-axis —
 //! there is no two-level commitment, no carrier ceiling, and no count /
 //! width cap. Tensor data and large string / array payloads are streamed
-//! through [`prism::crypto::Sha256Hasher`] with bounded resident memory,
+//! through [`prism::crypto::Blake3Hasher`] with bounded resident memory,
 //! so arbitrarily large weights bind into the κ-label.
 //!
 //! [`GgufValue`] (the owned parsed value, `alloc`-gated) holds the
 //! skeleton; [`GgufCarrier`] is the borrowed model-input handle the
 //! pipeline binds.
 
-use prism::crypto::Sha256Hasher;
+use prism::crypto::Blake3Hasher;
 use prism::operation::TermValue;
 use prism::pipeline::{
     ConstrainedTypeShape, ConstraintRef, IntoBindingValue, PartitionProductFields, ShapeViolation,
@@ -181,8 +181,8 @@ impl<'a> Cursor<'a> {
 }
 
 #[inline]
-fn sha256(bytes: &[u8]) -> [u8; 32] {
-    Sha256Hasher::initial().fold_bytes(bytes).finalize()
+fn blake3(bytes: &[u8]) -> [u8; 32] {
+    Blake3Hasher::initial().fold_bytes(bytes).finalize()
 }
 
 #[inline]
@@ -405,7 +405,7 @@ mod alloc_impl {
             for &idx in &kv_order {
                 let kv = &kvs[idx];
                 let key = &raw[kv.key_off..kv.key_off + kv.key_len];
-                out.extend_from_slice(&sha256(key));
+                out.extend_from_slice(&blake3(key));
                 out.extend_from_slice(&kv.type_tag.to_le_bytes());
                 emit_canonical_value(&mut out, raw, kv);
             }
@@ -414,7 +414,7 @@ mod alloc_impl {
             for &idx in &t_order {
                 let t = &tensors[idx];
                 let name = &raw[t.name_off..t.name_off + t.name_len];
-                out.extend_from_slice(&sha256(name));
+                out.extend_from_slice(&blake3(name));
                 out.extend_from_slice(&t.n_dims.to_le_bytes());
                 for d in t.dims.iter().take(t.n_dims as usize) {
                     out.extend_from_slice(&d.to_le_bytes());
@@ -422,7 +422,7 @@ mod alloc_impl {
                 out.extend_from_slice(&t.ggml_type.id().to_le_bytes());
                 out.extend_from_slice(&canonical_offset.to_le_bytes());
 
-                // Stream the tensor's data region through SHA-256.
+                // Stream the tensor's data region through BLAKE3.
                 let start = data_section_start
                     .checked_add(t.stored_offset)
                     .ok_or(TRUNCATED)? as usize;
@@ -430,7 +430,7 @@ mod alloc_impl {
                 if end > raw.len() {
                     return Err(TRUNCATED);
                 }
-                out.extend_from_slice(&sha256(&raw[start..end]));
+                out.extend_from_slice(&blake3(&raw[start..end]));
 
                 canonical_offset = align_up(
                     canonical_offset.checked_add(t.data_bytes).ok_or(OVERFLOW)?,
@@ -481,13 +481,13 @@ mod alloc_impl {
         } else if kv.type_tag == T_STRING {
             let len = u64::from_le_bytes(payload[..8].try_into().unwrap_or([0; 8]));
             out.extend_from_slice(&len.to_le_bytes());
-            out.extend_from_slice(&sha256(&payload[8..]));
+            out.extend_from_slice(&blake3(&payload[8..]));
         } else if kv.type_tag == T_ARRAY {
             let elem_type = u32::from_le_bytes(payload[..4].try_into().unwrap_or([0; 4]));
             let len = u64::from_le_bytes(payload[4..12].try_into().unwrap_or([0; 8]));
             out.extend_from_slice(&elem_type.to_le_bytes());
             out.extend_from_slice(&len.to_le_bytes());
-            out.extend_from_slice(&sha256(&payload[12..]));
+            out.extend_from_slice(&blake3(&payload[12..]));
         }
     }
 

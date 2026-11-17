@@ -25,7 +25,7 @@ use uor_addr_c::*;
 
 const KAPPA_BYTES: usize = 71;
 
-/// Address a JSON document to a sha256 κ-label (the operand source).
+/// Address a JSON document to a default-axis (blake3) κ-label (the operand source).
 fn json_label(input: &[u8]) -> [u8; KAPPA_BYTES] {
     let mut buf = [0u8; KAPPA_BYTES];
     let rc = unsafe {
@@ -50,7 +50,7 @@ fn compose_unary(
     let mut written: usize = 0;
     let rc = unsafe {
         f(
-            UOR_ADDR_HASH_SHA256,
+            UOR_ADDR_HASH_BLAKE3,
             operand.as_ptr(),
             operand.len(),
             buf.as_mut_ptr(),
@@ -77,7 +77,7 @@ fn cl_c_ffi_02__g2_is_commutative() {
 
     let rc_ab = unsafe {
         uor_addr_compose_g2(
-            UOR_ADDR_HASH_SHA256,
+            UOR_ADDR_HASH_BLAKE3,
             a.as_ptr(),
             a.len(),
             b.as_ptr(),
@@ -89,7 +89,7 @@ fn cl_c_ffi_02__g2_is_commutative() {
     };
     let rc_ba = unsafe {
         uor_addr_compose_g2(
-            UOR_ADDR_HASH_SHA256,
+            UOR_ADDR_HASH_BLAKE3,
             b.as_ptr(),
             b.len(),
             a.as_ptr(),
@@ -104,7 +104,7 @@ fn cl_c_ffi_02__g2_is_commutative() {
     ab.truncate(ab_written);
     ba.truncate(ba_written);
     assert_eq!(ab, ba, "CS-G2 must be commutative across the C ABI");
-    assert!(ab.starts_with(b"sha256:") && ab.len() == KAPPA_BYTES);
+    assert!(ab.starts_with(b"blake3:") && ab.len() == KAPPA_BYTES);
 }
 
 // ─── CL-C-FFI-01 — FFI label parity with the in-crate entry point ───
@@ -126,7 +126,7 @@ fn cl_c_ffi_01__ffi_label_matches_in_crate() {
     let mut written = 0usize;
     let rc = unsafe {
         uor_addr_compose_g2(
-            UOR_ADDR_HASH_SHA256,
+            UOR_ADDR_HASH_BLAKE3,
             a.as_ptr(),
             a.len(),
             b.as_ptr(),
@@ -183,7 +183,7 @@ fn cl_c_ffi_03__witness_round_trips_for_every_op() {
         let mut handle: *mut UorAddrGrounded = ptr::null_mut();
         let rc = unsafe {
             witness_fn(
-                UOR_ADDR_HASH_SHA256,
+                UOR_ADDR_HASH_BLAKE3,
                 a.as_ptr(),
                 a.len(),
                 &mut handle as *mut _,
@@ -216,7 +216,7 @@ fn cl_c_ffi_04__malformed_operand_and_unknown_algo_rejected() {
     let bad = b"not-a-kappa-label";
     let rc = unsafe {
         uor_addr_compose_e8(
-            UOR_ADDR_HASH_SHA256,
+            UOR_ADDR_HASH_BLAKE3,
             bad.as_ptr(),
             bad.len(),
             buf.as_mut_ptr(),

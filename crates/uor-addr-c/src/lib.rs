@@ -48,8 +48,8 @@ use uor_addr::{asn1, codemodule, ring, sexp, AddressOutcome, ADDRESS_LABEL_BYTES
 #[cfg(feature = "alloc")]
 use uor_addr::{cbor, composition, json, schema, xml, KappaLabel};
 
-/// Wire-format κ-label byte width under the default σ-axis (sha256) —
-/// `len("sha256:") + 64 = 71`.
+/// Wire-format κ-label byte width under the default σ-axis (blake3) —
+/// `len("blake3:") + 64 = 71`.
 #[no_mangle]
 pub static UOR_ADDR_LABEL_BYTES: usize = ADDRESS_LABEL_BYTES;
 
@@ -59,9 +59,9 @@ pub static UOR_ADDR_LABEL_BYTES: usize = ADDRESS_LABEL_BYTES;
 #[no_mangle]
 pub static UOR_ADDR_MAX_LABEL_BYTES: usize = uor_addr::MAX_LABEL_BYTES;
 
-/// σ-axis selector for the `*_with_hash` entry points: SHA-256 (default).
+/// σ-axis selector for the `*_with_hash` entry points: SHA-256.
 pub const UOR_ADDR_HASH_SHA256: u8 = 0;
-/// σ-axis selector: BLAKE3.
+/// σ-axis selector: BLAKE3, the default axis of the selector-free entry points.
 pub const UOR_ADDR_HASH_BLAKE3: u8 = 1;
 /// σ-axis selector: SHA3-256 (FIPS 202).
 pub const UOR_ADDR_HASH_SHA3_256: u8 = 2;
@@ -275,7 +275,7 @@ impl CErr for uor_addr::onnx::AddressFailure {
     }
 }
 
-/// `json` realization — default σ-axis (SHA-256).
+/// `json` realization — default σ-axis (BLAKE3).
 ///
 /// # Safety
 ///
@@ -322,7 +322,7 @@ pub unsafe extern "C" fn uor_addr_json_with_hash(
         Err(code) => return code,
     };
     match algo {
-        UOR_ADDR_HASH_SHA256 => match json::address(s) {
+        UOR_ADDR_HASH_SHA256 => match json::address_sha256(s) {
             Ok(o) => unsafe { write_outcome(o, out_label, out_label_len, out_written) },
             Err(e) => e.c_code(),
         },
@@ -346,7 +346,7 @@ pub unsafe extern "C" fn uor_addr_json_with_hash(
     }
 }
 
-/// `sexp` realization — default σ-axis (SHA-256).
+/// `sexp` realization — default σ-axis (BLAKE3).
 ///
 /// # Safety
 ///
@@ -391,7 +391,7 @@ pub unsafe extern "C" fn uor_addr_sexp_with_hash(
         Err(code) => return code,
     };
     match algo {
-        UOR_ADDR_HASH_SHA256 => match sexp::address(s) {
+        UOR_ADDR_HASH_SHA256 => match sexp::address_sha256(s) {
             Ok(o) => unsafe { write_outcome(o, out_label, out_label_len, out_written) },
             Err(e) => e.c_code(),
         },
@@ -415,7 +415,7 @@ pub unsafe extern "C" fn uor_addr_sexp_with_hash(
     }
 }
 
-/// `xml` realization — default σ-axis (SHA-256).
+/// `xml` realization — default σ-axis (BLAKE3).
 ///
 /// # Safety
 ///
@@ -462,7 +462,7 @@ pub unsafe extern "C" fn uor_addr_xml_with_hash(
         Err(code) => return code,
     };
     match algo {
-        UOR_ADDR_HASH_SHA256 => match xml::address(s) {
+        UOR_ADDR_HASH_SHA256 => match xml::address_sha256(s) {
             Ok(o) => unsafe { write_outcome(o, out_label, out_label_len, out_written) },
             Err(e) => e.c_code(),
         },
@@ -486,7 +486,7 @@ pub unsafe extern "C" fn uor_addr_xml_with_hash(
     }
 }
 
-/// `asn1` realization — default σ-axis (SHA-256).
+/// `asn1` realization — default σ-axis (BLAKE3).
 ///
 /// # Safety
 ///
@@ -531,7 +531,7 @@ pub unsafe extern "C" fn uor_addr_asn1_with_hash(
         Err(code) => return code,
     };
     match algo {
-        UOR_ADDR_HASH_SHA256 => match asn1::address(s) {
+        UOR_ADDR_HASH_SHA256 => match asn1::address_sha256(s) {
             Ok(o) => unsafe { write_outcome(o, out_label, out_label_len, out_written) },
             Err(e) => e.c_code(),
         },
@@ -555,7 +555,7 @@ pub unsafe extern "C" fn uor_addr_asn1_with_hash(
     }
 }
 
-/// `ring` realization — default σ-axis (SHA-256).
+/// `ring` realization — default σ-axis (BLAKE3).
 ///
 /// # Safety
 ///
@@ -600,7 +600,7 @@ pub unsafe extern "C" fn uor_addr_ring_with_hash(
         Err(code) => return code,
     };
     match algo {
-        UOR_ADDR_HASH_SHA256 => match ring::address(s) {
+        UOR_ADDR_HASH_SHA256 => match ring::address_sha256(s) {
             Ok(o) => unsafe { write_outcome(o, out_label, out_label_len, out_written) },
             Err(e) => e.c_code(),
         },
@@ -624,7 +624,7 @@ pub unsafe extern "C" fn uor_addr_ring_with_hash(
     }
 }
 
-/// `codemodule` realization — default σ-axis (SHA-256).
+/// `codemodule` realization — default σ-axis (BLAKE3).
 ///
 /// # Safety
 ///
@@ -669,7 +669,7 @@ pub unsafe extern "C" fn uor_addr_codemodule_with_hash(
         Err(code) => return code,
     };
     match algo {
-        UOR_ADDR_HASH_SHA256 => match codemodule::address(s) {
+        UOR_ADDR_HASH_SHA256 => match codemodule::address_sha256(s) {
             Ok(o) => unsafe { write_outcome(o, out_label, out_label_len, out_written) },
             Err(e) => e.c_code(),
         },
@@ -693,7 +693,7 @@ pub unsafe extern "C" fn uor_addr_codemodule_with_hash(
     }
 }
 
-/// `cbor` realization — default σ-axis (SHA-256).
+/// `cbor` realization — default σ-axis (BLAKE3).
 ///
 /// # Safety
 ///
@@ -740,7 +740,7 @@ pub unsafe extern "C" fn uor_addr_cbor_with_hash(
         Err(code) => return code,
     };
     match algo {
-        UOR_ADDR_HASH_SHA256 => match cbor::address(s) {
+        UOR_ADDR_HASH_SHA256 => match cbor::address_sha256(s) {
             Ok(o) => unsafe { write_outcome(o, out_label, out_label_len, out_written) },
             Err(e) => e.c_code(),
         },
@@ -764,7 +764,7 @@ pub unsafe extern "C" fn uor_addr_cbor_with_hash(
     }
 }
 
-/// `schema_photo` realization — default σ-axis (SHA-256).
+/// `schema_photo` realization — default σ-axis (BLAKE3).
 ///
 /// # Safety
 ///
@@ -811,7 +811,7 @@ pub unsafe extern "C" fn uor_addr_schema_photo_with_hash(
         Err(code) => return code,
     };
     match algo {
-        UOR_ADDR_HASH_SHA256 => match schema::photo::address(s) {
+        UOR_ADDR_HASH_SHA256 => match schema::photo::address_sha256(s) {
             Ok(o) => unsafe { write_outcome(o, out_label, out_label_len, out_written) },
             Err(e) => e.c_code(),
         },
@@ -835,7 +835,7 @@ pub unsafe extern "C" fn uor_addr_schema_photo_with_hash(
     }
 }
 
-/// `schema_document` realization — default σ-axis (SHA-256).
+/// `schema_document` realization — default σ-axis (BLAKE3).
 ///
 /// # Safety
 ///
@@ -882,7 +882,7 @@ pub unsafe extern "C" fn uor_addr_schema_document_with_hash(
         Err(code) => return code,
     };
     match algo {
-        UOR_ADDR_HASH_SHA256 => match schema::document::address(s) {
+        UOR_ADDR_HASH_SHA256 => match schema::document::address_sha256(s) {
             Ok(o) => unsafe { write_outcome(o, out_label, out_label_len, out_written) },
             Err(e) => e.c_code(),
         },
@@ -906,7 +906,7 @@ pub unsafe extern "C" fn uor_addr_schema_document_with_hash(
     }
 }
 
-/// `schema_codemodule_signed` realization — default σ-axis (SHA-256).
+/// `schema_codemodule_signed` realization — default σ-axis (BLAKE3).
 ///
 /// # Safety
 ///
@@ -953,7 +953,7 @@ pub unsafe extern "C" fn uor_addr_schema_codemodule_signed_with_hash(
         Err(code) => return code,
     };
     match algo {
-        UOR_ADDR_HASH_SHA256 => match schema::codemodule_signed::address(s) {
+        UOR_ADDR_HASH_SHA256 => match schema::codemodule_signed::address_sha256(s) {
             Ok(o) => unsafe { write_outcome(o, out_label, out_label_len, out_written) },
             Err(e) => e.c_code(),
         },
@@ -977,7 +977,7 @@ pub unsafe extern "C" fn uor_addr_schema_codemodule_signed_with_hash(
     }
 }
 
-/// `gguf` realization — default σ-axis (SHA-256).
+/// `gguf` realization — default σ-axis (BLAKE3).
 ///
 /// # Safety
 ///
@@ -1024,7 +1024,7 @@ pub unsafe extern "C" fn uor_addr_gguf_with_hash(
         Err(code) => return code,
     };
     match algo {
-        UOR_ADDR_HASH_SHA256 => match uor_addr::gguf::address(s) {
+        UOR_ADDR_HASH_SHA256 => match uor_addr::gguf::address_sha256(s) {
             Ok(o) => unsafe { write_outcome(o, out_label, out_label_len, out_written) },
             Err(e) => e.c_code(),
         },
@@ -1048,7 +1048,7 @@ pub unsafe extern "C" fn uor_addr_gguf_with_hash(
     }
 }
 
-/// `onnx` realization — default σ-axis (SHA-256).
+/// `onnx` realization — default σ-axis (BLAKE3).
 ///
 /// # Safety
 ///
@@ -1095,7 +1095,7 @@ pub unsafe extern "C" fn uor_addr_onnx_with_hash(
         Err(code) => return code,
     };
     match algo {
-        UOR_ADDR_HASH_SHA256 => match uor_addr::onnx::address(s) {
+        UOR_ADDR_HASH_SHA256 => match uor_addr::onnx::address_sha256(s) {
             Ok(o) => unsafe { write_outcome(o, out_label, out_label_len, out_written) },
             Err(e) => e.c_code(),
         },
@@ -1359,7 +1359,7 @@ pub unsafe extern "C" fn uor_addr_json_with_witness_hash(
         Err(code) => return code,
     };
     match algo {
-        UOR_ADDR_HASH_SHA256 => match json::address(s) {
+        UOR_ADDR_HASH_SHA256 => match json::address_sha256(s) {
             Ok(o) => unsafe { write_grounded_any(AnyOutcome::W71(o), out_handle) },
             Err(e) => e.c_code(),
         },
@@ -1425,7 +1425,7 @@ pub unsafe extern "C" fn uor_addr_sexp_with_witness_hash(
         Err(code) => return code,
     };
     match algo {
-        UOR_ADDR_HASH_SHA256 => match sexp::address(s) {
+        UOR_ADDR_HASH_SHA256 => match sexp::address_sha256(s) {
             Ok(o) => unsafe { write_grounded_any(AnyOutcome::W71(o), out_handle) },
             Err(e) => e.c_code(),
         },
@@ -1491,7 +1491,7 @@ pub unsafe extern "C" fn uor_addr_xml_with_witness_hash(
         Err(code) => return code,
     };
     match algo {
-        UOR_ADDR_HASH_SHA256 => match xml::address(s) {
+        UOR_ADDR_HASH_SHA256 => match xml::address_sha256(s) {
             Ok(o) => unsafe { write_grounded_any(AnyOutcome::W71(o), out_handle) },
             Err(e) => e.c_code(),
         },
@@ -1557,7 +1557,7 @@ pub unsafe extern "C" fn uor_addr_asn1_with_witness_hash(
         Err(code) => return code,
     };
     match algo {
-        UOR_ADDR_HASH_SHA256 => match asn1::address(s) {
+        UOR_ADDR_HASH_SHA256 => match asn1::address_sha256(s) {
             Ok(o) => unsafe { write_grounded_any(AnyOutcome::W71(o), out_handle) },
             Err(e) => e.c_code(),
         },
@@ -1623,7 +1623,7 @@ pub unsafe extern "C" fn uor_addr_ring_with_witness_hash(
         Err(code) => return code,
     };
     match algo {
-        UOR_ADDR_HASH_SHA256 => match ring::address(s) {
+        UOR_ADDR_HASH_SHA256 => match ring::address_sha256(s) {
             Ok(o) => unsafe { write_grounded_any(AnyOutcome::W71(o), out_handle) },
             Err(e) => e.c_code(),
         },
@@ -1689,7 +1689,7 @@ pub unsafe extern "C" fn uor_addr_codemodule_with_witness_hash(
         Err(code) => return code,
     };
     match algo {
-        UOR_ADDR_HASH_SHA256 => match codemodule::address(s) {
+        UOR_ADDR_HASH_SHA256 => match codemodule::address_sha256(s) {
             Ok(o) => unsafe { write_grounded_any(AnyOutcome::W71(o), out_handle) },
             Err(e) => e.c_code(),
         },
@@ -1755,7 +1755,7 @@ pub unsafe extern "C" fn uor_addr_cbor_with_witness_hash(
         Err(code) => return code,
     };
     match algo {
-        UOR_ADDR_HASH_SHA256 => match cbor::address(s) {
+        UOR_ADDR_HASH_SHA256 => match cbor::address_sha256(s) {
             Ok(o) => unsafe { write_grounded_any(AnyOutcome::W71(o), out_handle) },
             Err(e) => e.c_code(),
         },
@@ -1821,7 +1821,7 @@ pub unsafe extern "C" fn uor_addr_schema_photo_with_witness_hash(
         Err(code) => return code,
     };
     match algo {
-        UOR_ADDR_HASH_SHA256 => match schema::photo::address(s) {
+        UOR_ADDR_HASH_SHA256 => match schema::photo::address_sha256(s) {
             Ok(o) => unsafe { write_grounded_any(AnyOutcome::W71(o), out_handle) },
             Err(e) => e.c_code(),
         },
@@ -1887,7 +1887,7 @@ pub unsafe extern "C" fn uor_addr_schema_document_with_witness_hash(
         Err(code) => return code,
     };
     match algo {
-        UOR_ADDR_HASH_SHA256 => match schema::document::address(s) {
+        UOR_ADDR_HASH_SHA256 => match schema::document::address_sha256(s) {
             Ok(o) => unsafe { write_grounded_any(AnyOutcome::W71(o), out_handle) },
             Err(e) => e.c_code(),
         },
@@ -1953,7 +1953,7 @@ pub unsafe extern "C" fn uor_addr_schema_codemodule_signed_with_witness_hash(
         Err(code) => return code,
     };
     match algo {
-        UOR_ADDR_HASH_SHA256 => match schema::codemodule_signed::address(s) {
+        UOR_ADDR_HASH_SHA256 => match schema::codemodule_signed::address_sha256(s) {
             Ok(o) => unsafe { write_grounded_any(AnyOutcome::W71(o), out_handle) },
             Err(e) => e.c_code(),
         },
@@ -2019,7 +2019,7 @@ pub unsafe extern "C" fn uor_addr_gguf_with_witness_hash(
         Err(code) => return code,
     };
     match algo {
-        UOR_ADDR_HASH_SHA256 => match uor_addr::gguf::address(s) {
+        UOR_ADDR_HASH_SHA256 => match uor_addr::gguf::address_sha256(s) {
             Ok(o) => unsafe { write_grounded_any(AnyOutcome::W71(o), out_handle) },
             Err(e) => e.c_code(),
         },
@@ -2085,7 +2085,7 @@ pub unsafe extern "C" fn uor_addr_onnx_with_witness_hash(
         Err(code) => return code,
     };
     match algo {
-        UOR_ADDR_HASH_SHA256 => match uor_addr::onnx::address(s) {
+        UOR_ADDR_HASH_SHA256 => match uor_addr::onnx::address_sha256(s) {
             Ok(o) => unsafe { write_grounded_any(AnyOutcome::W71(o), out_handle) },
             Err(e) => e.c_code(),
         },
@@ -2149,7 +2149,7 @@ pub unsafe extern "C" fn uor_addr_compose_g2(
             KappaLabel::<71>::from_bytes(l),
             KappaLabel::<71>::from_bytes(r),
         ) {
-            (Ok(la), Ok(ra)) => match composition::compose_g2_product(&la, &ra) {
+            (Ok(la), Ok(ra)) => match composition::compose_g2_product_sha256(&la, &ra) {
                 Ok(o) => unsafe { write_outcome(o, out_label, out_label_len, out_written) },
                 Err(e) => compose_code(e),
             },
@@ -2229,7 +2229,7 @@ pub unsafe extern "C" fn uor_addr_compose_g2_with_witness(
             KappaLabel::<71>::from_bytes(l),
             KappaLabel::<71>::from_bytes(r),
         ) {
-            (Ok(la), Ok(ra)) => match composition::compose_g2_product(&la, &ra) {
+            (Ok(la), Ok(ra)) => match composition::compose_g2_product_sha256(&la, &ra) {
                 Ok(o) => unsafe { write_grounded_any(AnyOutcome::W71(o), out_handle) },
                 Err(e) => compose_code(e),
             },
@@ -2304,7 +2304,7 @@ pub unsafe extern "C" fn uor_addr_compose_f4(
     };
     match algo {
         UOR_ADDR_HASH_SHA256 => match KappaLabel::<71>::from_bytes(s) {
-            Ok(l) => match composition::compose_f4_quotient(&l) {
+            Ok(l) => match composition::compose_f4_quotient_sha256(&l) {
                 Ok(o) => unsafe { write_outcome(o, out_label, out_label_len, out_written) },
                 Err(e) => compose_code(e),
             },
@@ -2363,7 +2363,7 @@ pub unsafe extern "C" fn uor_addr_compose_f4_with_witness(
     };
     match algo {
         UOR_ADDR_HASH_SHA256 => match KappaLabel::<71>::from_bytes(s) {
-            Ok(l) => match composition::compose_f4_quotient(&l) {
+            Ok(l) => match composition::compose_f4_quotient_sha256(&l) {
                 Ok(o) => unsafe { write_grounded_any(AnyOutcome::W71(o), out_handle) },
                 Err(e) => compose_code(e),
             },
@@ -2426,7 +2426,7 @@ pub unsafe extern "C" fn uor_addr_compose_e6(
     };
     match algo {
         UOR_ADDR_HASH_SHA256 => match KappaLabel::<71>::from_bytes(s) {
-            Ok(l) => match composition::compose_e6_filtration(&l) {
+            Ok(l) => match composition::compose_e6_filtration_sha256(&l) {
                 Ok(o) => unsafe { write_outcome(o, out_label, out_label_len, out_written) },
                 Err(e) => compose_code(e),
             },
@@ -2485,7 +2485,7 @@ pub unsafe extern "C" fn uor_addr_compose_e6_with_witness(
     };
     match algo {
         UOR_ADDR_HASH_SHA256 => match KappaLabel::<71>::from_bytes(s) {
-            Ok(l) => match composition::compose_e6_filtration(&l) {
+            Ok(l) => match composition::compose_e6_filtration_sha256(&l) {
                 Ok(o) => unsafe { write_grounded_any(AnyOutcome::W71(o), out_handle) },
                 Err(e) => compose_code(e),
             },
@@ -2548,7 +2548,7 @@ pub unsafe extern "C" fn uor_addr_compose_e7(
     };
     match algo {
         UOR_ADDR_HASH_SHA256 => match KappaLabel::<71>::from_bytes(s) {
-            Ok(l) => match composition::compose_e7_augmentation(&l) {
+            Ok(l) => match composition::compose_e7_augmentation_sha256(&l) {
                 Ok(o) => unsafe { write_outcome(o, out_label, out_label_len, out_written) },
                 Err(e) => compose_code(e),
             },
@@ -2607,7 +2607,7 @@ pub unsafe extern "C" fn uor_addr_compose_e7_with_witness(
     };
     match algo {
         UOR_ADDR_HASH_SHA256 => match KappaLabel::<71>::from_bytes(s) {
-            Ok(l) => match composition::compose_e7_augmentation(&l) {
+            Ok(l) => match composition::compose_e7_augmentation_sha256(&l) {
                 Ok(o) => unsafe { write_grounded_any(AnyOutcome::W71(o), out_handle) },
                 Err(e) => compose_code(e),
             },
@@ -2670,7 +2670,7 @@ pub unsafe extern "C" fn uor_addr_compose_e8(
     };
     match algo {
         UOR_ADDR_HASH_SHA256 => match KappaLabel::<71>::from_bytes(s) {
-            Ok(l) => match composition::compose_e8_embedding(&l) {
+            Ok(l) => match composition::compose_e8_embedding_sha256(&l) {
                 Ok(o) => unsafe { write_outcome(o, out_label, out_label_len, out_written) },
                 Err(e) => compose_code(e),
             },
@@ -2729,7 +2729,7 @@ pub unsafe extern "C" fn uor_addr_compose_e8_with_witness(
     };
     match algo {
         UOR_ADDR_HASH_SHA256 => match KappaLabel::<71>::from_bytes(s) {
-            Ok(l) => match composition::compose_e8_embedding(&l) {
+            Ok(l) => match composition::compose_e8_embedding_sha256(&l) {
                 Ok(o) => unsafe { write_grounded_any(AnyOutcome::W71(o), out_handle) },
                 Err(e) => compose_code(e),
             },

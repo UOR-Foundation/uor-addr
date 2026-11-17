@@ -40,24 +40,29 @@ pub mod f4;
 pub mod g2;
 
 pub use e6::{
-    compose_e6_filtration, compose_e6_filtration_blake3, compose_e6_filtration_keccak256,
-    compose_e6_filtration_sha3_256, compose_e6_filtration_sha512,
+    compose_e6_filtration_blake3 as compose_e6_filtration, compose_e6_filtration_blake3,
+    compose_e6_filtration_keccak256, compose_e6_filtration_sha256, compose_e6_filtration_sha3_256,
+    compose_e6_filtration_sha512,
 };
 pub use e7::{
-    compose_e7_augmentation, compose_e7_augmentation_blake3, compose_e7_augmentation_keccak256,
+    compose_e7_augmentation_blake3 as compose_e7_augmentation, compose_e7_augmentation_blake3,
+    compose_e7_augmentation_keccak256, compose_e7_augmentation_sha256,
     compose_e7_augmentation_sha3_256, compose_e7_augmentation_sha512,
 };
 pub use e8::{
-    compose_e8_embedding, compose_e8_embedding_blake3, compose_e8_embedding_keccak256,
-    compose_e8_embedding_sha3_256, compose_e8_embedding_sha512,
+    compose_e8_embedding_blake3 as compose_e8_embedding, compose_e8_embedding_blake3,
+    compose_e8_embedding_keccak256, compose_e8_embedding_sha256, compose_e8_embedding_sha3_256,
+    compose_e8_embedding_sha512,
 };
 pub use f4::{
-    compose_f4_quotient, compose_f4_quotient_blake3, compose_f4_quotient_keccak256,
-    compose_f4_quotient_sha3_256, compose_f4_quotient_sha512,
+    compose_f4_quotient_blake3 as compose_f4_quotient, compose_f4_quotient_blake3,
+    compose_f4_quotient_keccak256, compose_f4_quotient_sha256, compose_f4_quotient_sha3_256,
+    compose_f4_quotient_sha512,
 };
 pub use g2::{
-    compose_g2_product, compose_g2_product_blake3, compose_g2_product_keccak256,
-    compose_g2_product_sha3_256, compose_g2_product_sha512,
+    compose_g2_product_blake3 as compose_g2_product, compose_g2_product_blake3,
+    compose_g2_product_keccak256, compose_g2_product_sha256, compose_g2_product_sha3_256,
+    compose_g2_product_sha512,
 };
 
 /// Failure modes from the composition operations.

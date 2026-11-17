@@ -24,7 +24,7 @@ const VALID_PHOTOGRAPH_MINIMAL: &[u8] = br#"{
 #[test]
 fn schema_org_photograph_minimal_admits() {
     let outcome = photo::address(VALID_PHOTOGRAPH_MINIMAL).expect("valid");
-    assert!(outcome.address.starts_with("sha256:"));
+    assert!(outcome.address.starts_with("blake3:"));
 }
 
 #[test]

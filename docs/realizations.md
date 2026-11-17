@@ -59,7 +59,7 @@ Two non-Rust distribution targets ship the same κ-label byte-for-byte:
   (`jco transpile`), Python (`wasmtime-py`), Go (`wasmtime-go`),
   .NET (`Wasmtime.NET`), and any language with a wasm runtime.
 
-Every binding produces the same 71-byte ASCII `sha256:<64hex>` κ-label
+Every binding produces the same 71-byte ASCII `blake3:<64hex>` κ-label
 the Rust crate produces. The byte-identity guarantee is pinned by
 the CF-C\* / CF-W\* invariant classes in
 [../CONFORMANCE.md](../CONFORMANCE.md).
@@ -84,11 +84,11 @@ For every shipped realization:
 
 - **Determinism (CD-D01).** Same input bytes → same κ-label.
 - **Wire-format width (CL-W01).** κ-label is exactly 71 ASCII bytes:
-  `sha256:` plus 64 lowercase-hex.
+  `blake3:` plus 64 lowercase-hex.
 - **Structural invariance.** Two inputs that are equivalent under the
   realization's canonical form share their κ-label.
 - **Typed distinction.** Two inputs that are structurally distinct
-  produce distinct κ-labels with the SHA-256 sensitivity bound.
+  produce distinct κ-labels with the BLAKE3 sensitivity bound.
 - **TC-05 replay round-trip.** Every emitted Grounded value replays
   through `prism_verify::certify_from_trace` to a bit-identical
   `ContentFingerprint`.

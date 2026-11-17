@@ -4,9 +4,9 @@ import UorAddr.Gguf.Value
 /-!
 # GGUF κ-derivation — the address-from-commitment map.
 
-`kappaOf sha c = "sha256:" ‖ hex(sha c)`, the ψ_9 projection over the
+`kappaOf sha c = "blake3:" ‖ hex(sha c)`, the ψ_9 projection over the
 canonical commitment `c`. Parametric over the σ-axis `sha` (the concrete
-axis is `prism::crypto::Sha256Hasher`).
+axis is `prism::crypto::Blake3Hasher`).
 -/
 namespace UorAddr.Gguf
 

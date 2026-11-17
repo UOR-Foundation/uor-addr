@@ -1,6 +1,6 @@
 # uor-addr (Python)
 
-Python bindings for [`uor-addr`](https://github.com/UOR-Foundation/uor-addr) — typed content-addressing producing deterministic `sha256:<64hex>` κ-labels from JSON, S-expressions, XML, ASN.1 DER, schema.org, in-toto, and more.
+Python bindings for [`uor-addr`](https://github.com/UOR-Foundation/uor-addr) — typed content-addressing producing deterministic `blake3:<64hex>` κ-labels from JSON, S-expressions, XML, ASN.1 DER, schema.org, in-toto, and more.
 
 Wraps the [`uor-addr-c`](https://github.com/UOR-Foundation/uor-addr/tree/main/crates/uor-addr-c) C ABI dynamic library via `ctypes` (stdlib — **no external dependencies**). The produced κ-label is **byte-for-byte identical** to the Rust crate's output.
 
@@ -19,12 +19,12 @@ from uor_addr import kappa
 
 label = kappa.json_address(b'{"foo":"bar"}')
 print(label)
-# sha256:7a38bf81f383f69433ad6e900d35b3e2385593f76a7b7ab5d4355b8ba41ee24b
+# blake3:16b6abe0a77021b88cc14863d696df0c34f82556faadb318f46c384184f8ea71
 ```
 
 ## API
 
-Nine `*_address` methods on the `kappa` singleton, one per realization. Each takes `bytes`-like and returns the 71-byte ASCII `sha256:<64-lowercase-hex>` κ-label as `str`. Failures raise `uor_addr.AddressError` carrying one of three `kind` tags (`'invalid-input'` / `'too-large'` / `'pipeline-failure'`).
+Nine `*_address` methods on the `kappa` singleton, one per realization. Each takes `bytes`-like and returns the 71-byte ASCII `blake3:<64-lowercase-hex>` κ-label as `str`. Failures raise `uor_addr.AddressError` carrying one of three `kind` tags (`'invalid-input'` / `'too-large'` / `'pipeline-failure'`).
 
 | Method | Realization | Imported spec |
 |---|---|---|
@@ -63,7 +63,7 @@ from uor_addr import kappa
 
 with kappa.json_address_with_witness(b'{"foo":"bar"}') as grounded:
     print(grounded.kappa_label())
-    # sha256:7a38bf81f383f69433ad6e900d35b3e2385593f76a7b7ab5d4355b8ba41ee24b
+    # blake3:16b6abe0a77021b88cc14863d696df0c34f82556faadb318f46c384184f8ea71
 
     assert grounded.verify() == grounded.kappa_label()
     # TC-05 round-trip; SHA-256 was not re-invoked.

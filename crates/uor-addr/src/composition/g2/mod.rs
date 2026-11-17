@@ -9,6 +9,7 @@ pub mod value;
 pub mod verbs;
 
 pub use pipeline::{
-    compose_g2_product, compose_g2_product_blake3, compose_g2_product_keccak256,
-    compose_g2_product_sha3_256, compose_g2_product_sha512,
+    compose_g2_product_blake3 as compose_g2_product, compose_g2_product_blake3,
+    compose_g2_product_keccak256, compose_g2_product_sha256, compose_g2_product_sha3_256,
+    compose_g2_product_sha512,
 };

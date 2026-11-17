@@ -174,10 +174,10 @@ arbitrary precision** in three converging senses:
 2. **Cryptographic precision** (axis 4 + axis 5, sensitivity tests).
    CD-S01 and CP-A01 establish that distinct canonical-form bytes
    yield distinct κ-labels with collision probability ≤ `2^{-128}`
-   across any feasible-N input set — i.e. SHA-256's full standard
+   across any feasible-N input set — i.e. BLAKE3's full standard
    security margin. Tighter precision requires a different HashAxis
    selection from `prism::crypto` (e.g. `Sha512Hasher`,
-   `Sha3_256Hasher`, or `Blake3Hasher`); each is a separate
+   `Sha3_256Hasher`, or `Sha256Hasher`); each is a separate
    PrismModel declaration with its own κ-label width and a separate
    conformance contract.
 
@@ -191,7 +191,7 @@ arbitrary precision** in three converging senses:
 The composition of (1) and (2) is the operative answer to "is this
 implementation correct for an arbitrary downstream use case at any
 precision the downstream cares about?" — yes, up to the security of
-SHA-256 itself, and universally quantified by the Lean axis.
+BLAKE3 itself, and universally quantified by the Lean axis.
 
 ## 4. Reproducing locally
 
@@ -244,10 +244,13 @@ Both container realizations expose the witness surface
 `gguf-address-with-witness` / `onnx-address-with-witness`), minting a
 `Grounded<AddressLabel>` that replays through
 `prism_verify::certify_from_trace` to a byte-identical κ-label without
-re-invoking SHA-256. The Lean side states the realization soundness
+re-invoking the hash axis. The Lean side states the realization soundness
 theorems (`UorAddr.Gguf.Theorems`, `UorAddr.Onnx.Theorems`):
 `canonical_form_deterministic`, `canonical_form_is_unique`,
 `kappa_label_admits_through_psi`, `distinct_commitments_yield_distinct_labels`,
 `recurse_terminates_at_descent_bound`, plus `wire_format_round_trip`
 (GGUF) and `topological_canonical_unique` + `external_data_dereference_total`
-(ONNX). `lake build` compiles them sorry-free.
+(ONNX). The Lean package has no default target, so CI's bare `lake build`
+builds nothing, and `lake build UorAddr` currently fails in
+`HexEncoding.lean` and `NfcIdempotence.lean`; these theorems are stated,
+not yet checked by CI.

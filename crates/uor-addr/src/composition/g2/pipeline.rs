@@ -22,7 +22,7 @@ use prism::pipeline::PrismModel;
 /// - [`CompositionFailure::MalformedOperand`] — an operand is not a
 ///   well-formed κ-label.
 /// - [`CompositionFailure::PipelineFailure`] — defensive.
-pub fn compose_g2_product(
+pub fn compose_g2_product_sha256(
     left: &KappaLabel<71>,
     right: &KappaLabel<71>,
 ) -> Result<AddressOutcome<71>, CompositionFailure> {

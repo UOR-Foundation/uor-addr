@@ -4,7 +4,7 @@
 //!    (X.690 §§ 8 / 10 / 11) at the host boundary — no buffer, no caps.
 //! 2. [`AddressModel::forward`] runs the shared ψ-tower: DER is canonical,
 //!    so the input bytes flow in directly as an ADR-060 `Borrowed`
-//!    carrier and ψ₉ folds them through `H = Sha256Hasher` to mint the
+//!    carrier and ψ₉ folds them through `H = Blake3Hasher` to mint the
 //!    κ-label.
 //! 3. [`AddressOutcome::from_grounded`] extracts the owned κ-label +
 //!    replayable TC-05 witness.
@@ -25,14 +25,14 @@ pub enum AddressFailure {
 }
 
 use crate::asn1::model::{
-    AddressModel, AddressModelBlake3, AddressModelKeccak256, AddressModelSha3_256,
+    AddressModel, AddressModelKeccak256, AddressModelSha256, AddressModelSha3_256,
     AddressModelSha512,
 };
 use crate::asn1::value::{validate_der, Asn1Carrier};
 use prism::pipeline::PrismModel;
 
-/// **uor-addr's asn1 entry point** (σ-axis `Sha256Hasher`) — one
-/// ψ-pipeline content-address inference, yielding a `sha256:<64hex>`
+/// **uor-addr's asn1 entry point** (σ-axis `Blake3Hasher`) — one
+/// ψ-pipeline content-address inference, yielding a `blake3:<64hex>`
 /// κ-label.
 ///
 /// # Errors
@@ -46,15 +46,15 @@ pub fn address(input_bytes: &[u8]) -> Result<AddressOutcome<71>, AddressFailure>
     AddressOutcome::<71>::from_grounded(&grounded).map_err(|_| AddressFailure::PipelineFailure)
 }
 
-/// The asn1 entry point under σ-axis `Blake3Hasher` — yields a
-/// `blake3:<64hex>` κ-label. See [`address`] for the error contract.
+/// The asn1 entry point under σ-axis `Sha256Hasher` — yields a
+/// `sha256:<64hex>` κ-label. See [`address`] for the error contract.
 ///
 /// # Errors
 ///
 /// As [`address`].
-pub fn address_blake3(input_bytes: &[u8]) -> Result<AddressOutcome<71>, AddressFailure> {
+pub fn address_sha256(input_bytes: &[u8]) -> Result<AddressOutcome<71>, AddressFailure> {
     validate_der(input_bytes).map_err(|_| AddressFailure::InvalidDer)?;
-    let grounded = AddressModelBlake3::forward(Asn1Carrier::new(input_bytes))
+    let grounded = AddressModelSha256::forward(Asn1Carrier::new(input_bytes))
         .map_err(|_| AddressFailure::PipelineFailure)?;
     AddressOutcome::<71>::from_grounded(&grounded).map_err(|_| AddressFailure::PipelineFailure)
 }

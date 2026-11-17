@@ -9,6 +9,7 @@ pub mod value;
 pub mod verbs;
 
 pub use pipeline::{
-    compose_e7_augmentation, compose_e7_augmentation_blake3, compose_e7_augmentation_keccak256,
+    compose_e7_augmentation_blake3 as compose_e7_augmentation, compose_e7_augmentation_blake3,
+    compose_e7_augmentation_keccak256, compose_e7_augmentation_sha256,
     compose_e7_augmentation_sha3_256, compose_e7_augmentation_sha512,
 };
