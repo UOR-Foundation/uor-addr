@@ -272,8 +272,8 @@ impl NfcState {
             self.pending_len = len as u8;
             writer.write_code_point(l)?;
         }
-        for k in 0..(self.pending_len as usize) {
-            writer.write_code_point(self.pending[k])?;
+        for &cp in &self.pending[..self.pending_len as usize] {
+            writer.write_code_point(cp)?;
         }
         self.pending_len = 0;
         Ok(())
