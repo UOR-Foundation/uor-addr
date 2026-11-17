@@ -146,6 +146,8 @@ pub mod json;
 #[cfg(feature = "onnx")]
 pub mod onnx;
 pub mod ring;
+#[cfg(feature = "safetensors")]
+pub mod safetensors;
 pub mod schema;
 pub mod sexp;
 pub mod variant;

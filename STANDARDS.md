@@ -360,3 +360,29 @@ no two-level commitment and no count cap. The exact layout is in the
 [`onnx::value`](crates/uor-addr/src/onnx/value.rs) module header.
 `tools/canonical-onnx.py` is the executable form; CL-ONNX asserts
 byte-identity against it.
+
+## safetensors realization (`uor_addr::safetensors`)
+
+| Concern | Authoritative source |
+|---|---|
+| safetensors format | https://github.com/huggingface/safetensors#format |
+| Reference implementation (header validation, `Dtype::bitsize`) | https://github.com/huggingface/safetensors/blob/main/safetensors/src/tensor.rs |
+| JSON | RFC 8259 |
+| Tensor element-type alphabet | the reference implementation's `Dtype` (all 22 variants, bit widths only) |
+| Canonical form encoder (executable spec) | `tools/canonical-safetensors.py` |
+| SHA-256 σ-projection | FIPS 180-4 |
+
+The κ-label is SHA-256 over a **flat Merkle skeleton** of the same shape
+as GGUF's (`CANONICAL_FORM_VERSION = 1`): the tag `SAFE`, the version and
+the tensor / metadata counts, then the `__metadata__` entries sorted by key
+bytes, then the tensor records sorted by name bytes. Each tensor record
+carries its name digest, dtype, shape, its offset in sorted-name order, and
+the SHA-256 of that tensor's own bytes, so one tensor can be checked from a
+ranged read and stored offsets do not move the label. The `SAFE` tag keeps
+the skeleton disjoint from GGUF's. Admission follows the reference
+implementation and is stricter where it leaves a choice open (duplicate
+keys, unknown fields, unclaimed buffer bytes), because anything admitted
+but not bound would let two files share a label. The exact layout is in the
+[`safetensors::value`](crates/uor-addr/src/safetensors/value.rs) module
+header. `tools/canonical-safetensors.py` is the executable form;
+CL-SAFETENSORS asserts byte-identity against it.

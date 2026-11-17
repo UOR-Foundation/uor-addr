@@ -380,6 +380,21 @@ op types, admission of every known IR revision (`1..=ONNX_IR_VERSION_MAX`,
 distinctly bound) with rejection of out-of-range / absent IR versions, and
 rejection of unknown dtype / graph cycle.
 
+## CL-SAFETENSORS — closed-loop safetensors conformance
+
+Synthetic fixtures under `crates/uor-addr/tests/fixtures/safetensors/` with
+committed `.kappa-label` files produced by `tools/canonical-safetensors.py`,
+which parses the header with Python's standard `json` module rather than
+the Rust reader. `tests/safetensors_byte_identity.rs` asserts byte-identity;
+`tests/safetensors_conformance.rs` asserts invariance under tensor order and
+buffer relayout, `__metadata__` position and key order, header padding, and
+JSON whitespace / escape spelling; sensitivity to every tensor byte,
+metadata value, name, dtype and shape; that each tensor's leaf is the
+SHA-256 of its own bytes; domain separation from the GGUF skeleton;
+admission of zero-sized and sub-byte (`F4`, `F6`) tensors; and rejection of
+duplicate keys, unknown fields, non-integer sizes, lone surrogates, and any
+buffer gap, overlap or unclaimed trailing byte. Runs every CI build.
+
 ## CN-GGUF / CN-ONNX — cross-network validation
 
 Gated behind `UOR_ADDR_LIVE=1` (`tests/gguf_cross_validation.rs`,

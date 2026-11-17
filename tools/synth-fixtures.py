@@ -20,6 +20,7 @@ HERE = os.path.dirname(os.path.abspath(__file__))
 ROOT = os.path.dirname(HERE)
 GGUF_DIR = os.path.join(ROOT, "crates/uor-addr/tests/fixtures/gguf")
 ONNX_DIR = os.path.join(ROOT, "crates/uor-addr/tests/fixtures/onnx")
+SAFETENSORS_DIR = os.path.join(ROOT, "crates/uor-addr/tests/fixtures/safetensors")
 
 
 def _load(name, fname):
@@ -31,6 +32,7 @@ def _load(name, fname):
 
 cgguf = _load("canonical_gguf", "canonical-gguf.py")
 connx = _load("canonical_onnx", "canonical-onnx.py")
+csafe = _load("canonical_safetensors", "canonical-safetensors.py")
 
 
 # ── GGUF builder ──
@@ -120,6 +122,15 @@ def onnx_init_external(name):
     return vf(2, 1) + vf(1, 2) + lf(8, name.encode()) + ext + vf(14, 1)
 
 
+# ── safetensors builder ──
+# The header is written as literal JSON text, so a fixture can carry the
+# spellings the canonical form must see through: unsorted keys, escapes,
+# whitespace and trailing padding.
+def safetensors(header_text, data, pad=0):
+    header = header_text.encode("utf-8") + b" " * pad
+    return struct.pack("<Q", len(header)) + header + data
+
+
 def write(path, data, label):
     os.makedirs(os.path.dirname(path), exist_ok=True)
     open(path, "wb").write(data)
@@ -174,6 +185,36 @@ def main():
                + lf(11, lf(1, b"x1")) + lf(11, lf(1, b"x2")) + lf(12, lf(1, b"z")))
     me = vf(1, 13) + lf(8, vf(2, 17)) + lf(7, graph_e)
     write(os.path.join(ONNX_DIR, "empty-name-tiebreak.onnx"), me, connx.kappa_label(me))
+
+    # safetensors: five dtypes including a sub-byte one, metadata written
+    # after the tensors, an escaped non-ASCII name, the buffer in neither
+    # name nor header order, and header padding.
+    w = f32_data([1.0, 2.0, 3.0, 4.0])          # 16 B, F32 [2,2]
+    bf = struct.pack("<4H", 0x3F80, 0x4000, 0x4040, 0x4080)  # 8 B, BF16 [4]
+    ids = struct.pack("<2q", 7, -7)             # 16 B, I64 [2]
+    mask = bytes([1, 0, 1])                     # 3 B, BOOL [3]
+    fp4 = bytes([0x21, 0x43])                   # 2 B, F4 [4]
+    st = safetensors(
+        '{"z.mask":{"dtype":"BOOL","shape":[3],"data_offsets":[40,43]},'
+        ' "caf\\u00e9.weight":{"shape":[2,2],"dtype":"F32","data_offsets":[0,16]},'
+        '"a.ids":{"dtype":"I64","shape":[2],"data_offsets":[24,40]},'
+        '"m.bf16":{"dtype":"BF16","shape":[4],"data_offsets":[16,24]},'
+        '"q.fp4":{"dtype":"F4","shape":[4],"data_offsets":[43,45]},'
+        '"__metadata__":{"format":"pt","b":"2","a":"1"}}',
+        w + bf + ids + mask + fp4, pad=5)
+    write(os.path.join(SAFETENSORS_DIR, "mixed-dtypes.safetensors"), st, csafe.kappa_label(st))
+
+    # safetensors: the empty file, `{}` and no buffer.
+    s0 = safetensors("{}", b"")
+    write(os.path.join(SAFETENSORS_DIR, "empty.safetensors"), s0, csafe.kappa_label(s0))
+
+    # safetensors: no metadata, and a zero-element tensor sharing an
+    # offset with the tensor after it.
+    sz = safetensors(
+        '{"empty":{"dtype":"F32","shape":[0,3],"data_offsets":[0,0]},'
+        '"x":{"dtype":"U8","shape":[2],"data_offsets":[0,2]}}',
+        bytes([9, 8]))
+    write(os.path.join(SAFETENSORS_DIR, "zero-sized.safetensors"), sz, csafe.kappa_label(sz))
     return 0
 
 
