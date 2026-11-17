@@ -1,7 +1,7 @@
 //! 01 — Address a JSON value.
 //!
 //! The minimal use case: take a raw JSON byte sequence and emit the
-//! 71-byte `sha256:<64hex>` wire-format content address.
+//! 71-byte `blake3:<64hex>` wire-format content address.
 //!
 //! Run:
 //!

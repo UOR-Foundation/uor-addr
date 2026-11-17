@@ -1,6 +1,6 @@
 //! `uor-addr` — κ-label composition (ADR-061) worked example.
 //!
-//! Addresses two JSON documents to sha256 κ-labels, then composes them
+//! Addresses two JSON documents to blake3 κ-labels, then composes them
 //! with each of the five categorical operations on the Atlas image inside
 //! E₈, printing the composed κ-labels and asserting the named algebraic
 //! laws. Every assertion is a structural invariant, so a clean run is a
@@ -16,7 +16,7 @@ use uor_addr::composition::{
 fn main() {
     println!("uor-addr — κ-label composition (ADR-061)\n");
 
-    // Two operands: address two JSON documents (sha256 σ-axis).
+    // Two operands: address two JSON documents (blake3 σ-axis, the default).
     let a = uor_addr::json::address(br#"{"role":"left"}"#)
         .expect("valid json")
         .address;
@@ -52,7 +52,7 @@ fn main() {
     println!("  e8(a):      {e8}");
     assert_ne!(e8.as_str(), a.as_str(), "CS-E8 composed label ≠ operand");
 
-    // Every composed label is a well-formed 71-byte sha256 κ-label whose
+    // Every composed label is a well-formed 71-byte blake3 κ-label whose
     // witness replays (TC-05) to the same label.
     for outcome in [
         compose_g2_product(&a, &b).unwrap(),
@@ -61,7 +61,7 @@ fn main() {
         compose_e7_augmentation(&a).unwrap(),
         compose_e8_embedding(&a).unwrap(),
     ] {
-        assert!(outcome.address.starts_with("sha256:") && outcome.address.len() == 71);
+        assert!(outcome.address.starts_with("blake3:") && outcome.address.len() == 71);
         assert_eq!(
             outcome.witness.verify().expect("witness verifies"),
             outcome.address,

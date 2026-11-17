@@ -69,5 +69,5 @@ fn main() {
     let outcome = uor_addr::schema::codemodule_signed::address(attestation).expect("κ-label");
     println!("  signed (in-toto Statement v1):   {}", outcome.address);
 
-    println!("\nOK — every realization produced its 71-byte sha256:<64hex> κ-label.");
+    println!("\nOK — every realization produced its 71-byte blake3:<64hex> κ-label.");
 }
