@@ -1,26 +1,70 @@
+![UOR-ADDR provisional banner: deterministic content addressing, placeholder not approved](assets/readme-banner-PLACEHOLDER.png)
+
+*Illustrative placeholder artwork, pending UOR Foundation brand review.*
+
 # uor-addr
 
-> Typed content-addressing for data passing across system boundaries —
-> deterministic, verifiable `blake3:<64hex>` labels with structural
-> equivalence at the level of *what the data means*, not what its bytes
-> happen to look like.
+**Give equivalent digital data a consistent address, even when formatting differs.**
 
-## What is this?
+[![CI](https://github.com/UOR-Foundation/uor-addr/actions/workflows/ci.yml/badge.svg?branch=main)](https://github.com/UOR-Foundation/uor-addr/actions/workflows/ci.yml)
+[![crates.io](https://img.shields.io/crates/v/uor-addr)](https://crates.io/crates/uor-addr)
+[![API docs](https://img.shields.io/docsrs/uor-addr)](https://docs.rs/uor-addr)
+[![Apache-2.0](https://img.shields.io/badge/license-Apache--2.0-718096)](LICENSE)
 
-`uor-addr` turns a value into a stable identifier. Two values that mean
-the same thing (whitespace differences, key reordering, Unicode
-normalization, equivalent representations of the same number) get the
-**same** identifier; two values that mean different things get
-**different** identifiers, with the BLAKE3 sensitivity bound.
+## Why uor-addr exists
 
-It does this by routing each format through a published canonical form
-— JCS for JSON, Rivest's canonical S-expressions, XML-C14N 1.1, DER for
-ASN.1 — then hashing the canonical bytes. Schema-pinned wrappers
+Two programs can hold the same information but store it in different ways.
+For example, one JSON file may list a person's first name before their last
+name, while another lists the keys in the opposite order. Comparing the
+files byte for byte would say they are different, even though the JSON
+objects represent the same data.
+
+**uor-addr makes supported data easier to recognize across systems.** It
+follows published rules to put a value into a consistent form, then gives
+that form a content-based identifier. This helps programs compare, reference,
+and exchange data without relying on a file name or storage location.
+
+These rules are format-specific. uor-addr does not decide that any two
+arbitrary files have the same meaning, and a content address alone does
+not prove that the underlying information is true or trustworthy.
+
+## Contents
+
+- [Why uor-addr exists](#why-uor-addr-exists)
+- [What it does](#what-it-does)
+- [Technical details](#technical-details)
+- [Quickstart](#quickstart)
+- [Install (per ecosystem)](#install-per-ecosystem)
+- [Which realization fits my data?](#which-realization-fits-my-data)
+- [Distribution](#distribution)
+- [Documentation](#documentation)
+- [Project status](#project-status)
+- [Contributing](#contributing)
+
+## What it does
+
+For supported formats, `uor-addr` turns a data value into an identifier
+based on its normalized content. For example, two JSON objects with the
+same keys and values in a different key order can produce the same address.
+A changed value produces a different normalized input and will normally
+produce a different hash.
+
+The library supports several data formats and offers Rust, C, WebAssembly,
+and other language bindings. The [quickstart](#quickstart) shows the first
+address you can create yourself.
+
+## Technical details
+
+The library uses published rules to put supported formats into a
+consistent representation, then hashes the resulting bytes. These
+rules include JCS for JSON, Rivest's canonical S-expressions,
+XML-C14N 1.1, and DER for ASN.1. Schema-pinned wrappers
 (schema.org/Photograph, schema.org/Article, in-toto Statement v1) add
 admission predicates without changing the label.
 
-The library is **`no_std`** by default and the ψ-pipeline never touches
-an allocator: a value's canonical form flows through it as a
+The library is **`no_std`-compatible**, but its default Cargo features
+include **`std`**. Disable default features for an embedded/no-allocator
+build; the ψ-pipeline itself is designed not to touch an allocator: a value's canonical form flows through it as a
 source-polymorphic carrier (inline, borrowed, or streamed) with no input
 size cap. The realizations whose canonical form needs no heap — ring,
 sexp, asn1, codemodule — are fully `no_alloc` and build clean with
@@ -31,19 +75,52 @@ wrapper.
 
 ## Quickstart
 
+### Add the library to a Rust application
+
+You need Rust and Cargo. In an existing Cargo project, install the
+published Rust package:
+
+```sh
+cargo add uor-addr
+```
+
+Use the library in `src/main.rs`:
+
 ```rust
 use uor_addr::json::address;
 
-let outcome = address(br#"{"foo": "bar"}"#).unwrap();
-println!("{}", outcome.address);
-// blake3:16b6abe0a77021b88cc14863d696df0c34f82556faadb318f46c384184f8ea71
+fn main() {
+    let outcome = address(br#"{"foo": "bar"}"#).expect("valid JSON input");
+    println!("{}", outcome.address);
+}
 ```
 
-```bash
-cargo add uor-addr
+Run `cargo run`. The observable result is an address formatted as
+`blake3:<64 hexadecimal characters>`. Its exact value depends on
+the canonical input and chosen axis. The sample illustrates JSON addressing;
+for further representation guarantees, run the dedicated conformance suite.
+Crate installation and standalone consumer execution were **not rerun**
+as part of this README-only change.
+
+### Run the maintained source examples
+
+```sh
+git clone https://github.com/UOR-Foundation/uor-addr.git
+cd uor-addr
 cargo run -p uor-addr --example address_value
-just examples       # 20 runnable demos covering every realization
+just examples
 ```
+
+The first command runs the repository's checked-in
+[`address_value` example](crates/uor-addr/examples/address_value.rs).
+`just examples` runs the repository's example recipe, which includes
+multiple format realizations. Commands are backed by source files; this
+README edit itself does not constitute an independent execution test.
+
+For constrained targets, consult [the feature manifest](crates/uor-addr/Cargo.toml)
+and [verification guide](VERIFICATION.md). Defaults include `std`,
+`gguf`, `onnx`, and `safetensors`; the `no_std` path requires
+`--no-default-features`.
 
 ## Install (per ecosystem)
 
