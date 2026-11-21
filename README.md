@@ -1,4 +1,4 @@
-![UOR-ADDR placeholder banner: deterministic content addressing](assets/readme-banner-PLACEHOLDER.svg)
+![UOR-ADDR provisional banner: deterministic content addressing, placeholder not approved](assets/readme-banner-PLACEHOLDER.png)
 
 *Illustrative placeholder artwork, pending UOR Foundation brand review.*
 
