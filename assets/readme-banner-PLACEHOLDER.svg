@@ -1,0 +1,15 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1600" height="400" viewBox="0 0 1600 400" role="img" aria-labelledby="title desc">
+  <title id="title">UOR-ADDR placeholder README banner</title>
+  <desc id="desc">Unapproved navy-and-cyan concept with a connected-node addressing graph. Visible placeholder label.</desc>
+  <defs><linearGradient id="background" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="#08152B"/><stop offset=".6" stop-color="#103356"/><stop offset="1" stop-color="#0B274A"/></linearGradient></defs>
+  <rect width="1600" height="400" fill="url(#background)"/>
+  <g stroke="#83CCD9" stroke-width="1" opacity=".11"><path d="M0 80H1600M0 160H1600M0 240H1600M0 320H1600M200 0V400M400 0V400M600 0V400M800 0V400M1000 0V400M1200 0V400M1400 0V400"/></g>
+  <rect x="18" y="18" width="1564" height="364" rx="18" fill="none" stroke="#B0D4E8" stroke-width="1.5" opacity=".37"/>
+  <rect x="66" y="88" width="74" height="6" rx="3" fill="#56DCEB"/>
+  <text x="64" y="180" font-family="Arial, sans-serif" font-weight="700" font-size="86" fill="#F7FAFF">UOR-ADDR</text>
+  <text x="69" y="228" font-family="Arial, sans-serif" font-size="25" fill="#B7DDEB">DETERMINISTIC CONTENT ADDRESSING</text>
+  <g stroke="#7DDDE8" stroke-width="3" fill="none"><path d="M1000 202L1160 103L1371 174L1256 290L1000 202M1160 103L1256 290M1371 174L1000 202"/><circle cx="1000" cy="202" r="27"/><circle cx="1160" cy="103" r="27"/><circle cx="1371" cy="174" r="27"/><circle cx="1256" cy="290" r="27"/></g>
+  <g fill="#D9F9FF"><circle cx="1000" cy="202" r="8"/><circle cx="1160" cy="103" r="8"/><circle cx="1371" cy="174" r="8"/><circle cx="1256" cy="290" r="8"/></g>
+  <rect x="66" y="293" width="376" height="56" rx="9" fill="#062340" stroke="#2DD8E7" stroke-width="2"/>
+  <text x="85" y="330" font-family="Arial, sans-serif" font-size="23" fill="#67E8F1">PLACEHOLDER · NOT APPROVED</text>
+</svg>
