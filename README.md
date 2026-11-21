@@ -40,6 +40,7 @@ not prove that the underlying information is true or trustworthy.
 - [Documentation](#documentation)
 - [Project status](#project-status)
 - [Contributing](#contributing)
+
 ## What it does
 
 For supported formats, `uor-addr` turns a data value into an identifier
@@ -54,9 +55,10 @@ address you can create yourself.
 
 ## Technical details
 
-The library routes each supported format through a published canonical form
-— JCS for JSON, Rivest's canonical S-expressions, XML-C14N 1.1, DER for
-ASN.1 — then hashing the canonical bytes. Schema-pinned wrappers
+The library uses published rules to put supported formats into a
+consistent representation, then hashes the resulting bytes. These
+rules include JCS for JSON, Rivest's canonical S-expressions,
+XML-C14N 1.1, and DER for ASN.1. Schema-pinned wrappers
 (schema.org/Photograph, schema.org/Article, in-toto Statement v1) add
 admission predicates without changing the label.
 
